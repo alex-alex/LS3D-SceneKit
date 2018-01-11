@@ -10,14 +10,6 @@ import Foundation
 import SpriteKit
 import SceneKit
 
-#if os(macOS)
-	let mainDirectory = URL(fileURLWithPath: "/Users/alex/Development/Mafia DEV/Mafia")
-#elseif os(watchOS)
-	let mainDirectory = Bundle.main.bundleURL.appendingPathComponent("mafia-watch")
-#elseif os(iOS)
-	let mainDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Mafia")
-#endif
-
 enum ModelError: Error {
 	case file
 	case geometry
@@ -590,7 +582,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 				} else {
 					material.diffuse.contents = NSImage(data: data)
 				}
-			#elseif os(watchOS) || os(iOS)
+			#elseif os(iOS)
 				if flags.contains(.colorKey) {
 					let b = CGFloat(data[54])/255
 					let g = CGFloat(data[55])/255
@@ -611,8 +603,6 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			material.transparencyMode = .rgbZero
 			#if os(macOS)
 				material.transparent.contents = NSImage(contentsOf: url)?.inversed
-			#elseif os(watchOS)
-				material.diffuse.contents = UIImage(contentsOfFile: url.path)
 			#elseif os(iOS)
 				material.transparent.contents = UIImage(contentsOfFile: url.path)
 			#endif

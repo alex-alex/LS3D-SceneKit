@@ -8,6 +8,12 @@
 
 import Foundation
 
+#if os(macOS)
+let mainDirectory = URL(fileURLWithPath: "/Users/alex/Development/Mafia DEV/Mafia")
+#elseif os(iOS)
+let mainDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Mafia")
+#endif
+
 final class Game {
 	
 	enum Mode {
