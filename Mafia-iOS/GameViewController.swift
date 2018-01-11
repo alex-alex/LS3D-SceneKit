@@ -23,15 +23,9 @@ class GameViewController: UIViewController {
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
 	
-	var vehicle: Vehicle!
+	var hud: HudScene!
 	
-	var compass: SKShapeNode!
-	var compassNeedle: SKShapeNode!
-	var actionButton: SKShapeNode!
-	var inventoryButton: SKShapeNode!
-	var reloadButton: SKShapeNode!
-	var dropButton: SKShapeNode!
-	var objectivesLabel: SKLabelNode!
+	var vehicle: Vehicle!
 	
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
@@ -173,91 +167,9 @@ class GameViewController: UIViewController {
 		scene!.playerNode!.physicsBody?.restitution = 0
 		//scene!.playerNode!.physicsBody?.velocityFactor = SCNVector3(x: 1, y: 0, z: 1)*/
 		
-		let overlayScene = HudScene(size: gameView.bounds.size)
-		overlayScene.vc = self
-		
-		compass = SKShapeNode(ellipseOf: CGSize(width: 100, height: 100))
-		compass.isHidden = true
-		compass.position = CGPoint(x: 70, y: gameView.bounds.size.height-70)
-		compass.fillColor = SKColor.white
-		compass.strokeColor = SKColor.clear
-		overlayScene.addChild(compass)
-		
-		compassNeedle = SKShapeNode(rectOf: CGSize(width: 100, height: 2))
-		compassNeedle.fillColor = SKColor.red
-		compassNeedle.strokeColor = SKColor.clear
-		compass.addChild(compassNeedle)
-		
-		let compassNeedlePoint = SKShapeNode(ellipseOf: CGSize(width: 10, height: 10))
-		compassNeedlePoint.position = CGPoint(x: 40, y: 0)
-		compassNeedlePoint.fillColor = SKColor.red
-		compassNeedlePoint.strokeColor = SKColor.clear
-		compassNeedle.addChild(compassNeedlePoint)
-		
-		actionButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		actionButton.isHidden = true
-		actionButton.position = CGPoint(x: 45, y: 45)
-		actionButton.fillColor = SKColor.blue
-		actionButton.strokeColor = SKColor.clear
-		overlayScene.addChild(actionButton)
-		
-		inventoryButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		inventoryButton.isHidden = false
-		inventoryButton.position = CGPoint(x: gameView.bounds.size.width-45, y: gameView.bounds.size.height-45)
-		inventoryButton.fillColor = SKColor.white
-		inventoryButton.strokeColor = SKColor.clear
-		overlayScene.addChild(inventoryButton)
-		
-		let inventoryButtonLabel = SKLabelNode()
-		inventoryButtonLabel.fontName = "Arial"
-		inventoryButtonLabel.fontSize = 17
-		inventoryButtonLabel.fontColor = SKColor.black
-		inventoryButtonLabel.text = "I"
-		inventoryButtonLabel.verticalAlignmentMode = .center
-		inventoryButton.addChild(inventoryButtonLabel)
-		
-		reloadButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		reloadButton.isHidden = false
-		reloadButton.position = CGPoint(x: gameView.bounds.size.width-45, y: gameView.bounds.size.height-45-60)
-		reloadButton.fillColor = SKColor.white
-		reloadButton.strokeColor = SKColor.clear
-		overlayScene.addChild(reloadButton)
-		
-		let reloadButtonLabel = SKLabelNode()
-		reloadButtonLabel.fontName = "Arial"
-		reloadButtonLabel.fontSize = 17
-		reloadButtonLabel.fontColor = SKColor.black
-		reloadButtonLabel.text = "R"
-		reloadButtonLabel.verticalAlignmentMode = .center
-		reloadButton.addChild(reloadButtonLabel)
-		
-		dropButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		dropButton.isHidden = false
-		dropButton.position = CGPoint(x: gameView.bounds.size.width-45, y: gameView.bounds.size.height-45-60*2)
-		dropButton.fillColor = SKColor.white
-		dropButton.strokeColor = SKColor.clear
-		overlayScene.addChild(dropButton)
-		
-		let dropButtonLabel = SKLabelNode()
-		dropButtonLabel.fontName = "Arial"
-		dropButtonLabel.fontSize = 17
-		dropButtonLabel.fontColor = SKColor.black
-		dropButtonLabel.text = "<-"
-		dropButtonLabel.verticalAlignmentMode = .center
-		dropButton.addChild(dropButtonLabel)
-		
-		objectivesLabel = SKLabelNode()
-		objectivesLabel.fontName = "Arial"
-		objectivesLabel.fontSize = 17
-		objectivesLabel.horizontalAlignmentMode = .center
-		objectivesLabel.verticalAlignmentMode = .center
-		objectivesLabel.position = CGPoint(x: gameView.bounds.midX, y: gameView.bounds.midY)
-		overlayScene.addChild(objectivesLabel)
-		
-		overlayScene.scaleMode = .resizeFill
-		overlayScene.isHidden = false
-		overlayScene.isUserInteractionEnabled = true
-		gameView.overlaySKScene = overlayScene
+		hud = HudScene(size: gameView.bounds.size)
+		hud.vc = self
+		gameView.overlaySKScene = hud
 		
 		// look gesture
 		lookGesture = UIPanGestureRecognizer(target: self, action: #selector(lookGestureRecognized))
@@ -405,13 +317,13 @@ extension GameViewController: SCNSceneRendererDelegate {
 		if let node = scene.compassNode {
 			let p1 = node.presentation.worldPosition
 			let p2 = scene.playerNode!.presentation.worldPosition
-			compass.isHidden = false
-			compassNeedle.zRotation = CGFloat(atan2(p2.z - p1.z, p2.x - p1.x) - scene.playerNode!.eulerAngles.y)
+			hud.compass.isHidden = false
+			hud.compassNeedle.zRotation = CGFloat(atan2(p2.z - p1.z, p2.x - p1.x) - scene.playerNode!.eulerAngles.y)
 		} else {
-			compass.isHidden = true
+			hud.compass.isHidden = true
 		}
 
-		actionButton.isHidden = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 }).isEmpty
+		hud.actionButton.isHidden = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 }).isEmpty
 	}
 	
 }
@@ -512,16 +424,16 @@ extension GameViewController {
 	
 	func tapped(node: SKNode) {
 		switch node {
-		case actionButton:
+		case hud.actionButton:
 			lastControl = .ACTION
 			actionButtonTapped()
-		case inventoryButton:
+		case hud.inventoryButton:
 			lastControl = .INVENTORY
 			openInventory()
-		case reloadButton:
+		case hud.reloadButton:
 			lastControl = .RELOAD
 			print("pos:", scene.playerNode!.position)
-		case dropButton:
+		case hud.dropButton:
 			lastControl = .WEAPONDROP
 			for (i, weapon) in (scene.weapons[scene.playerNode!] ?? []).enumerated() {
 				if weapon.position == .hand {
