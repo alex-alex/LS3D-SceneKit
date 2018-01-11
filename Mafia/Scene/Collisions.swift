@@ -285,7 +285,7 @@ struct Cell {
 	}
 }
 
-class Collisions {
+final class Collisions {
 	
 	enum Error: Swift.Error {
 		case file

@@ -9,7 +9,7 @@
 import Foundation
 import SceneKit
 
-class Sound {
+final class Sound {
 	
 	enum SourceType: UInt32 {
 		case unknown0 = 0, local, unknown, global

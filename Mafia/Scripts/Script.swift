@@ -43,7 +43,7 @@ enum Argument {
 	}
 }
 
-class Script {
+final class Script {
 	
 	let uuid = NSUUID()
 	let queue: DispatchQueue

@@ -8,7 +8,7 @@
 
 import Foundation
 
-class Weapon {
+final class Weapon {
 	
 	enum Position {
 		case hand

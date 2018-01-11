@@ -9,7 +9,7 @@
 import Foundation
 import SpriteKit
 
-class HudScene: SKScene {
+final class HudScene: SKScene {
 	
 	var vc: GameViewController!
 	
