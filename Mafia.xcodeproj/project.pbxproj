@@ -8,26 +8,114 @@
 
 /* Begin PBXBuildFile section */
 		FA0A0D641D5FB07100878046 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D631D5FB07100878046 /* AppDelegate.swift */; };
-		FA0A0D661D5FB07100878046 /* GameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D651D5FB07100878046 /* GameView.swift */; };
 		FA0A0D681D5FB07100878046 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D671D5FB07100878046 /* GameViewController.swift */; };
 		FA0A0D6A1D5FB07100878046 /* art.scnassets in Resources */ = {isa = PBXBuildFile; fileRef = FA0A0D691D5FB07100878046 /* art.scnassets */; };
 		FA0A0D6C1D5FB07100878046 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA0A0D6B1D5FB07100878046 /* Assets.xcassets */; };
 		FA0A0D6F1D5FB07100878046 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = FA0A0D6D1D5FB07100878046 /* MainMenu.xib */; };
+		FA0A0D771D5FB07A00878046 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D761D5FB07A00878046 /* Extensions.swift */; };
+		FA0A0D791D5FB08A00878046 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D781D5FB08A00878046 /* Models.swift */; };
+		FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45571D610BB500B7C721 /* SceneCache.swift */; };
+		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
+		FA4B74152006427E00E0A66F /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B74142006427E00E0A66F /* Record.swift */; };
+		FA4B74162006428200E0A66F /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B74142006427E00E0A66F /* Record.swift */; };
+		FA4B7418200812D100E0A66F /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B7417200812D100E0A66F /* Vehicle.swift */; };
+		FA4B7419200812D200E0A66F /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B7417200812D100E0A66F /* Vehicle.swift */; };
+		FA50107D20018F2D00B24CE6 /* Collisions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */; };
+		FA50107E20018F2D00B24CE6 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
+		FA6ABE92200818B100BB3BBD /* HudScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE91200818B100BB3BBD /* HudScene.swift */; };
+		FA6ABE93200818B100BB3BBD /* HudScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE91200818B100BB3BBD /* HudScene.swift */; };
+		FA6ABE95200819FE00BB3BBD /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE94200819FE00BB3BBD /* Game.swift */; };
+		FA6ABE96200819FE00BB3BBD /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE94200819FE00BB3BBD /* Game.swift */; };
+		FA6ABE9920081A7A00BB3BBD /* Action.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE9820081A7A00BB3BBD /* Action.swift */; };
+		FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE9820081A7A00BB3BBD /* Action.swift */; };
+		FA6DAAE41D67708E002017DE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6DAAE31D67708E002017DE /* AppDelegate.swift */; };
+		FA6DAAE61D67708E002017DE /* art.scnassets in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAE51D67708E002017DE /* art.scnassets */; };
+		FA6DAAE81D67708E002017DE /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6DAAE71D67708E002017DE /* GameViewController.swift */; };
+		FA6DAAEB1D67708E002017DE /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAE91D67708E002017DE /* Main.storyboard */; };
+		FA6DAAED1D67708E002017DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAEC1D67708E002017DE /* Assets.xcassets */; };
+		FA6DAAF01D67708E002017DE /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAEE1D67708E002017DE /* LaunchScreen.storyboard */; };
+		FA6DAAF51D67709C002017DE /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D761D5FB07A00878046 /* Extensions.swift */; };
+		FA6DAAF61D67709C002017DE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D781D5FB08A00878046 /* Models.swift */; };
+		FA6DAAF71D67709C002017DE /* AnimationLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */; };
+		FA6DAAF81D67709C002017DE /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFBDFC11D607F5B008523A9 /* Scene.swift */; };
+		FA6DAAF91D67709C002017DE /* SceneCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45571D610BB500B7C721 /* SceneCache.swift */; };
+		FA6DAAFA1D67709C002017DE /* TextDb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBB1A11D621E49006A39F8 /* TextDb.swift */; };
+		FA7E391020013DCC00C86A72 /* Sound.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7E390F20013DCC00C86A72 /* Sound.swift */; };
+		FA7E391120013DCC00C86A72 /* Sound.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7E390F20013DCC00C86A72 /* Sound.swift */; };
+		FA9C95F02001AACC005FBB66 /* FireGestureRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95EF2001AACC005FBB66 /* FireGestureRecognizer.swift */; };
+		FA9C95F22001B865005FBB66 /* ScriptGetArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */; };
+		FA9C95F32001B8AC005FBB66 /* ScriptGetArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */; };
+		FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F42001B967005FBB66 /* ScriptExec.swift */; };
+		FA9C95F62001B967005FBB66 /* ScriptExec.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F42001B967005FBB66 /* ScriptExec.swift */; };
+		FA9C95F92002A544005FBB66 /* Weapon.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F82002A544005FBB66 /* Weapon.swift */; };
+		FA9C95FA2002A545005FBB66 /* Weapon.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F82002A544005FBB66 /* Weapon.swift */; };
+		FA9C95FC2002E1EB005FBB66 /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95FB2002E1EB005FBB66 /* Control.swift */; };
+		FA9C95FD2002E1EB005FBB66 /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95FB2002E1EB005FBB66 /* Control.swift */; };
+		FABBB1A21D621E49006A39F8 /* TextDb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBB1A11D621E49006A39F8 /* TextDb.swift */; };
+		FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */; };
+		FAFBDFC21D607F5B008523A9 /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFBDFC11D607F5B008523A9 /* Scene.swift */; };
+		FAFE4FAC1D75E95A00BB2FB0 /* Collisions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FA9304681D79F6DD006EA945 /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		FA0A0D601D5FB07100878046 /* Mafia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mafia.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA0A0D631D5FB07100878046 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		FA0A0D651D5FB07100878046 /* GameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameView.swift; sourceTree = "<group>"; };
 		FA0A0D671D5FB07100878046 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		FA0A0D691D5FB07100878046 /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
 		FA0A0D6B1D5FB07100878046 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FA0A0D6E1D5FB07100878046 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		FA0A0D701D5FB07100878046 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA0A0D761D5FB07A00878046 /* Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
+		FA0A0D781D5FB08A00878046 /* Models.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		FA0D45571D610BB500B7C721 /* SceneCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneCache.swift; sourceTree = "<group>"; };
+		FA177F8C1E3534B2009FA6D7 /* Script.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Script.swift; sourceTree = "<group>"; };
+		FA4B74142006427E00E0A66F /* Record.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Record.swift; sourceTree = "<group>"; };
+		FA4B7417200812D100E0A66F /* Vehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vehicle.swift; sourceTree = "<group>"; };
+		FA6ABE91200818B100BB3BBD /* HudScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HudScene.swift; sourceTree = "<group>"; };
+		FA6ABE94200819FE00BB3BBD /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
+		FA6ABE9820081A7A00BB3BBD /* Action.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Action.swift; sourceTree = "<group>"; };
+		FA6DAAE11D67708E002017DE /* Mafia-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Mafia-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FA6DAAE31D67708E002017DE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		FA6DAAE51D67708E002017DE /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
+		FA6DAAE71D67708E002017DE /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		FA6DAAEA1D67708E002017DE /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		FA6DAAEC1D67708E002017DE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FA6DAAEF1D67708E002017DE /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		FA6DAAF11D67708E002017DE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA7E390F20013DCC00C86A72 /* Sound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sound.swift; sourceTree = "<group>"; };
+		FA9C95EF2001AACC005FBB66 /* FireGestureRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FireGestureRecognizer.swift; sourceTree = "<group>"; };
+		FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptGetArgs.swift; sourceTree = "<group>"; };
+		FA9C95F42001B967005FBB66 /* ScriptExec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptExec.swift; sourceTree = "<group>"; };
+		FA9C95F82002A544005FBB66 /* Weapon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weapon.swift; sourceTree = "<group>"; };
+		FA9C95FB2002E1EB005FBB66 /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
+		FABBB1A11D621E49006A39F8 /* TextDb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextDb.swift; sourceTree = "<group>"; };
+		FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AnimationLoader.swift; sourceTree = "<group>"; };
+		FAFBDFC11D607F5B008523A9 /* Scene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
+		FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Collisions.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		FA0A0D5D1D5FB07100878046 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FA6DAADE1D67708E002017DE /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -41,6 +129,7 @@
 			isa = PBXGroup;
 			children = (
 				FA0A0D621D5FB07100878046 /* Mafia */,
+				FA6DAAE21D67708E002017DE /* Mafia-iOS */,
 				FA0A0D611D5FB07100878046 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -49,6 +138,7 @@
 			isa = PBXGroup;
 			children = (
 				FA0A0D601D5FB07100878046 /* Mafia.app */,
+				FA6DAAE11D67708E002017DE /* Mafia-iOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -57,14 +147,86 @@
 			isa = PBXGroup;
 			children = (
 				FA0A0D631D5FB07100878046 /* AppDelegate.swift */,
-				FA0A0D651D5FB07100878046 /* GameView.swift */,
 				FA0A0D671D5FB07100878046 /* GameViewController.swift */,
+				FA6ABE9F20081B3000BB3BBD /* Utilities */,
+				FA6ABE9E20081AF300BB3BBD /* HUD */,
+				FA6ABE9720081A5900BB3BBD /* Game */,
+				FA6ABE9D20081ADE00BB3BBD /* Scene */,
+				FA6ABE9C20081ACD00BB3BBD /* Scripts */,
 				FA0A0D691D5FB07100878046 /* art.scnassets */,
 				FA0A0D6B1D5FB07100878046 /* Assets.xcassets */,
 				FA0A0D6D1D5FB07100878046 /* MainMenu.xib */,
 				FA0A0D701D5FB07100878046 /* Info.plist */,
 			);
 			path = Mafia;
+			sourceTree = "<group>";
+		};
+		FA6ABE9720081A5900BB3BBD /* Game */ = {
+			isa = PBXGroup;
+			children = (
+				FA6ABE94200819FE00BB3BBD /* Game.swift */,
+				FA9C95FB2002E1EB005FBB66 /* Control.swift */,
+				FA6ABE9820081A7A00BB3BBD /* Action.swift */,
+				FA9C95F82002A544005FBB66 /* Weapon.swift */,
+				FA4B7417200812D100E0A66F /* Vehicle.swift */,
+			);
+			path = Game;
+			sourceTree = "<group>";
+		};
+		FA6ABE9C20081ACD00BB3BBD /* Scripts */ = {
+			isa = PBXGroup;
+			children = (
+				FA177F8C1E3534B2009FA6D7 /* Script.swift */,
+				FA9C95F42001B967005FBB66 /* ScriptExec.swift */,
+				FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */,
+			);
+			path = Scripts;
+			sourceTree = "<group>";
+		};
+		FA6ABE9D20081ADE00BB3BBD /* Scene */ = {
+			isa = PBXGroup;
+			children = (
+				FA0A0D781D5FB08A00878046 /* Models.swift */,
+				FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */,
+				FAFBDFC11D607F5B008523A9 /* Scene.swift */,
+				FA4B74142006427E00E0A66F /* Record.swift */,
+				FA7E390F20013DCC00C86A72 /* Sound.swift */,
+				FA0D45571D610BB500B7C721 /* SceneCache.swift */,
+				FABBB1A11D621E49006A39F8 /* TextDb.swift */,
+				FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */,
+			);
+			path = Scene;
+			sourceTree = "<group>";
+		};
+		FA6ABE9E20081AF300BB3BBD /* HUD */ = {
+			isa = PBXGroup;
+			children = (
+				FA6ABE91200818B100BB3BBD /* HudScene.swift */,
+			);
+			path = HUD;
+			sourceTree = "<group>";
+		};
+		FA6ABE9F20081B3000BB3BBD /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				FA0A0D761D5FB07A00878046 /* Extensions.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		FA6DAAE21D67708E002017DE /* Mafia-iOS */ = {
+			isa = PBXGroup;
+			children = (
+				FA6DAAE31D67708E002017DE /* AppDelegate.swift */,
+				FA6DAAE51D67708E002017DE /* art.scnassets */,
+				FA6DAAE71D67708E002017DE /* GameViewController.swift */,
+				FA9C95EF2001AACC005FBB66 /* FireGestureRecognizer.swift */,
+				FA6DAAE91D67708E002017DE /* Main.storyboard */,
+				FA6DAAEC1D67708E002017DE /* Assets.xcassets */,
+				FA6DAAEE1D67708E002017DE /* LaunchScreen.storyboard */,
+				FA6DAAF11D67708E002017DE /* Info.plist */,
+			);
+			path = "Mafia-iOS";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -87,6 +249,24 @@
 			productReference = FA0A0D601D5FB07100878046 /* Mafia.app */;
 			productType = "com.apple.product-type.application";
 		};
+		FA6DAAE01D67708E002017DE /* Mafia-iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = FA6DAAF41D67708E002017DE /* Build configuration list for PBXNativeTarget "Mafia-iOS" */;
+			buildPhases = (
+				FA6DAADD1D67708E002017DE /* Sources */,
+				FA6DAADE1D67708E002017DE /* Frameworks */,
+				FA6DAADF1D67708E002017DE /* Resources */,
+				FA9304681D79F6DD006EA945 /* Embed Watch Content */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Mafia-iOS";
+			productName = "Mafia-iOS";
+			productReference = FA6DAAE11D67708E002017DE /* Mafia-iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -94,12 +274,17 @@
 			isa = PBXProject;
 			attributes = {
 				LastSwiftUpdateCheck = 0800;
-				LastUpgradeCheck = 0800;
+				LastUpgradeCheck = 0920;
 				ORGANIZATIONNAME = "Alex Studnicka";
 				TargetAttributes = {
 					FA0A0D5F1D5FB07100878046 = {
 						CreatedOnToolsVersion = 8.0;
 						DevelopmentTeam = FDEPQUD75A;
+						ProvisioningStyle = Automatic;
+					};
+					FA6DAAE01D67708E002017DE = {
+						CreatedOnToolsVersion = 8.0;
+						DevelopmentTeam = N2V68QWUSQ;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -118,6 +303,7 @@
 			projectRoot = "";
 			targets = (
 				FA0A0D5F1D5FB07100878046 /* Mafia */,
+				FA6DAAE01D67708E002017DE /* Mafia-iOS */,
 			);
 		};
 /* End PBXProject section */
@@ -133,6 +319,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FA6DAADF1D67708E002017DE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA6DAAE61D67708E002017DE /* art.scnassets in Resources */,
+				FA6DAAF01D67708E002017DE /* LaunchScreen.storyboard in Resources */,
+				FA6DAAED1D67708E002017DE /* Assets.xcassets in Resources */,
+				FA6DAAEB1D67708E002017DE /* Main.storyboard in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -140,9 +337,54 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FA0A0D661D5FB07100878046 /* GameView.swift in Sources */,
+				FA4B7418200812D100E0A66F /* Vehicle.swift in Sources */,
+				FA6ABE92200818B100BB3BBD /* HudScene.swift in Sources */,
 				FA0A0D681D5FB07100878046 /* GameViewController.swift in Sources */,
+				FA6ABE9920081A7A00BB3BBD /* Action.swift in Sources */,
+				FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */,
+				FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */,
+				FAFBDFC21D607F5B008523A9 /* Scene.swift in Sources */,
+				FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */,
+				FA9C95F22001B865005FBB66 /* ScriptGetArgs.swift in Sources */,
 				FA0A0D641D5FB07100878046 /* AppDelegate.swift in Sources */,
+				FA0A0D771D5FB07A00878046 /* Extensions.swift in Sources */,
+				FA6ABE95200819FE00BB3BBD /* Game.swift in Sources */,
+				FA9C95FC2002E1EB005FBB66 /* Control.swift in Sources */,
+				FA7E391020013DCC00C86A72 /* Sound.swift in Sources */,
+				FA9C95F92002A544005FBB66 /* Weapon.swift in Sources */,
+				FA0A0D791D5FB08A00878046 /* Models.swift in Sources */,
+				FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */,
+				FAFE4FAC1D75E95A00BB2FB0 /* Collisions.swift in Sources */,
+				FA4B74152006427E00E0A66F /* Record.swift in Sources */,
+				FABBB1A21D621E49006A39F8 /* TextDb.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FA6DAADD1D67708E002017DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FA4B7419200812D200E0A66F /* Vehicle.swift in Sources */,
+				FA6DAAE81D67708E002017DE /* GameViewController.swift in Sources */,
+				FA6ABE93200818B100BB3BBD /* HudScene.swift in Sources */,
+				FA6DAAF51D67709C002017DE /* Extensions.swift in Sources */,
+				FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */,
+				FA6DAAF81D67709C002017DE /* Scene.swift in Sources */,
+				FA9C95F62001B967005FBB66 /* ScriptExec.swift in Sources */,
+				FA9C95F02001AACC005FBB66 /* FireGestureRecognizer.swift in Sources */,
+				FA6DAAE41D67708E002017DE /* AppDelegate.swift in Sources */,
+				FA9C95F32001B8AC005FBB66 /* ScriptGetArgs.swift in Sources */,
+				FA50107E20018F2D00B24CE6 /* Script.swift in Sources */,
+				FA6DAAF71D67709C002017DE /* AnimationLoader.swift in Sources */,
+				FA6ABE96200819FE00BB3BBD /* Game.swift in Sources */,
+				FA9C95FD2002E1EB005FBB66 /* Control.swift in Sources */,
+				FA6DAAF61D67709C002017DE /* Models.swift in Sources */,
+				FA9C95FA2002A545005FBB66 /* Weapon.swift in Sources */,
+				FA6DAAF91D67709C002017DE /* SceneCache.swift in Sources */,
+				FA7E391120013DCC00C86A72 /* Sound.swift in Sources */,
+				FA50107D20018F2D00B24CE6 /* Collisions.swift in Sources */,
+				FA4B74162006428200E0A66F /* Record.swift in Sources */,
+				FA6DAAFA1D67709C002017DE /* TextDb.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -157,6 +399,22 @@
 			name = MainMenu.xib;
 			sourceTree = "<group>";
 		};
+		FA6DAAE91D67708E002017DE /* Main.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				FA6DAAEA1D67708E002017DE /* Base */,
+			);
+			name = Main.storyboard;
+			sourceTree = "<group>";
+		};
+		FA6DAAEE1D67708E002017DE /* LaunchScreen.storyboard */ = {
+			isa = PBXVariantGroup;
+			children = (
+				FA6DAAEF1D67708E002017DE /* Base */,
+			);
+			name = LaunchScreen.storyboard;
+			sourceTree = "<group>";
+		};
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
@@ -169,7 +427,9 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
@@ -177,7 +437,12 @@
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_SUSPICIOUS_MOVES = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
@@ -218,7 +483,9 @@
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
 				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
 				CLANG_WARN_CONSTANT_CONVERSION = YES;
 				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
 				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
@@ -226,7 +493,12 @@
 				CLANG_WARN_ENUM_CONVERSION = YES;
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
 				CLANG_WARN_SUSPICIOUS_MOVES = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
@@ -258,6 +530,7 @@
 				DEVELOPMENT_TEAM = FDEPQUD75A;
 				INFOPLIST_FILE = Mafia/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 3.0;
@@ -272,9 +545,49 @@
 				DEVELOPMENT_TEAM = FDEPQUD75A;
 				INFOPLIST_FILE = Mafia/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_VERSION = 3.0;
+			};
+			name = Release;
+		};
+		FA6DAAF21D67708E002017DE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = N2V68QWUSQ;
+				INFOPLIST_FILE = "Mafia-iOS/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 11.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.studnicka.Mafia-iOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 3.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		FA6DAAF31D67708E002017DE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = N2V68QWUSQ;
+				INFOPLIST_FILE = "Mafia-iOS/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 11.0;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
+				PRODUCT_BUNDLE_IDENTIFIER = "me.studnicka.Mafia-iOS";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 3.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -297,6 +610,16 @@
 				FA0A0D751D5FB07100878046 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		FA6DAAF41D67708E002017DE /* Build configuration list for PBXNativeTarget "Mafia-iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				FA6DAAF21D67708E002017DE /* Debug */,
+				FA6DAAF31D67708E002017DE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
