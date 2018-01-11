@@ -11,7 +11,7 @@ import SpriteKit
 
 final class HudScene: SKScene {
 	
-	var vc: GameViewController!
+	let game: Game
 	
 	var compass: SKShapeNode!
 	var compassNeedle: SKShapeNode!
@@ -21,7 +21,9 @@ final class HudScene: SKScene {
 	var dropButton: SKShapeNode!
 	var objectivesLabel: SKLabelNode!
 	
-	override init(size: CGSize) {
+	init(size: CGSize, game: Game) {
+		self.game = game
+		
 		super.init(size: size)
 		
 		compass = SKShapeNode(ellipseOf: CGSize(width: 100, height: 100))
@@ -115,9 +117,33 @@ final class HudScene: SKScene {
 		super.touchesBegan(touches, with: event)
 		
 		if let touch = touches.first, let node = nodes(at: touch.location(in: self)).first {
-			#if os(iOS)
-			vc.tapped(node: node)
-			#endif
+			switch node {
+			case actionButton:
+				game.lastControl = .ACTION
+				game.actionButtonTapped()
+			case inventoryButton:
+				game.lastControl = .INVENTORY
+				game.openInventory()
+			case reloadButton:
+				game.lastControl = .RELOAD
+				print("pos:", game.gameScene.playerNode!.position)
+			case dropButton:
+				game.lastControl = .WEAPONDROP
+				for (i, weapon) in (game.gameScene.weapons[game.gameScene.playerNode!] ?? []).enumerated() {
+					if weapon.position == .hand {
+						
+						game.gameScene.weapons[game.gameScene.playerNode!]!.remove(at: i)
+						
+						let batNode = game.gameScene.rootNode.childNode(withName: "2bbat", recursively: true)!
+						let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
+						game.gameScene.actions.append(.weapon(batNode, weapon))
+						
+						break
+					}
+				}
+			default:
+				break
+			}
 		}
 	}
 	

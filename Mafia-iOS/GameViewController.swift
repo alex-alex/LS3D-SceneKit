@@ -45,6 +45,8 @@ class GameViewController: UIViewController {
 			}
 		}
 	}
+	
+	var game: Game!
 	var scene: Scene!
 	
 	var elevation: Float = 0
@@ -67,15 +69,8 @@ class GameViewController: UIViewController {
 		let collisions = try! Collisions(name: "missions/tutorial", scene: mainScene)
 		mainScene.rootNode.addChildNode(collisions.node)
 		
-//		guard scene.playerNode != nil else { fatalError() }
-		
-//		print("player type:", scene.playerNode!.type.rawValue)
-//		print("taxi2 type:", scene.rootNode.childNode(withName: "taxi2", recursively: true)!.type.rawValue)
-		
-//		let playerBase = playerNode.childNode(withName: "base", recursively: true)
-//		playerBase?.geometry = playerBase?.morpher?.targets[1]
-//		print("playerBase.morpher:", playerBase?.morpher)
-//		playerBase?.morpher?.setWeight(1, forTargetAt: 1)
+		game = Game(gameScene: scene, scnScene: mainScene)
+		game.vc = self
 		
 		let camera = SCNCamera()
 		camera.zFar = 1000
@@ -129,8 +124,6 @@ class GameViewController: UIViewController {
 		
 		// -----------
 		
-		//scene.playerNode?.position = SCNVector3(x: 40.1901855, y: 20.174427, z: 21.6676006)
-		
 		if let playerNode = scene?.playerNode {
 			let cylinderNode = SCNNode()
 			cylinderNode.geometry = SCNCylinder(radius: 0.25, height: 1.5)
@@ -154,22 +147,12 @@ class GameViewController: UIViewController {
 			playerNode.position.y += 0.5
 		}
 		
-		/*let playerShape = SCNPhysicsShape(node: scene!.playerNode!, options: [
-			SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.boundingBox,
-			SCNPhysicsShape.Option.keepAsCompound: false
-		])
-		scene!.playerNode!.physicsBody = SCNPhysicsBody(type: .dynamic, shape: playerShape)
-		//scene!.playerNode!.physicsBody?.isAffectedByGravity = false
-		scene!.playerNode!.physicsBody?.angularDamping = 0.999
-		scene!.playerNode!.physicsBody?.damping = 0.9//
-		scene!.playerNode!.physicsBody?.rollingFriction = 0
-		scene!.playerNode!.physicsBody?.friction = 0
-		scene!.playerNode!.physicsBody?.restitution = 0
-		//scene!.playerNode!.physicsBody?.velocityFactor = SCNVector3(x: 1, y: 0, z: 1)*/
+		// ------
 		
-		hud = HudScene(size: gameView.bounds.size)
-		hud.vc = self
+		hud = HudScene(size: gameView.bounds.size, game: game)
 		gameView.overlaySKScene = hud
+		
+		// ------
 		
 		// look gesture
 		lookGesture = UIPanGestureRecognizer(target: self, action: #selector(lookGestureRecognized))
@@ -341,114 +324,6 @@ extension GameViewController: UIGestureRecognizerDelegate {
 	
 	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
 		return true
-	}
-	
-}
-
-extension GameViewController {
-	
-	func performAction(_ action: Action) {
-		switch action {
-		case .action(let script, _):
-			let index = scene.actions.index(where: { action in
-				if case .action(let _script, _) = action {
-					return script.uuid == _script.uuid
-				} else {
-					return false
-				}
-			})!
-			scene.actions.remove(at: index)
-			
-			script.next()
-			
-		case .weapon(let node, let weapon):
-			node.isHidden = true
-			
-			let index = scene.actions.index(where: { action in
-				if case .weapon(_, let _weapon) = action {
-					return weapon.uuid == _weapon.uuid
-				} else {
-					return false
-				}
-			})!
-			scene.actions.remove(at: index)
-			
-			if scene.weapons[scene.playerNode!] == nil {
-				scene.weapons[scene.playerNode!] = []
-			}
-			
-			for weapon in scene.weapons[scene.playerNode!]! {
-				weapon.position = .inventory
-			}
-			
-			scene.weapons[scene.playerNode!]!.append(weapon)
-			weapon.position = .hand
-			
-			break
-		}
-	}
-	
-	func actionButtonTapped() {
-		let actions = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 })
-		if actions.count == 1 {
-			performAction(actions[0])
-		} else if actions.count > 1 {
-			let alert = UIAlertController(title: "Sebrat / Použít", message: nil, preferredStyle: .alert)
-			for action in actions {
-				alert.addAction(UIAlertAction(title: action.title, style: .default, handler: { _ in
-					self.performAction(action)
-				}))
-			}
-			alert.addAction(UIAlertAction(title: "Zrušit", style: .cancel, handler: nil))
-			present(alert, animated: true)
-		}
-	}
-	
-	func openInventory() {
-		let alert = UIAlertController(title: "Inventář", message: nil, preferredStyle: .alert)
-		for weapon in scene.weapons[scene.playerNode!] ?? [] {
-			alert.addAction(UIAlertAction(title: weapon.name + (weapon.position == .hand ? " (v ruce)" : ""), style: .default, handler: { _ in
-				for weapon in self.scene.weapons[self.scene.playerNode!] ?? [] {
-					weapon.position = .inventory
-				}
-				weapon.position = .hand
-			}))
-		}
-		alert.addAction(UIAlertAction(title: "Prázdné ruce", style: .cancel, handler: { _ in
-			for weapon in self.scene.weapons[self.scene.playerNode!] ?? [] {
-				weapon.position = .inventory
-			}
-		}))
-		present(alert, animated: true)
-	}
-	
-	func tapped(node: SKNode) {
-		switch node {
-		case hud.actionButton:
-			lastControl = .ACTION
-			actionButtonTapped()
-		case hud.inventoryButton:
-			lastControl = .INVENTORY
-			openInventory()
-		case hud.reloadButton:
-			lastControl = .RELOAD
-			print("pos:", scene.playerNode!.position)
-		case hud.dropButton:
-			lastControl = .WEAPONDROP
-			for (i, weapon) in (scene.weapons[scene.playerNode!] ?? []).enumerated() {
-				if weapon.position == .hand {
-					scene.weapons[scene.playerNode!]!.remove(at: i)
-					
-					let batNode = scene.rootNode.childNode(withName: "2bbat", recursively: true)!
-					let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
-					scene.actions.append(.weapon(batNode, weapon))
-					
-					break
-				}
-			}
-		default:
-			break
-		}
 	}
 	
 }
