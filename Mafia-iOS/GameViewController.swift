@@ -456,7 +456,7 @@ extension GameViewController {
 extension GameViewController {
 	
 	func objectivesChanged() {
-		objectivesLabel.text = scene.objectives.map({ TextDb.get($0)! }).joined(separator: "\n")
+		hud.objectivesLabel.text = scene.objectives.map({ TextDb.get($0)! }).joined(separator: "\n")
 	}
 	
 }
