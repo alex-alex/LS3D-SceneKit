@@ -6,144 +6,29 @@
 //  Copyright (c) 2016 Alex Studnicka. All rights reserved.
 //
 
+import AppKit
+import QuartzCore
 import SceneKit
 import SpriteKit
-import QuartzCore
-
-enum GameMode {
-	case walk, car
-}
-
-let carNodeName = "taxi2" // cad_road
 
 class GameViewController: NSViewController, SCNSceneRendererDelegate {
     
     @IBOutlet weak var gameView: SCNView!
 	
-	let mainScene = SCNScene()
-	let cameraNode = SCNNode()
-	
-	var mode: GameMode = .walk {
-		didSet {
-			cameraNode.removeFromParentNode()
-			if mode == .walk {
-				scene.playerNode!.addChildNode(cameraNode)
-			} else {
-				let taxiNodeX = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-				let taxiNode = taxiNodeX.childNode(withName: "BODY", recursively: false)!
-				taxiNode.addChildNode(cameraNode)
-			}
-		}
-	}
-	var scene: Scene!
-	
-	var vehicle: Vehicle!
-    
-    override func awakeFromNib() {
-        super.awakeFromNib()
-		
-		try! TextDb.load()
-		
-		let node1 = try! loadModel(named: "missions/tutorial/scene")
-		//node1.physicsBody = SCNPhysicsBody(type: .static, shape: nil)
-//		node1.opacity = 0
-		mainScene.rootNode.addChildNode(node1)
-		
-		scene = try! loadScene(named: "missions/tutorial")
-//		scene.rootNode.opacity = 0
-		mainScene.rootNode.addChildNode(scene.rootNode)
-		
-		//let sceneCache = try! SceneCache(name: "missions/freeride")
-		//scene.rootNode.addChildNode(sceneCache.node)
-		
-		let node4 = try! loadTreeKlz(named: "missions/tutorial", rootNode: mainScene.rootNode)
-		mainScene.rootNode.addChildNode(node4)
-		
-//		let floorNode = SCNNode()
-//		floorNode.opacity = 0
-//		floorNode.geometry = SCNFloor()
-//		floorNode.physicsBody = SCNPhysicsBody.static()
-//		mainScene.rootNode.addChildNode(floorNode)
-		
-//		let playerBase = playerNode.childNode(withName: "base", recursively: true)
-//		print("playerBase.morpher:", playerBase?.morpher?.targets.count)
-//		playerBase?.geometry = playerBase?.morpher?.targets[2]
-//		playerBase?.morpher?.setWeight(1, forTargetAt: 1)
-		
-//		scene!.playerNode = scene!.playerNode!.childNode(withName: "base", recursively: false)!
-		
-//		try! playAnimation(named: "anims/walk1.5ds", in: scene.playerNode!, repeat: true)
-//		scene.playerNode?.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)
-		
-		let camera = SCNCamera()
-		camera.zFar = 1000
-		
-		cameraNode.camera = camera
-		//cameraNode.position = SCNVector3(x: 0, y: 2.2*2, z: -1.5*4)
-		cameraNode.position = SCNVector3(x: 0, y: 2.2, z: -1.5)
-		cameraNode.scale = SCNVector3(x: 1, y: -1, z: 1)
-		cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
-		if let playerNode = scene?.playerNode {
-			playerNode.addChildNode(cameraNode)
-			//playerNode.position = SCNVector3(x: 24.9499206542969, y: 0.174427032470703, z: -23.9080371856689)
-			//playerNode.eulerAngles = SCNVector3(x: 3.14159250259399, y: 0.162268161773682, z: 3.14159250259399)
-		} else {
-			mainScene.rootNode.addChildNode(cameraNode)
-		}
-		
-		gameView.delegate = self
-        gameView.scene = mainScene
-		gameView.rendersContinuously = true
-//		gameView.preferredFramesPerSecond = 30
-		gameView.antialiasingMode = .none
-		gameView.allowsCameraControl = false
-//		gameView.autoenablesDefaultLighting = true
-        gameView.showsStatistics = true
-        gameView.backgroundColor = .darkGray
-		gameView.pointOfView = cameraNode
-		if let playerNode = scene?.playerNode {
-			gameView.audioListener = playerNode
-		}
-		
-		// --------------------
-		
-		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-		vehicle = Vehicle(scene: mainScene, node: carNode)
-		
-		// --------------------
-		
-//		let playerShape = SCNPhysicsShape(node: scene!.playerNode!, options: [
-//			SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.boundingBox,
-//			SCNPhysicsShape.Option.keepAsCompound: false
-//		])
-//		scene!.playerNode!.physicsBody = SCNPhysicsBody(type: .dynamic, shape: playerShape)
-//		//scene!.playerNode!.physicsBody?.isAffectedByGravity = false
-//		scene!.playerNode!.physicsBody?.angularDamping = 0.9
-//		scene!.playerNode!.physicsBody?.damping = 0.9
-//		scene!.playerNode!.physicsBody?.rollingFriction = 0
-//		scene!.playerNode!.physicsBody?.friction = 0
-//		scene!.playerNode!.physicsBody?.restitution = 0
-//		//scene!.playerNode!.physicsBody?.velocityFactor = SCNVector3(x: 1, y: 0, z: 1)
-		
-		/*let overlayScene = SKScene(size: gameView.bounds.size)
-		let compass = SKShapeNode(ellipseOf: CGSize(width: 100, height: 100))
-		compass.fillColor = SKColor.white
-		compass.strokeColor = SKColor.clear
-		overlayScene.addChild(compass)
-		overlayScene.scaleMode = .resizeFill
-		overlayScene.isHidden = false
-		overlayScene.isUserInteractionEnabled = false
-		gameView.overlaySKScene = overlayScene*/
-		
-		gameView.play(nil)
-    }
+	var game: Game!
 	
 	var ride = false
 	var reverse = false
 	var vehicleSteering: CGFloat = 0
+    
+    override func awakeFromNib() {
+        super.awakeFromNib()
+	
+	
+    }
 	
 	override func keyDown(with event: NSEvent) {
-		let playerNode = scene?.playerNode ?? cameraNode
+		let playerNode = game.scene.playerNode ?? game.cameraNode
 		
 		SCNTransaction.begin()
 		SCNTransaction.animationDuration = 0.2
@@ -160,12 +45,12 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 			playerNode.position.y -= 0.25
 			
 		case 13: // W
-			if mode == .walk {
+			if game.mode == .walk {
 				print("playerNode.position =", playerNode.position)
 				print("playerNode.eulerAngles =", playerNode.eulerAngles)
-				scene.pressedJump = true
+				game.scene.pressedJump = true
 			} else {
-				let taxiNodeX = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
+				let taxiNodeX = game.scene.rootNode.childNode(withName: carNodeName, recursively: true)!
 				let taxiNode = taxiNodeX.childNode(withName: "BODY", recursively: false)!
 				print("taxiNode.position =", taxiNode.position)
 				reverse = !reverse
@@ -173,30 +58,30 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 			
 		case 14: // E
 			//scene.pressedJump = true
-			if mode == .walk {
-				mode = .car
+			if game.mode == .walk {
+				game.mode = .car
 			} else {
-				mode = .walk
+				game.mode = .walk
 			}
 			
 		case 123: // left
-			if mode == .walk {
+			if game.mode == .walk {
 				playerNode.eulerAngles.y += 0.25
 //				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: -0.5), asImpulse: true)
-			} else if mode == .car {
+			} else if game.mode == .car {
 				vehicleSteering -= 0.05
 			}
 
 		case 124: // right
-			if mode == .walk {
+			if game.mode == .walk {
 				playerNode.eulerAngles.y -= 0.25
 //				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: 0.5), asImpulse: true)
-			} else if mode == .car {
+			} else if game.mode == .car {
 				vehicleSteering += 0.05
 			}
 			
 		case 125: // down
-			if mode == .walk {
+			if game.mode == .walk {
 				let angle = playerNode.presentation.eulerAngles.y
 				playerNode.position.x -= 0.5 * sin(angle)
 				playerNode.position.z += 0.5 * cos(angle)
@@ -206,12 +91,12 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 //					y: 0,
 //					z: 2 * cos(angle)
 //				), asImpulse: true)
-			} else if mode == .car {
+			} else if game.mode == .car {
 				ride = false
 			}
 			
 		case 126: // up
-			if mode == .walk {
+			if game.mode == .walk {
 				let angle = playerNode.presentation.eulerAngles.y
 				playerNode.position.x += 2 * sin(angle)
 				playerNode.position.z -= 2 * cos(angle)
@@ -221,7 +106,7 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 //					y: 0,
 //					z: 2 * -cos(angle)
 //				), asImpulse: true)
-			} else if mode == .car {
+			} else if game.mode == .car {
 				ride = true
 			}
 			
@@ -233,7 +118,7 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 	}
 	
 	func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
-		guard let vehicle = vehicle?.physicsVehicle else { return }
+		guard let vehicle = game.vehicle?.physicsVehicle else { return }
 		
 		vehicle.setSteeringAngle(vehicleSteering, forWheelAt: 0)
 		vehicle.setSteeringAngle(vehicleSteering, forWheelAt: 1)

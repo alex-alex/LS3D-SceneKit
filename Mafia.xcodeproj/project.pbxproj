@@ -12,7 +12,6 @@
 		FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45571D610BB500B7C721 /* SceneCache.swift */; };
 		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
 		FA355C44200923E600512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3A200923E500512DC0 /* GameViewController.swift */; };
-		FA355C45200923E600512DC0 /* FireGestureRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3B200923E500512DC0 /* FireGestureRecognizer.swift */; };
 		FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3C200923E500512DC0 /* AppDelegate.swift */; };
 		FA355C47200923E600512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3E200923E600512DC0 /* Assets.xcassets */; };
 		FA355C48200923E600512DC0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3F200923E600512DC0 /* LaunchScreen.storyboard */; };
@@ -21,6 +20,8 @@
 		FA355C542009241000512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C4D2009241000512DC0 /* AppDelegate.swift */; };
 		FA355C552009241000512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C4F2009241000512DC0 /* Assets.xcassets */; };
 		FA355C562009241000512DC0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = FA355C502009241000512DC0 /* MainMenu.xib */; };
+		FA355C5920092BC800512DC0 /* CMAcceleration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C5820092BC800512DC0 /* CMAcceleration.swift */; };
+		FA355C5A20092BC800512DC0 /* CMAcceleration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C5820092BC800512DC0 /* CMAcceleration.swift */; };
 		FA4B74152006427E00E0A66F /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B74142006427E00E0A66F /* Record.swift */; };
 		FA4B74162006428200E0A66F /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B74142006427E00E0A66F /* Record.swift */; };
 		FA4B7418200812D100E0A66F /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B7417200812D100E0A66F /* Vehicle.swift */; };
@@ -75,7 +76,6 @@
 		FA0D45571D610BB500B7C721 /* SceneCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneCache.swift; sourceTree = "<group>"; };
 		FA177F8C1E3534B2009FA6D7 /* Script.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Script.swift; sourceTree = "<group>"; };
 		FA355C3A200923E500512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
-		FA355C3B200923E500512DC0 /* FireGestureRecognizer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FireGestureRecognizer.swift; sourceTree = "<group>"; };
 		FA355C3C200923E500512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FA355C3E200923E600512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FA355C40200923E600512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -86,6 +86,7 @@
 		FA355C4F2009241000512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FA355C512009241000512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		FA355C522009241000512DC0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA355C5820092BC800512DC0 /* CMAcceleration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMAcceleration.swift; sourceTree = "<group>"; };
 		FA4B74142006427E00E0A66F /* Record.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Record.swift; sourceTree = "<group>"; };
 		FA4B7417200812D100E0A66F /* Vehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vehicle.swift; sourceTree = "<group>"; };
 		FA6ABE91200818B100BB3BBD /* HudScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HudScene.swift; sourceTree = "<group>"; };
@@ -166,7 +167,6 @@
 			children = (
 				FA355C3C200923E500512DC0 /* AppDelegate.swift */,
 				FA355C3A200923E500512DC0 /* GameViewController.swift */,
-				FA355C3B200923E500512DC0 /* FireGestureRecognizer.swift */,
 			);
 			path = Classes;
 			sourceTree = "<group>";
@@ -226,9 +226,9 @@
 		FA6ABE9D20081ADE00BB3BBD /* Scene */ = {
 			isa = PBXGroup;
 			children = (
+				FAFBDFC11D607F5B008523A9 /* Scene.swift */,
 				FA0A0D781D5FB08A00878046 /* Models.swift */,
 				FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */,
-				FAFBDFC11D607F5B008523A9 /* Scene.swift */,
 				FA4B74142006427E00E0A66F /* Record.swift */,
 				FA7E390F20013DCC00C86A72 /* Sound.swift */,
 				FA0D45571D610BB500B7C721 /* SceneCache.swift */,
@@ -250,6 +250,7 @@
 			isa = PBXGroup;
 			children = (
 				FA0A0D761D5FB07A00878046 /* Extensions.swift */,
+				FA355C5820092BC800512DC0 /* CMAcceleration.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -375,6 +376,7 @@
 				FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */,
 				FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */,
 				FAFBDFC21D607F5B008523A9 /* Scene.swift in Sources */,
+				FA355C5920092BC800512DC0 /* CMAcceleration.swift in Sources */,
 				FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */,
 				FA9C95F22001B865005FBB66 /* ScriptGetArgs.swift in Sources */,
 				FA355C542009241000512DC0 /* AppDelegate.swift in Sources */,
@@ -415,8 +417,8 @@
 				FA50107D20018F2D00B24CE6 /* Collisions.swift in Sources */,
 				FA4B74162006428200E0A66F /* Record.swift in Sources */,
 				FA355C44200923E600512DC0 /* GameViewController.swift in Sources */,
-				FA355C45200923E600512DC0 /* FireGestureRecognizer.swift in Sources */,
 				FA6DAAFA1D67709C002017DE /* TextDb.swift in Sources */,
+				FA355C5A20092BC800512DC0 /* CMAcceleration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

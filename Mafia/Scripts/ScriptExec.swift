@@ -119,11 +119,7 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let controlStr = args[1].getString()
 		let control = Control(rawValue: controlStr)!
-		#if os(iOS)
-		vars[varId] = control == scene.delegate.lastControl ? 1 : 0
-		#else
-		vars[varId] = 0
-		#endif
+		vars[varId] = control == scene.game.lastControl ? 1 : 0
 		next()
 	}
 	

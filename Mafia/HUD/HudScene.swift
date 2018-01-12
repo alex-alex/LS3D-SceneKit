@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SceneKit
 import SpriteKit
 
 final class HudScene: SKScene {
@@ -113,6 +114,12 @@ final class HudScene: SKScene {
 		fatalError()
 	}
 	
+	func setup(in view: SCNView) {
+		view.overlaySKScene = self
+	}
+	
+	#if os(iOS)
+	
 	override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 		super.touchesBegan(touches, with: event)
 		
@@ -126,17 +133,17 @@ final class HudScene: SKScene {
 				game.openInventory()
 			case reloadButton:
 				game.lastControl = .RELOAD
-				print("pos:", game.gameScene.playerNode!.position)
+				print("pos:", game.scene.playerNode!.position)
 			case dropButton:
 				game.lastControl = .WEAPONDROP
-				for (i, weapon) in (game.gameScene.weapons[game.gameScene.playerNode!] ?? []).enumerated() {
+				for (i, weapon) in (game.scene.weapons[game.scene.playerNode!] ?? []).enumerated() {
 					if weapon.position == .hand {
 						
-						game.gameScene.weapons[game.gameScene.playerNode!]!.remove(at: i)
+						game.scene.weapons[game.scene.playerNode!]!.remove(at: i)
 						
-						let batNode = game.gameScene.rootNode.childNode(withName: "2bbat", recursively: true)!
+						let batNode = game.scene.rootNode.childNode(withName: "2bbat", recursively: true)!
 						let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
-						game.gameScene.actions.append(.weapon(batNode, weapon))
+						game.scene.actions.append(.weapon(batNode, weapon))
 						
 						break
 					}
@@ -146,5 +153,7 @@ final class HudScene: SKScene {
 			}
 		}
 	}
+	
+	#endif
 	
 }

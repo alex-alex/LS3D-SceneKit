@@ -89,6 +89,7 @@ enum ObjectDefinitionType: UInt32 {
 final class Scene {
 	
 	var delegate: GameViewController!
+	var game: Game!
 	let rootNode = SCNNode()
 	var playerNode: SCNNode? = nil
 	var scripts: [String: Script] = [:]
