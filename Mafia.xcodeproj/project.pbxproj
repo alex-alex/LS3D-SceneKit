@@ -7,15 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		FA0A0D641D5FB07100878046 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D631D5FB07100878046 /* AppDelegate.swift */; };
-		FA0A0D681D5FB07100878046 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D671D5FB07100878046 /* GameViewController.swift */; };
-		FA0A0D6A1D5FB07100878046 /* art.scnassets in Resources */ = {isa = PBXBuildFile; fileRef = FA0A0D691D5FB07100878046 /* art.scnassets */; };
-		FA0A0D6C1D5FB07100878046 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA0A0D6B1D5FB07100878046 /* Assets.xcassets */; };
-		FA0A0D6F1D5FB07100878046 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = FA0A0D6D1D5FB07100878046 /* MainMenu.xib */; };
 		FA0A0D771D5FB07A00878046 /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D761D5FB07A00878046 /* Extensions.swift */; };
 		FA0A0D791D5FB08A00878046 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D781D5FB08A00878046 /* Models.swift */; };
 		FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45571D610BB500B7C721 /* SceneCache.swift */; };
 		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
+		FA355C44200923E600512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3A200923E500512DC0 /* GameViewController.swift */; };
+		FA355C45200923E600512DC0 /* FireGestureRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3B200923E500512DC0 /* FireGestureRecognizer.swift */; };
+		FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3C200923E500512DC0 /* AppDelegate.swift */; };
+		FA355C47200923E600512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3E200923E600512DC0 /* Assets.xcassets */; };
+		FA355C48200923E600512DC0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3F200923E600512DC0 /* LaunchScreen.storyboard */; };
+		FA355C49200923E600512DC0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C41200923E600512DC0 /* Main.storyboard */; };
+		FA355C532009241000512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C4C2009241000512DC0 /* GameViewController.swift */; };
+		FA355C542009241000512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C4D2009241000512DC0 /* AppDelegate.swift */; };
+		FA355C552009241000512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C4F2009241000512DC0 /* Assets.xcassets */; };
+		FA355C562009241000512DC0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = FA355C502009241000512DC0 /* MainMenu.xib */; };
 		FA4B74152006427E00E0A66F /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B74142006427E00E0A66F /* Record.swift */; };
 		FA4B74162006428200E0A66F /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B74142006427E00E0A66F /* Record.swift */; };
 		FA4B7418200812D100E0A66F /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B7417200812D100E0A66F /* Vehicle.swift */; };
@@ -28,12 +33,6 @@
 		FA6ABE96200819FE00BB3BBD /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE94200819FE00BB3BBD /* Game.swift */; };
 		FA6ABE9920081A7A00BB3BBD /* Action.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE9820081A7A00BB3BBD /* Action.swift */; };
 		FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE9820081A7A00BB3BBD /* Action.swift */; };
-		FA6DAAE41D67708E002017DE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6DAAE31D67708E002017DE /* AppDelegate.swift */; };
-		FA6DAAE61D67708E002017DE /* art.scnassets in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAE51D67708E002017DE /* art.scnassets */; };
-		FA6DAAE81D67708E002017DE /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6DAAE71D67708E002017DE /* GameViewController.swift */; };
-		FA6DAAEB1D67708E002017DE /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAE91D67708E002017DE /* Main.storyboard */; };
-		FA6DAAED1D67708E002017DE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAEC1D67708E002017DE /* Assets.xcassets */; };
-		FA6DAAF01D67708E002017DE /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA6DAAEE1D67708E002017DE /* LaunchScreen.storyboard */; };
 		FA6DAAF51D67709C002017DE /* Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D761D5FB07A00878046 /* Extensions.swift */; };
 		FA6DAAF61D67709C002017DE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D781D5FB08A00878046 /* Models.swift */; };
 		FA6DAAF71D67709C002017DE /* AnimationLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */; };
@@ -42,7 +41,6 @@
 		FA6DAAFA1D67709C002017DE /* TextDb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBB1A11D621E49006A39F8 /* TextDb.swift */; };
 		FA7E391020013DCC00C86A72 /* Sound.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7E390F20013DCC00C86A72 /* Sound.swift */; };
 		FA7E391120013DCC00C86A72 /* Sound.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7E390F20013DCC00C86A72 /* Sound.swift */; };
-		FA9C95F02001AACC005FBB66 /* FireGestureRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95EF2001AACC005FBB66 /* FireGestureRecognizer.swift */; };
 		FA9C95F22001B865005FBB66 /* ScriptGetArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */; };
 		FA9C95F32001B8AC005FBB66 /* ScriptGetArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */; };
 		FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F42001B967005FBB66 /* ScriptExec.swift */; };
@@ -71,32 +69,30 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		FA0A0D601D5FB07100878046 /* Mafia.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Mafia.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		FA0A0D631D5FB07100878046 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		FA0A0D671D5FB07100878046 /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
-		FA0A0D691D5FB07100878046 /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
-		FA0A0D6B1D5FB07100878046 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		FA0A0D6E1D5FB07100878046 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
-		FA0A0D701D5FB07100878046 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA0A0D601D5FB07100878046 /* Mafia-Mac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Mafia-Mac.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA0A0D761D5FB07A00878046 /* Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Extensions.swift; sourceTree = "<group>"; };
 		FA0A0D781D5FB08A00878046 /* Models.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		FA0D45571D610BB500B7C721 /* SceneCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneCache.swift; sourceTree = "<group>"; };
 		FA177F8C1E3534B2009FA6D7 /* Script.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Script.swift; sourceTree = "<group>"; };
+		FA355C3A200923E500512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		FA355C3B200923E500512DC0 /* FireGestureRecognizer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FireGestureRecognizer.swift; sourceTree = "<group>"; };
+		FA355C3C200923E500512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		FA355C3E200923E600512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FA355C40200923E600512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		FA355C42200923E600512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
+		FA355C43200923E600512DC0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA355C4C2009241000512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		FA355C4D2009241000512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		FA355C4F2009241000512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FA355C512009241000512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
+		FA355C522009241000512DC0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FA4B74142006427E00E0A66F /* Record.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Record.swift; sourceTree = "<group>"; };
 		FA4B7417200812D100E0A66F /* Vehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vehicle.swift; sourceTree = "<group>"; };
 		FA6ABE91200818B100BB3BBD /* HudScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HudScene.swift; sourceTree = "<group>"; };
 		FA6ABE94200819FE00BB3BBD /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
 		FA6ABE9820081A7A00BB3BBD /* Action.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Action.swift; sourceTree = "<group>"; };
 		FA6DAAE11D67708E002017DE /* Mafia-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Mafia-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		FA6DAAE31D67708E002017DE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		FA6DAAE51D67708E002017DE /* art.scnassets */ = {isa = PBXFileReference; lastKnownFileType = wrapper.scnassets; path = art.scnassets; sourceTree = "<group>"; };
-		FA6DAAE71D67708E002017DE /* GameViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
-		FA6DAAEA1D67708E002017DE /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
-		FA6DAAEC1D67708E002017DE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		FA6DAAEF1D67708E002017DE /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
-		FA6DAAF11D67708E002017DE /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FA7E390F20013DCC00C86A72 /* Sound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sound.swift; sourceTree = "<group>"; };
-		FA9C95EF2001AACC005FBB66 /* FireGestureRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FireGestureRecognizer.swift; sourceTree = "<group>"; };
 		FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptGetArgs.swift; sourceTree = "<group>"; };
 		FA9C95F42001B967005FBB66 /* ScriptExec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptExec.swift; sourceTree = "<group>"; };
 		FA9C95F82002A544005FBB66 /* Weapon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weapon.swift; sourceTree = "<group>"; };
@@ -129,6 +125,7 @@
 			isa = PBXGroup;
 			children = (
 				FA0A0D621D5FB07100878046 /* Mafia */,
+				FA355C2B200922FF00512DC0 /* Mafia-Mac */,
 				FA6DAAE21D67708E002017DE /* Mafia-iOS */,
 				FA0A0D611D5FB07100878046 /* Products */,
 			);
@@ -137,7 +134,7 @@
 		FA0A0D611D5FB07100878046 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				FA0A0D601D5FB07100878046 /* Mafia.app */,
+				FA0A0D601D5FB07100878046 /* Mafia-Mac.app */,
 				FA6DAAE11D67708E002017DE /* Mafia-iOS.app */,
 			);
 			name = Products;
@@ -146,19 +143,62 @@
 		FA0A0D621D5FB07100878046 /* Mafia */ = {
 			isa = PBXGroup;
 			children = (
-				FA0A0D631D5FB07100878046 /* AppDelegate.swift */,
-				FA0A0D671D5FB07100878046 /* GameViewController.swift */,
 				FA6ABE9F20081B3000BB3BBD /* Utilities */,
 				FA6ABE9E20081AF300BB3BBD /* HUD */,
 				FA6ABE9720081A5900BB3BBD /* Game */,
 				FA6ABE9D20081ADE00BB3BBD /* Scene */,
 				FA6ABE9C20081ACD00BB3BBD /* Scripts */,
-				FA0A0D691D5FB07100878046 /* art.scnassets */,
-				FA0A0D6B1D5FB07100878046 /* Assets.xcassets */,
-				FA0A0D6D1D5FB07100878046 /* MainMenu.xib */,
-				FA0A0D701D5FB07100878046 /* Info.plist */,
 			);
 			path = Mafia;
+			sourceTree = "<group>";
+		};
+		FA355C2B200922FF00512DC0 /* Mafia-Mac */ = {
+			isa = PBXGroup;
+			children = (
+				FA355C4B2009241000512DC0 /* Classes */,
+				FA355C4E2009241000512DC0 /* Resources */,
+			);
+			path = "Mafia-Mac";
+			sourceTree = "<group>";
+		};
+		FA355C39200923E500512DC0 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				FA355C3C200923E500512DC0 /* AppDelegate.swift */,
+				FA355C3A200923E500512DC0 /* GameViewController.swift */,
+				FA355C3B200923E500512DC0 /* FireGestureRecognizer.swift */,
+			);
+			path = Classes;
+			sourceTree = "<group>";
+		};
+		FA355C3D200923E600512DC0 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FA355C3E200923E600512DC0 /* Assets.xcassets */,
+				FA355C3F200923E600512DC0 /* LaunchScreen.storyboard */,
+				FA355C41200923E600512DC0 /* Main.storyboard */,
+				FA355C43200923E600512DC0 /* Info.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		FA355C4B2009241000512DC0 /* Classes */ = {
+			isa = PBXGroup;
+			children = (
+				FA355C4D2009241000512DC0 /* AppDelegate.swift */,
+				FA355C4C2009241000512DC0 /* GameViewController.swift */,
+			);
+			path = Classes;
+			sourceTree = "<group>";
+		};
+		FA355C4E2009241000512DC0 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FA355C4F2009241000512DC0 /* Assets.xcassets */,
+				FA355C502009241000512DC0 /* MainMenu.xib */,
+				FA355C522009241000512DC0 /* Info.plist */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		FA6ABE9720081A5900BB3BBD /* Game */ = {
@@ -217,14 +257,8 @@
 		FA6DAAE21D67708E002017DE /* Mafia-iOS */ = {
 			isa = PBXGroup;
 			children = (
-				FA6DAAE31D67708E002017DE /* AppDelegate.swift */,
-				FA6DAAE51D67708E002017DE /* art.scnassets */,
-				FA6DAAE71D67708E002017DE /* GameViewController.swift */,
-				FA9C95EF2001AACC005FBB66 /* FireGestureRecognizer.swift */,
-				FA6DAAE91D67708E002017DE /* Main.storyboard */,
-				FA6DAAEC1D67708E002017DE /* Assets.xcassets */,
-				FA6DAAEE1D67708E002017DE /* LaunchScreen.storyboard */,
-				FA6DAAF11D67708E002017DE /* Info.plist */,
+				FA355C39200923E500512DC0 /* Classes */,
+				FA355C3D200923E600512DC0 /* Resources */,
 			);
 			path = "Mafia-iOS";
 			sourceTree = "<group>";
@@ -232,9 +266,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		FA0A0D5F1D5FB07100878046 /* Mafia */ = {
+		FA0A0D5F1D5FB07100878046 /* Mafia-Mac */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = FA0A0D731D5FB07100878046 /* Build configuration list for PBXNativeTarget "Mafia" */;
+			buildConfigurationList = FA0A0D731D5FB07100878046 /* Build configuration list for PBXNativeTarget "Mafia-Mac" */;
 			buildPhases = (
 				FA0A0D5C1D5FB07100878046 /* Sources */,
 				FA0A0D5D1D5FB07100878046 /* Frameworks */,
@@ -244,9 +278,9 @@
 			);
 			dependencies = (
 			);
-			name = Mafia;
+			name = "Mafia-Mac";
 			productName = Mafia;
-			productReference = FA0A0D601D5FB07100878046 /* Mafia.app */;
+			productReference = FA0A0D601D5FB07100878046 /* Mafia-Mac.app */;
 			productType = "com.apple.product-type.application";
 		};
 		FA6DAAE01D67708E002017DE /* Mafia-iOS */ = {
@@ -302,7 +336,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				FA0A0D5F1D5FB07100878046 /* Mafia */,
+				FA0A0D5F1D5FB07100878046 /* Mafia-Mac */,
 				FA6DAAE01D67708E002017DE /* Mafia-iOS */,
 			);
 		};
@@ -313,9 +347,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FA0A0D6C1D5FB07100878046 /* Assets.xcassets in Resources */,
-				FA0A0D6A1D5FB07100878046 /* art.scnassets in Resources */,
-				FA0A0D6F1D5FB07100878046 /* MainMenu.xib in Resources */,
+				FA355C552009241000512DC0 /* Assets.xcassets in Resources */,
+				FA355C562009241000512DC0 /* MainMenu.xib in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -323,10 +356,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				FA6DAAE61D67708E002017DE /* art.scnassets in Resources */,
-				FA6DAAF01D67708E002017DE /* LaunchScreen.storyboard in Resources */,
-				FA6DAAED1D67708E002017DE /* Assets.xcassets in Resources */,
-				FA6DAAEB1D67708E002017DE /* Main.storyboard in Resources */,
+				FA355C47200923E600512DC0 /* Assets.xcassets in Resources */,
+				FA355C49200923E600512DC0 /* Main.storyboard in Resources */,
+				FA355C48200923E600512DC0 /* LaunchScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -339,14 +371,14 @@
 			files = (
 				FA4B7418200812D100E0A66F /* Vehicle.swift in Sources */,
 				FA6ABE92200818B100BB3BBD /* HudScene.swift in Sources */,
-				FA0A0D681D5FB07100878046 /* GameViewController.swift in Sources */,
 				FA6ABE9920081A7A00BB3BBD /* Action.swift in Sources */,
 				FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */,
 				FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */,
 				FAFBDFC21D607F5B008523A9 /* Scene.swift in Sources */,
 				FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */,
 				FA9C95F22001B865005FBB66 /* ScriptGetArgs.swift in Sources */,
-				FA0A0D641D5FB07100878046 /* AppDelegate.swift in Sources */,
+				FA355C542009241000512DC0 /* AppDelegate.swift in Sources */,
+				FA355C532009241000512DC0 /* GameViewController.swift in Sources */,
 				FA0A0D771D5FB07A00878046 /* Extensions.swift in Sources */,
 				FA6ABE95200819FE00BB3BBD /* Game.swift in Sources */,
 				FA9C95FC2002E1EB005FBB66 /* Control.swift in Sources */,
@@ -364,15 +396,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */,
 				FA4B7419200812D200E0A66F /* Vehicle.swift in Sources */,
-				FA6DAAE81D67708E002017DE /* GameViewController.swift in Sources */,
 				FA6ABE93200818B100BB3BBD /* HudScene.swift in Sources */,
 				FA6DAAF51D67709C002017DE /* Extensions.swift in Sources */,
 				FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */,
 				FA6DAAF81D67709C002017DE /* Scene.swift in Sources */,
 				FA9C95F62001B967005FBB66 /* ScriptExec.swift in Sources */,
-				FA9C95F02001AACC005FBB66 /* FireGestureRecognizer.swift in Sources */,
-				FA6DAAE41D67708E002017DE /* AppDelegate.swift in Sources */,
 				FA9C95F32001B8AC005FBB66 /* ScriptGetArgs.swift in Sources */,
 				FA50107E20018F2D00B24CE6 /* Script.swift in Sources */,
 				FA6DAAF71D67709C002017DE /* AnimationLoader.swift in Sources */,
@@ -384,6 +414,8 @@
 				FA7E391120013DCC00C86A72 /* Sound.swift in Sources */,
 				FA50107D20018F2D00B24CE6 /* Collisions.swift in Sources */,
 				FA4B74162006428200E0A66F /* Record.swift in Sources */,
+				FA355C44200923E600512DC0 /* GameViewController.swift in Sources */,
+				FA355C45200923E600512DC0 /* FireGestureRecognizer.swift in Sources */,
 				FA6DAAFA1D67709C002017DE /* TextDb.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -391,28 +423,28 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXVariantGroup section */
-		FA0A0D6D1D5FB07100878046 /* MainMenu.xib */ = {
+		FA355C3F200923E600512DC0 /* LaunchScreen.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
-				FA0A0D6E1D5FB07100878046 /* Base */,
+				FA355C40200923E600512DC0 /* Base */,
 			);
-			name = MainMenu.xib;
+			name = LaunchScreen.storyboard;
 			sourceTree = "<group>";
 		};
-		FA6DAAE91D67708E002017DE /* Main.storyboard */ = {
+		FA355C41200923E600512DC0 /* Main.storyboard */ = {
 			isa = PBXVariantGroup;
 			children = (
-				FA6DAAEA1D67708E002017DE /* Base */,
+				FA355C42200923E600512DC0 /* Base */,
 			);
 			name = Main.storyboard;
 			sourceTree = "<group>";
 		};
-		FA6DAAEE1D67708E002017DE /* LaunchScreen.storyboard */ = {
+		FA355C502009241000512DC0 /* MainMenu.xib */ = {
 			isa = PBXVariantGroup;
 			children = (
-				FA6DAAEF1D67708E002017DE /* Base */,
+				FA355C512009241000512DC0 /* Base */,
 			);
-			name = LaunchScreen.storyboard;
+			name = MainMenu.xib;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */
@@ -528,7 +560,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = FDEPQUD75A;
-				INFOPLIST_FILE = Mafia/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/Mafia-Mac/Resources/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
@@ -543,7 +575,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = FDEPQUD75A;
-				INFOPLIST_FILE = Mafia/Info.plist;
+				INFOPLIST_FILE = "$(SRCROOT)/Mafia-Mac/Resources/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.13;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
@@ -559,7 +591,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = N2V68QWUSQ;
-				INFOPLIST_FILE = "Mafia-iOS/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/Mafia-iOS/Resources/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 11.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "me.studnicka.Mafia-iOS";
@@ -578,7 +610,7 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = N2V68QWUSQ;
-				INFOPLIST_FILE = "Mafia-iOS/Info.plist";
+				INFOPLIST_FILE = "$(SRCROOT)/Mafia-iOS/Resources/Info.plist";
 				IPHONEOS_DEPLOYMENT_TARGET = 11.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "me.studnicka.Mafia-iOS";
@@ -603,7 +635,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FA0A0D731D5FB07100878046 /* Build configuration list for PBXNativeTarget "Mafia" */ = {
+		FA0A0D731D5FB07100878046 /* Build configuration list for PBXNativeTarget "Mafia-Mac" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				FA0A0D741D5FB07100878046 /* Debug */,
