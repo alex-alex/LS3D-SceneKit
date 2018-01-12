@@ -1,3 +1,3 @@
 # LS3D-SceneKit
 
-![Screenshot](https://i.imgur.com/4VWIMlh.jpg)
+![Screenshot](https://i.imgur.com/GeGqAot.jpg)
