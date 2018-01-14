@@ -20,6 +20,8 @@ final class HudScene: SKScene {
 	var inventoryButton: SKShapeNode!
 	var reloadButton: SKShapeNode!
 	var dropButton: SKShapeNode!
+	var jumpButton: SKShapeNode!
+	var carButton: SKShapeNode!
 	var objectivesLabel: SKLabelNode!
 	
 	init(size: CGSize, game: Game) {
@@ -63,7 +65,7 @@ final class HudScene: SKScene {
 		inventoryButtonLabel.fontName = "Arial"
 		inventoryButtonLabel.fontSize = 17
 		inventoryButtonLabel.fontColor = SKColor.black
-		inventoryButtonLabel.text = "I"
+		inventoryButtonLabel.text = "Inv"
 		inventoryButtonLabel.verticalAlignmentMode = .center
 		inventoryButton.addChild(inventoryButtonLabel)
 		
@@ -78,7 +80,7 @@ final class HudScene: SKScene {
 		reloadButtonLabel.fontName = "Arial"
 		reloadButtonLabel.fontSize = 17
 		reloadButtonLabel.fontColor = SKColor.black
-		reloadButtonLabel.text = "R"
+		reloadButtonLabel.text = "Rel"
 		reloadButtonLabel.verticalAlignmentMode = .center
 		reloadButton.addChild(reloadButtonLabel)
 		
@@ -93,9 +95,39 @@ final class HudScene: SKScene {
 		dropButtonLabel.fontName = "Arial"
 		dropButtonLabel.fontSize = 17
 		dropButtonLabel.fontColor = SKColor.black
-		dropButtonLabel.text = "<-"
+		dropButtonLabel.text = "Drp"
 		dropButtonLabel.verticalAlignmentMode = .center
 		dropButton.addChild(dropButtonLabel)
+		
+		jumpButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
+		jumpButton.isHidden = false
+		jumpButton.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
+		jumpButton.fillColor = SKColor.white
+		jumpButton.strokeColor = SKColor.clear
+		addChild(jumpButton)
+		
+		let jumpButtonLabel = SKLabelNode()
+		jumpButtonLabel.fontName = "Arial"
+		jumpButtonLabel.fontSize = 17
+		jumpButtonLabel.fontColor = SKColor.black
+		jumpButtonLabel.text = "Jmp"
+		jumpButtonLabel.verticalAlignmentMode = .center
+		jumpButton.addChild(jumpButtonLabel)
+		
+		carButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
+		carButton.isHidden = false
+		carButton.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
+		carButton.fillColor = SKColor.white
+		carButton.strokeColor = SKColor.clear
+		addChild(carButton)
+		
+		let carButtonLabel = SKLabelNode()
+		carButtonLabel.fontName = "Arial"
+		carButtonLabel.fontSize = 17
+		carButtonLabel.fontColor = SKColor.black
+		carButtonLabel.text = "Car"
+		carButtonLabel.verticalAlignmentMode = .center
+		carButton.addChild(carButtonLabel)
 		
 		objectivesLabel = SKLabelNode()
 		objectivesLabel.fontName = "Arial"
@@ -128,25 +160,41 @@ final class HudScene: SKScene {
 			case actionButton:
 				game.lastControl = .ACTION
 				game.actionButtonTapped()
-			case inventoryButton:
+			case inventoryButton, inventoryButton.children[0]:
 				game.lastControl = .INVENTORY
 				game.openInventory()
-			case reloadButton:
+			case reloadButton, reloadButton.children[0]:
 				game.lastControl = .RELOAD
 				print("pos:", game.scene.playerNode!.position)
-			case dropButton:
+			case dropButton, dropButton.children[0]:
 				game.lastControl = .WEAPONDROP
 				for (i, weapon) in (game.scene.weapons[game.scene.playerNode!] ?? []).enumerated() {
 					if weapon.position == .hand {
-						
+						print("dropping", weapon.name)
 						game.scene.weapons[game.scene.playerNode!]!.remove(at: i)
 						
 						let batNode = game.scene.rootNode.childNode(withName: "2bbat", recursively: true)!
-						let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
+						batNode.isHidden = false
+//						let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
 						game.scene.actions.append(.weapon(batNode, weapon))
 						
 						break
 					}
+				}
+			case jumpButton, jumpButton.children[0]:
+				game.lastControl = .JUMP
+				game.scene.playerNode?.physicsBody?.applyForce(SCNVector3(
+					x: 0,
+					y: 1000,
+					z: 0
+				), asImpulse: true)
+				game.scene.pressedJump = true
+			case carButton, carButton.children[0]:
+				game.lastControl = .ACTION
+				if game.mode == .walk {
+					game.mode = .car
+				} else {
+					game.mode = .walk
 				}
 			default:
 				break
