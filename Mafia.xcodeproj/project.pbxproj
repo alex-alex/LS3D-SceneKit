@@ -42,8 +42,8 @@
 		FA6DAAFA1D67709C002017DE /* TextDb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBB1A11D621E49006A39F8 /* TextDb.swift */; };
 		FA7E391020013DCC00C86A72 /* Sound.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7E390F20013DCC00C86A72 /* Sound.swift */; };
 		FA7E391120013DCC00C86A72 /* Sound.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA7E390F20013DCC00C86A72 /* Sound.swift */; };
-		FA9C95F22001B865005FBB66 /* ScriptGetArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */; };
-		FA9C95F32001B8AC005FBB66 /* ScriptGetArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */; };
+		FA9C95F22001B865005FBB66 /* ScriptArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptArgs.swift */; };
+		FA9C95F32001B8AC005FBB66 /* ScriptArgs.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F12001B865005FBB66 /* ScriptArgs.swift */; };
 		FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F42001B967005FBB66 /* ScriptExec.swift */; };
 		FA9C95F62001B967005FBB66 /* ScriptExec.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F42001B967005FBB66 /* ScriptExec.swift */; };
 		FA9C95F92002A544005FBB66 /* Weapon.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F82002A544005FBB66 /* Weapon.swift */; };
@@ -94,7 +94,7 @@
 		FA6ABE9820081A7A00BB3BBD /* Action.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Action.swift; sourceTree = "<group>"; };
 		FA6DAAE11D67708E002017DE /* Mafia-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Mafia-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA7E390F20013DCC00C86A72 /* Sound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sound.swift; sourceTree = "<group>"; };
-		FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptGetArgs.swift; sourceTree = "<group>"; };
+		FA9C95F12001B865005FBB66 /* ScriptArgs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptArgs.swift; sourceTree = "<group>"; };
 		FA9C95F42001B967005FBB66 /* ScriptExec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptExec.swift; sourceTree = "<group>"; };
 		FA9C95F82002A544005FBB66 /* Weapon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weapon.swift; sourceTree = "<group>"; };
 		FA9C95FB2002E1EB005FBB66 /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
@@ -217,8 +217,8 @@
 			isa = PBXGroup;
 			children = (
 				FA177F8C1E3534B2009FA6D7 /* Script.swift */,
+				FA9C95F12001B865005FBB66 /* ScriptArgs.swift */,
 				FA9C95F42001B967005FBB66 /* ScriptExec.swift */,
-				FA9C95F12001B865005FBB66 /* ScriptGetArgs.swift */,
 			);
 			path = Scripts;
 			sourceTree = "<group>";
@@ -378,7 +378,7 @@
 				FAFBDFC21D607F5B008523A9 /* Scene.swift in Sources */,
 				FA355C5920092BC800512DC0 /* CMAcceleration.swift in Sources */,
 				FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */,
-				FA9C95F22001B865005FBB66 /* ScriptGetArgs.swift in Sources */,
+				FA9C95F22001B865005FBB66 /* ScriptArgs.swift in Sources */,
 				FA355C542009241000512DC0 /* AppDelegate.swift in Sources */,
 				FA355C532009241000512DC0 /* GameViewController.swift in Sources */,
 				FA0A0D771D5FB07A00878046 /* Extensions.swift in Sources */,
@@ -405,7 +405,7 @@
 				FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */,
 				FA6DAAF81D67709C002017DE /* Scene.swift in Sources */,
 				FA9C95F62001B967005FBB66 /* ScriptExec.swift in Sources */,
-				FA9C95F32001B8AC005FBB66 /* ScriptGetArgs.swift in Sources */,
+				FA9C95F32001B8AC005FBB66 /* ScriptArgs.swift in Sources */,
 				FA50107E20018F2D00B24CE6 /* Script.swift in Sources */,
 				FA6DAAF71D67709C002017DE /* AnimationLoader.swift in Sources */,
 				FA6ABE96200819FE00BB3BBD /* Game.swift in Sources */,

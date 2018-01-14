@@ -77,7 +77,7 @@ final class Script {
 	}
 	
 	func parse(string: String) -> [(String, [Argument])] {
-//		if node.name == "mysi" {
+//		if node.name == "root" {
 //			print("==============================")
 //			print(string)
 //			print("==============================")
@@ -123,7 +123,7 @@ final class Script {
 //			print("[SCRIPT]", node.name as Any)
 //			return
 //		}
-		
+//		
 //		queue.async(execute: run)
 	}
 	
@@ -138,9 +138,9 @@ final class Script {
 			return next()
 		}
 		
-//		if node.name == "root" {
-//			print(">>>", command)
-//		}
+		if node.name == "root" {
+			print(">>>", command)
+		}
 		
 		performCommand(command: command)
 	}

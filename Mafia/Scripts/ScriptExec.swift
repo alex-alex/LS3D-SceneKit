@@ -20,7 +20,7 @@ extension Script {
 //		"car_muststeal"
 //		"car_setspeed"
 //		"commandblock"
-//		"compareownerwithex"
+		case "compareownerwithex":		compareownerwithex(command.1)
 		case "console_addtext":			console_addtext(command.1)
 		case "createweaponfromframe":	createweaponfromframe(command.1)
 		case "ctrl_read":				ctrl_read(command.1)
@@ -97,6 +97,18 @@ extension Script {
 		next()
 	}
 	
+	private func compareownerwithex(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let carId = args[1].getValueOrVarValue(vars: vars)
+		let label1 = args[2].getString()
+		let label2 = args[3].getString()
+		if scene.game.mode == .car {
+			goto(label: label1)
+		} else {
+			goto(label: label2)
+		}
+	}
+	
 	private func console_addtext(_ args: [Argument]) {
 		let txtId = args[0].getValueOrVarValue(vars: vars)
 		print("console_addtext:", TextDb.get(txtId) as Any)
@@ -118,8 +130,11 @@ extension Script {
 	private func ctrl_read(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let controlStr = args[1].getString()
-		let control = Control(rawValue: controlStr)!
-		vars[varId] = control == scene.game.lastControl ? 1 : 0
+		if let control = Control(rawValue: controlStr) {
+			vars[varId] = (control == scene.game.lastControl || control == .SPEEDLIMIT) ? 1 : 0
+		} else {
+			vars[varId] = 0
+		}
 		next()
 	}
 	
@@ -236,7 +251,12 @@ extension Script {
 		if actors[actor1Id]!.name == "plechovkac" {
 			vars[varId] = 2
 		} else {
-			vars[varId] = actors[actor1Id]!.distance(to: actors[actor2Id]!)
+			let actor1 = actors[actor1Id]!
+			if actor1 == scene.playerNode && scene.game.mode == .car {
+				vars[varId] = scene.game.vehicle.node.distance(to: actors[actor2Id]!)
+			} else {
+				vars[varId] = actor1.distance(to: actors[actor2Id]!)
+			}
 		}
 		next()
 	}
@@ -297,6 +317,10 @@ extension Script {
 		let soundId = args[1].getString()
 //		let _ = args[2].getValueOrVarValue(vars: vars)
 		
+		if soundId == "21990001" {
+			return goto(label: "20")
+		}
+		
 		if let node = actors[actorId] {
 			let url = mainDirectory.appendingPathComponent("sounds/\(soundId).wav")
 			let source = SCNAudioSource(url: url)!
@@ -304,6 +328,8 @@ extension Script {
 			node.runAction(SCNAction.playAudio(source, waitForCompletion: true)) {
 				self.next()
 			}
+		} else {
+			fatalError()
 		}
 	}
 	

@@ -1,5 +1,5 @@
 //
-//  ScriptGetArgs.swift
+//  ScriptArgs.swift
 //  Mafia
 //
 //  Created by Alex Studnička on 07/01/2018.
@@ -8,10 +8,89 @@
 
 import Foundation
 
+/*final class ScriptArgs {
+		
+	private let compareownerwithex: ((Scanner) -> [Argument]) = { scanner in
+		return [ScriptArgs.scanVarOrValue(scanner), ScriptArgs.scanVarOrValue(scanner), .label(ScriptArgs.scanParam(scanner)), .label(ScriptArgs.scanParam(scanner))]
+	}
+	
+	// ----
+	
+	func getArgumentsForCommand(str: String, scanner: Scanner) -> [Argument] {
+		let mirror = Mirror(reflecting: self)
+		let function = mirror.children.first!.value as! ((Scanner) -> [Argument])
+		return function(scanner)
+	}
+	
+	// ----
+	
+	private static func scanParamOptional(_ scanner: Scanner) -> String? {
+		var str: NSString?
+		let charset = CharacterSet(charactersIn: ",").union(.whitespaces)
+		scanner.scanUpToCharacters(from: charset, into: &str)
+		scanner.scanCharacters(from: charset, into: nil)
+		return str as String?
+	}
+	
+	private static func scanParam(_ scanner: Scanner) -> String {
+		guard let ret = scanParamOptional(scanner) else { fatalError() }
+		return ret
+	}
+	
+	private static func scanString(_ scanner: Scanner) -> String? {
+		var str: NSString?
+		let charset = CharacterSet(charactersIn: "\"")
+		guard scanner.scanString("\"", into: nil) else { return nil }
+		scanner.scanUpToCharacters(from: charset, into: &str)
+		guard scanner.scanString("\"", into: nil) else { fatalError() }
+		scanner.scanCharacters(from: .whitespaces, into: nil)
+		return (str as String?)
+	}
+	
+	private static func scanVar(_ scanner: Scanner) -> Int? {
+		var var1 = 0
+		guard scanner.scanString("flt[", into: nil) else { return nil }
+		guard scanner.scanInt(&var1) else { fatalError() }
+		guard scanner.scanString("]", into: nil) else { fatalError() }
+		let charset = CharacterSet(charactersIn: ",").union(.whitespaces)
+		scanner.scanCharacters(from: charset, into: nil)
+		return var1
+	}
+	
+	private static func scanValue(_ scanner: Scanner) -> Float? {
+		var value: Float = 0
+		guard scanner.scanFloat(&value) else { return nil }
+		let charset = CharacterSet(charactersIn: ",").union(.whitespaces)
+		scanner.scanCharacters(from: charset, into: nil)
+		return value
+	}
+	
+	private static func scanVarOrValueOptional(_ scanner: Scanner) -> Argument? {
+		if let varId = scanVar(scanner) {
+			return .variable(varId)
+		} else if let value = scanValue(scanner) {
+			return .number(value)
+		} else {
+			return nil
+		}
+	}
+	
+	private static func scanVarOrValue(_ scanner: Scanner) -> Argument {
+		if let arg = scanVarOrValueOptional(scanner) {
+			return arg
+		} else {
+			fatalError()
+		}
+	}
+	
+}*/
+
 extension Script {
 	
 	func getArgumentsForCommand(str: String, scanner: Scanner) -> [Argument] {
+		let x = type(of: self)
 		switch str {
+		case "compareownerwithex":		return getArgs_compareownerwithex(scanner)
 		case "console_addtext":			return getArgs_console_addtext(scanner)
 		case "createweaponfromframe":	return getArgs_createweaponfromframe(scanner)
 		case "ctrl_read":				return getArgs_ctrl_read(scanner)
@@ -43,6 +122,10 @@ extension Script {
 	}
 	
 	// ----
+	
+	private func getArgs_compareownerwithex(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
+	}
 	
 	private func getArgs_console_addtext(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
