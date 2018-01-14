@@ -201,9 +201,9 @@ extension Game: SCNSceneRendererDelegate {
 		
 		#elseif os(iOS)
 			
-		let translation = vc.walkGesture.translation(in: view)
+		let translation = vc.walkGesture.translation(in: vc.view)
 		
-		if game.mode == .walk {
+		if mode == .walk {
 			if let playerNode = scene.playerNode {
 				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
 //				let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 5000)), y: 0, z: max(-1, min(1, Float(-translation.y) / 5000)))
