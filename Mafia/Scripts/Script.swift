@@ -9,8 +9,6 @@
 import Foundation
 import SceneKit
 
-typealias Command = (Script, Scanner) -> ()
-
 enum Argument {
 //	case empty
 	case number(Float)
@@ -47,6 +45,7 @@ final class Script {
 	
 	let uuid = NSUUID()
 	let queue: DispatchQueue
+	var completionHandler: (() -> Void)?
 	
 	var mainInEvent = false
 	
@@ -54,7 +53,7 @@ final class Script {
 	var currentEventId: String? = nil
 	var lineBeforeEvent: Int = 0
 	var executingEvent = false
-	var completionHandler: (() -> Void)?
+	var eventCompletionHandler: (() -> Void)?
 	
 	let scene: Scene
 	let node: SCNNode
@@ -77,7 +76,7 @@ final class Script {
 	}
 	
 	func parse(string: String) -> [(String, [Argument])] {
-//		if node.name == "root" {
+//		if node.name == nil {
 //			print("==============================")
 //			print(string)
 //			print("==============================")
@@ -119,16 +118,21 @@ final class Script {
 //			"Enemy", "dret", "lekarna", "help", "end", "stop"
 //		]
 		
-//		guard let name = node.name, ["root"].contains(name) else {
+//		guard let name = node.name, [].contains(name) else {
 //			print("[SCRIPT]", node.name as Any)
 //			return
 //		}
-//		
+		
 //		queue.async(execute: run)
 	}
 	
 	func run() {
-		guard currentLine < commands.endIndex else { return print("END") }
+		guard currentLine < commands.endIndex else {
+			completionHandler?()
+			print("END")
+			return
+		}
+		
 		let command = commands[currentLine]
 		
 		if mainInEvent {

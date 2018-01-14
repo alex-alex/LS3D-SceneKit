@@ -88,11 +88,13 @@ enum ObjectDefinitionType: UInt32 {
 
 final class Scene {
 	
-	var delegate: GameViewController!
 	var game: Game!
 	let rootNode = SCNNode()
 	var playerNode: SCNNode? = nil
+	
+	var initScripts: [String: Script] = [:]
 	var scripts: [String: Script] = [:]
+	
 	var sounds: [SCNNode: Sound] = [:]
 	var weapons: [SCNNode: [Weapon]] = [:]
 	var actions: [Action] = []
@@ -100,9 +102,7 @@ final class Scene {
 	
 	var objectives: [Int] = [] {
 		didSet {
-			#if os(iOS)
-			delegate.objectivesChanged()
-			#endif
+//			game.objectivesChanged()
 		}
 	}
 	var pressedJump = false
@@ -467,9 +467,9 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 				
 				let scriptLength: UInt32 = try stream.read()
 				let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
-				//print("INIT_SCRIPT \(name):\n\(scriptStr)")
+				print("INIT_SCRIPT \(name):\n\(scriptStr)")
 				let script = Script(script: scriptStr, scene: scene, node: scene.rootNode)
-				scene.scripts["__init__"] = script
+				scene.initScripts[name] = script
 				script.start()
 			}
 		}

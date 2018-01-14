@@ -23,12 +23,13 @@ final class Game: NSObject {
 	}
 	
 	var vc: GameViewController!
+	var hud: HudScene!
 	
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
 	
-	var mode: Mode = .car {
+	var mode: Mode = .walk {
 		didSet {
 			cameraContainer.removeFromParentNode()
 			if mode == .walk {
@@ -48,26 +49,35 @@ final class Game: NSObject {
 	init(vc: GameViewController) {
 		self.vc = vc
 		
-		let sceneModel = try! loadModel(named: "missions/freeride/scene")
+		let missionName = "mise08-hotel"
+		
+		let sceneModel = try! loadModel(named: "missions/\(missionName)/scene")
 		scnScene.rootNode.addChildNode(sceneModel)
 		print("== Loaded Scene Model")
 		
-		scene = try! loadScene(named: "missions/freeride")
+		scene = try! loadScene(named: "missions/"+missionName)
 		
 		super.init()
 		
-		scene.delegate = vc
 		scene.game = self
 		scnScene.rootNode.addChildNode(scene.rootNode)
 		print("== Loaded Scene")
 		
-		let sceneCache = try! SceneCache(name: "missions/freeride")
-		scnScene.rootNode.addChildNode(sceneCache.node)
-		print("== Loaded Scene Cache")
+//		let sceneCache = try! SceneCache(name: "missions/"+missionName)
+//		scnScene.rootNode.addChildNode(sceneCache.node)
+//		print("== Loaded Scene Cache")
 		
-		let collisions = try! Collisions(name: "missions/freeride", scene: scnScene)
+		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
 		scnScene.rootNode.addChildNode(collisions.node)
 		print("== Loaded Scene Collisions")
+		
+		// -----
+		
+		if scene.playerNode == nil {
+			scene.playerNode = try! loadModel(named: "models/tommy")
+			scene.playerNode!.position = SCNVector3(x: -535.497498, y: 20.0, z: -431.622375)
+			scnScene.rootNode.addChildNode(scene.playerNode!)
+		}
 		
 		// -----
 		
@@ -96,9 +106,9 @@ final class Game: NSObject {
 		
 		// -----
 		
-		let carNodeName = "cad_road" // taxi2
-		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-		vehicle = Vehicle(scene: scnScene, node: carNode)
+//		let carNodeName = "cad_road" // taxi2
+//		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
+//		vehicle = Vehicle(scene: scnScene, node: carNode)
 		
 		// -----
 		
@@ -134,7 +144,7 @@ final class Game: NSObject {
 	}
 	
 	func setup(in view: SCNView) {
-		//view.delegate = self
+		view.delegate = self
 		view.rendersContinuously = true
 		view.scene = scnScene
 		view.antialiasingMode = .none
@@ -149,6 +159,9 @@ final class Game: NSObject {
 		} else {
 			view.audioListener = cameraContainer
 		}
+		
+		hud = HudScene(size: view.bounds.size, game: self)
+		hud.setup(in: view)
 	}
 	
 	func play(in view: SCNView) {
@@ -162,7 +175,75 @@ final class Game: NSObject {
 extension Game: SCNSceneRendererDelegate {
 	
 	func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+		#if os(macOS)
 		
+		guard let vehicle = vehicle?.physicsVehicle else { return }
+		
+		vehicle.setSteeringAngle(hud.vehicleSteering, forWheelAt: 0)
+		vehicle.setSteeringAngle(hud.vehicleSteering, forWheelAt: 1)
+		
+		if hud.ride {
+			vehicle.applyBrakingForce(0, forWheelAt: 2)
+			vehicle.applyBrakingForce(0, forWheelAt: 3)
+			if !hud.reverse {
+				vehicle.applyEngineForce(1000, forWheelAt: 2)
+				vehicle.applyEngineForce(1000, forWheelAt: 3)
+			} else {
+				vehicle.applyEngineForce(-1000, forWheelAt: 2)
+				vehicle.applyEngineForce(-1000, forWheelAt: 3)
+			}
+		} else {
+			vehicle.applyEngineForce(0, forWheelAt: 2)
+			vehicle.applyEngineForce(0, forWheelAt: 3)
+			vehicle.applyBrakingForce(1000, forWheelAt: 2)
+			vehicle.applyBrakingForce(1000, forWheelAt: 3)
+		}
+		
+		#elseif os(iOS)
+			
+		let translation = vc.walkGesture.translation(in: view)
+		
+		if game.mode == .walk {
+			if let playerNode = scene.playerNode {
+				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
+//				let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 5000)), y: 0, z: max(-1, min(1, Float(-translation.y) / 5000)))
+//				scene.playerNode!.position.x -= impulse.x * cos(angle) - impulse.z * sin(angle)
+//				scene.playerNode!.position.z += impulse.x * -sin(angle) - impulse.z * cos(angle)
+				var impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 50)), y: 0, z: max(-1, min(1, Float(-translation.y) / 50)))
+				impulse = SCNVector3(
+					x: (impulse.x * cos(angle) - impulse.z * sin(angle))*80,
+					y: 0,
+					z: (impulse.x * -sin(angle) - impulse.z * cos(angle))*80
+				)
+				playerNode.physicsBody?.applyForce(impulse, asImpulse: true)
+			} else {
+				let angle = cameraContainer.presentation.rotation.y * cameraContainer.presentation.rotation.w - .pi
+				let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 500)), y: 0, z: max(-1, min(1, Float(-translation.y) / 500)))
+				cameraContainer.position.x -= impulse.x * cos(angle) - impulse.z * sin(angle)
+				cameraContainer.position.z += impulse.x * -sin(angle) - impulse.z * cos(angle)
+			}
+		} else {
+			vehicle.applyForces()
+		}
+			
+		#endif
+		
+		if let node = scene.compassNode {
+			let p1 = node.presentation.worldPosition
+			let p2 = scene.playerNode!.presentation.worldPosition
+			hud.compass.isHidden = false
+			let playerAngle: SCNFloat
+			if mode == .walk {
+				playerAngle = scene.playerNode!.presentation.rotation.y * scene.playerNode!.presentation.rotation.w - .pi
+			} else {
+				playerAngle = self.vehicle.node.presentation.rotation.y * self.vehicle.node.presentation.rotation.w - .pi/2
+			}
+			hud.compassNeedle.zRotation = CGFloat(atan2(p2.z - p1.z, p2.x - p1.x) + playerAngle)
+		} else {
+			hud.compass.isHidden = true
+		}
+		
+		hud.actionButton.isHidden = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 }).isEmpty
 	}
 	
 }

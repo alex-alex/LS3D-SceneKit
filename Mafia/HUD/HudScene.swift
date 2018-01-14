@@ -165,7 +165,15 @@ final class HudScene: SKScene {
 				game.openInventory()
 			case reloadButton, reloadButton.children[0]:
 				game.lastControl = .RELOAD
-				print("pos:", game.scene.playerNode!.position)
+				if game.mode == .walk {
+					if let playerNode = game.scene.playerNode {
+						print("pos:", playerNode.presentation.position)
+					} else {
+						print("pos:", game.cameraContainer.presentation.position)
+					}
+				} else {
+					print("pos:", game.vehicle.node.presentation.position)
+				}
 			case dropButton, dropButton.children[0]:
 				game.lastControl = .WEAPONDROP
 				for (i, weapon) in (game.scene.weapons[game.scene.playerNode!] ?? []).enumerated() {
@@ -200,6 +208,104 @@ final class HudScene: SKScene {
 				break
 			}
 		}
+	}
+	
+	#elseif os(macOS)
+	
+	var ride = false
+	var reverse = false
+	var vehicleSteering: CGFloat = 0
+	
+	override func keyDown(with event: NSEvent) {
+		super.keyDown(with: event)
+		
+		let playerNode = game.scene.playerNode ?? game.cameraNode
+		
+		SCNTransaction.begin()
+		SCNTransaction.animationDuration = 0.2
+		
+		switch event.keyCode {
+		case 0: // A
+			//			playerNode.position.y += 0.25
+			
+			playerNode.physicsBody?.applyForce(SCNVector3(
+				x: 0,
+				y: 4*80,
+				z: 0
+			), asImpulse: true)
+			
+		case 6: // Z
+			//			playerNode.position.y -= 0.25
+			break
+			
+		case 13: // W
+			if game.mode == .walk {
+				print("playerNode.position =", playerNode.position)
+				print("playerNode.eulerAngles =", playerNode.eulerAngles)
+				game.scene.pressedJump = true
+			} else {
+				print("game.vehicle.node.position =", game.vehicle.node.presentation.position)
+				reverse = !reverse
+			}
+			
+		case 14: // E
+			if game.mode == .walk {
+				game.mode = .car
+			} else {
+				game.mode = .walk
+			}
+			
+		case 123: // left
+			if game.mode == .walk {
+				//				playerNode.eulerAngles.y += 0.25
+				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: -10), asImpulse: true)
+			} else if game.mode == .car {
+				vehicleSteering -= 0.05
+			}
+			
+		case 124: // right
+			if game.mode == .walk {
+				//				playerNode.eulerAngles.y -= 0.25
+				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: 10), asImpulse: true)
+			} else if game.mode == .car {
+				vehicleSteering += 0.05
+			}
+			
+		case 125: // down
+			if game.mode == .walk {
+				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
+				//				playerNode.position.x -= 0.5 * sin(angle)
+				//				playerNode.position.z += 0.5 * cos(angle)
+				
+				playerNode.physicsBody?.applyForce(SCNVector3(
+					x: 4*80 * sin(angle),
+					y: 0,
+					z: 4*80 * cos(angle)
+				), asImpulse: true)
+			} else if game.mode == .car {
+				ride = false
+			}
+			
+		case 126: // up
+			if game.mode == .walk {
+				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
+//				playerNode.position.x -= 2 * sin(angle)
+//				playerNode.position.z -= 2 * cos(angle)
+				
+				playerNode.physicsBody?.applyForce(SCNVector3(
+					x: 4*80 * -sin(angle),
+					y: 0,
+					z: 4*80 * -cos(angle)
+				), asImpulse: true)
+			} else if game.mode == .car {
+				ride = true
+			}
+			
+		default:
+			super.keyDown(with: event)
+		}
+		
+		SCNTransaction.commit()
 	}
 	
 	#endif

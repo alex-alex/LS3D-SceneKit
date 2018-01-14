@@ -57,10 +57,10 @@ final class Vehicle {
 		
 		let wheelHalfWidth = 0.5 * (whl0.boundingBox.max.x - whl0.boundingBox.min.x)
 		
-		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 1, 0)
-		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 1, 0)
-		wheel2.connectionPosition = whl1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 1, 0)
-		wheel3.connectionPosition = whr1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 1, 0)
+		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 0, 0)
+		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 0, 0)
+		wheel2.connectionPosition = whl1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 0, 0)
+		wheel3.connectionPosition = whr1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 0, 0)
 		
 		physicsVehicle = SCNPhysicsVehicle(chassisBody: taxiNode.physicsBody!, wheels: [
 			wheel0, wheel1, wheel2, wheel3

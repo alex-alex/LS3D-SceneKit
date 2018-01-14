@@ -188,7 +188,7 @@ extension Script {
 	}
 	
 	private func end(_ args: [Argument]) {
-		
+		completionHandler?()
 	}
 	
 	private func enemy_playanim(_ args: [Argument]) {
@@ -405,8 +405,8 @@ extension Script {
 	
 	private func `return`(_ args: [Argument]) {
 		if executingEvent {
-			completionHandler?()
-			completionHandler = nil
+			eventCompletionHandler?()
+			eventCompletionHandler = nil
 			currentEventId = nil
 			executingEvent = false
 			currentLine = lineBeforeEvent
