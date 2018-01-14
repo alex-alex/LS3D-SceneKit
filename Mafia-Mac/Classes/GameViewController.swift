@@ -16,6 +16,7 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
     @IBOutlet weak var gameView: SCNView!
 	
 	var game: Game!
+	var hud: HudScene!
 	
 	var ride = false
 	var reverse = false
@@ -24,7 +25,23 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
     override func awakeFromNib() {
         super.awakeFromNib()
 	
-	
+		try! TextDb.load()
+		
+		// ------
+		
+		gameView.delegate = self
+		
+		// ------
+		
+		game = Game(vc: self)
+		game.setup(in: gameView)
+		
+		hud = HudScene(size: gameView.bounds.size, game: game)
+		//hud.setup(in: gameView)
+		
+		// ------
+		
+		game.play(in: gameView)
     }
 	
 	override func keyDown(with event: NSEvent) {
@@ -35,14 +52,17 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 		
 		switch event.keyCode {
 		case 0: // A
-			playerNode.position.y += 0.25
+//			playerNode.position.y += 0.25
 			
-//			let force = SCNVector3(x: 0, y: 2 , z: 0)
-//			let position = SCNVector3(x: 0.05, y: 0.05, z: 0.05)
-//			playerNode.physicsBody?.applyForce(force, atPosition: position, impulse: true)
+			playerNode.physicsBody?.applyForce(SCNVector3(
+				x: 0,
+				y: 4*80,
+				z: 0
+			), asImpulse: true)
 			
 		case 6: // Z
-			playerNode.position.y -= 0.25
+//			playerNode.position.y -= 0.25
+			break
 			
 		case 13: // W
 			if game.mode == .walk {
@@ -50,14 +70,11 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 				print("playerNode.eulerAngles =", playerNode.eulerAngles)
 				game.scene.pressedJump = true
 			} else {
-				let taxiNodeX = game.scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-				let taxiNode = taxiNodeX.childNode(withName: "BODY", recursively: false)!
-				print("taxiNode.position =", taxiNode.position)
+				print("game.vehicle.node.position =", game.vehicle.node.presentation.position)
 				reverse = !reverse
 			}
 			
 		case 14: // E
-			//scene.pressedJump = true
 			if game.mode == .walk {
 				game.mode = .car
 			} else {
@@ -66,46 +83,46 @@ class GameViewController: NSViewController, SCNSceneRendererDelegate {
 			
 		case 123: // left
 			if game.mode == .walk {
-				playerNode.eulerAngles.y += 0.25
-//				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: -0.5), asImpulse: true)
+//				playerNode.eulerAngles.y += 0.25
+				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: -10), asImpulse: true)
 			} else if game.mode == .car {
 				vehicleSteering -= 0.05
 			}
 
 		case 124: // right
 			if game.mode == .walk {
-				playerNode.eulerAngles.y -= 0.25
-//				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: 0.5), asImpulse: true)
+//				playerNode.eulerAngles.y -= 0.25
+				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: 10), asImpulse: true)
 			} else if game.mode == .car {
 				vehicleSteering += 0.05
 			}
 			
 		case 125: // down
 			if game.mode == .walk {
-				let angle = playerNode.presentation.eulerAngles.y
-				playerNode.position.x -= 0.5 * sin(angle)
-				playerNode.position.z += 0.5 * cos(angle)
+				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w
+//				playerNode.position.x -= 0.5 * sin(angle)
+//				playerNode.position.z += 0.5 * cos(angle)
 				
-//				playerNode.physicsBody?.applyForce(SCNVector3(
-//					x: 2 * -sin(angle),
-//					y: 0,
-//					z: 2 * cos(angle)
-//				), asImpulse: true)
+				playerNode.physicsBody?.applyForce(SCNVector3(
+					x: 4*80 * -sin(angle),
+					y: 0,
+					z: 4*80 * cos(angle)
+				), asImpulse: true)
 			} else if game.mode == .car {
 				ride = false
 			}
 			
 		case 126: // up
 			if game.mode == .walk {
-				let angle = playerNode.presentation.eulerAngles.y
-				playerNode.position.x += 2 * sin(angle)
-				playerNode.position.z -= 2 * cos(angle)
+				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w
+//				playerNode.position.x += 2 * sin(angle)
+//				playerNode.position.z -= 2 * cos(angle)
 				
-//				playerNode.physicsBody?.applyForce(SCNVector3(
-//					x: 2 * sin(angle),
-//					y: 0,
-//					z: 2 * -cos(angle)
-//				), asImpulse: true)
+				playerNode.physicsBody?.applyForce(SCNVector3(
+					x: 4*80 * sin(angle),
+					y: 0,
+					z: 4*80 * -cos(angle)
+				), asImpulse: true)
 			} else if game.mode == .car {
 				ride = true
 			}

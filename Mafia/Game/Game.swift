@@ -16,8 +16,6 @@ let mainDirectory = URL(fileURLWithPath: "/Users/alex/Development/Mafia DEV/Mafi
 let mainDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Mafia")
 #endif
 
-let carNodeName = "taxi2" // cad_road
-
 final class Game: NSObject {
 	
 	enum Mode {
@@ -32,14 +30,12 @@ final class Game: NSObject {
 	
 	var mode: Mode = .car {
 		didSet {
-			/*cameraContainer.removeFromParentNode()
+			cameraContainer.removeFromParentNode()
 			if mode == .walk {
 				scene.playerNode!.addChildNode(cameraContainer)
 			} else {
-				let taxiNodeX = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-				let taxiNode = taxiNodeX.childNode(withName: "BODY", recursively: false)!
-				taxiNode.addChildNode(cameraContainer)
-			}*/
+				vehicle.node.addChildNode(cameraContainer)
+			}
 		}
 	}
 	
@@ -52,22 +48,26 @@ final class Game: NSObject {
 	init(vc: GameViewController) {
 		self.vc = vc
 		
-		let sceneModel = try! loadModel(named: "missions/tutorial/scene")
+		let sceneModel = try! loadModel(named: "missions/freeride/scene")
 		scnScene.rootNode.addChildNode(sceneModel)
+		print("== Loaded Scene Model")
 		
-		scene = try! loadScene(named: "missions/tutorial")
+		scene = try! loadScene(named: "missions/freeride")
 		
 		super.init()
 		
 		scene.delegate = vc
 		scene.game = self
 		scnScene.rootNode.addChildNode(scene.rootNode)
+		print("== Loaded Scene")
 		
-//		let sceneCache = try! SceneCache(name: "missions/freeitaly")
-//		scnScene.rootNode.addChildNode(sceneCache.node)
+		let sceneCache = try! SceneCache(name: "missions/freeride")
+		scnScene.rootNode.addChildNode(sceneCache.node)
+		print("== Loaded Scene Cache")
 		
-		let collisions = try! Collisions(name: "missions/tutorial", scene: scnScene)
+		let collisions = try! Collisions(name: "missions/freeride", scene: scnScene)
 		scnScene.rootNode.addChildNode(collisions.node)
+		print("== Loaded Scene Collisions")
 		
 		// -----
 		
@@ -85,8 +85,8 @@ final class Game: NSObject {
 			playerNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: playerPhysicsShape)
 			playerNode.physicsBody?.allowsResting = false
 			playerNode.physicsBody?.mass = 80
-			playerNode.physicsBody?.angularDamping = 0.999
-			playerNode.physicsBody?.damping = 0.999
+			playerNode.physicsBody?.angularDamping = 0.9999999
+			playerNode.physicsBody?.damping = 0.9999999
 			playerNode.physicsBody?.rollingFriction = 0
 			playerNode.physicsBody?.friction = 0
 			playerNode.physicsBody?.restitution = 0
@@ -96,6 +96,7 @@ final class Game: NSObject {
 		
 		// -----
 		
+		let carNodeName = "cad_road" // taxi2
 		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
 		vehicle = Vehicle(scene: scnScene, node: carNode)
 		
@@ -128,8 +129,7 @@ final class Game: NSObject {
 				scene.rootNode.addChildNode(cameraContainer)
 			}
 		} else {
-			let bodyNode = vehicle.node.childNode(withName: "BODY", recursively: false)!
-			bodyNode.addChildNode(cameraContainer)
+			vehicle.node.addChildNode(cameraContainer)
 		}
 	}
 	

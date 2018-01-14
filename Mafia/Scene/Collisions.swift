@@ -158,20 +158,28 @@ struct XTOBB {
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		guard let _node = treeKlz.getNode(linkId: volume.linkId!) else { return SCNNode() }
 		
-		//let node = SCNNode()
-		let box = SCNBox(width: CGFloat(maxExtent.x-minExtent.x), height: CGFloat(maxExtent.y-minExtent.y), length: CGFloat(maxExtent.z-minExtent.z), chamferRadius: 0)
-		//box.firstMaterial = SCNMaterial()
-		//box.firstMaterial?.cullMode = .front
-		//box.firstMaterial?.diffuse.contents = SKColor.green
-		//node.geometry = box
-		//node.transform = _node.convertTransform(transform, from: treeKlz.rootNode)
+		let node = SCNNode()
+//		let box = SCNBox(width: CGFloat(maxExtent.x-minExtent.x), height: CGFloat(maxExtent.y-minExtent.y), length: CGFloat(maxExtent.z-minExtent.z), chamferRadius: 0)
+//		box.firstMaterial = SCNMaterial()
+//		box.firstMaterial?.cullMode = .front
+//		box.firstMaterial?.diffuse.contents = SKColor.green
+//		node.geometry = box
+//		node.transform = transform
 		
-		let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
-		let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: convertedTransform)])
+		if volume.mtlId == 41 {
+			let shape = SCNPhysicsShape(node: _node, options: [:])
+			_node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
+		} else {
+//			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
+//			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])
+//			node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
+			let shape = SCNPhysicsShape(node: _node, options: [
+				SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron
+			])
+			_node.physicsBody = SCNPhysicsBody(type: .static, shape: shape)
+		}
 		
-		_node.physicsBody = SCNPhysicsBody(type: volume.mtlId == 41 ? .dynamic : .static, shape: shape)
-		
-		return SCNNode()
+		return node
 	}
 }
 
@@ -308,7 +316,15 @@ final class Collisions {
 	
 	func getNode(linkId: UInt32) -> SCNNode? {
 		let (_, name) = names[Int(linkId)]
-		return rootNode.childNode(withName: name, recursively: true)
+		
+		let comps = name.split(separator: ".")
+		if comps.count > 1 {
+			guard comps.count == 2 else { fatalError() }
+			guard let parent = rootNode.childNode(withName: String(comps[0]), recursively: true) else { return nil }
+			return parent.childNode(withName: String(comps[1]), recursively: false)
+		} else {
+			return rootNode.childNode(withName: name, recursively: true)
+		}
 	}
 	
 	private func process(stream: InputStream) throws {
@@ -417,12 +433,14 @@ final class Collisions {
 		
 		var nodesVertices: [SCNNode: [SCNVector3]] = [:]
 		for _ in 0 ..< numFaces {
-			let face = try Triangle(stream: stream)
-			if let (node, vertices) = face.getVertices(treeKlz: self) {
-				if nodesVertices[node] == nil {
-					nodesVertices[node] = vertices
-				} else {
-					nodesVertices[node]!.append(contentsOf: vertices)
+			try autoreleasepool {
+				let face = try Triangle(stream: stream)
+				if let (node, vertices) = face.getVertices(treeKlz: self) {
+					if nodesVertices[node] == nil {
+						nodesVertices[node] = vertices
+					} else {
+						nodesVertices[node]!.append(contentsOf: vertices)
+					}
 				}
 			}
 		}
@@ -434,49 +452,61 @@ final class Collisions {
 		
 		let facesNode = SCNNode()
 		for (_node, vertices) in nodesVertices {
-			let node = SCNNode()
-			let verticesSource = SCNGeometrySource(vertices: vertices)
-			var indices: [Int32] = []
-			for i in 0 ..< Int32(vertices.count) {
-				indices.append(i)
+			autoreleasepool {
+				let node = SCNNode()
+				let verticesSource = SCNGeometrySource(vertices: vertices)
+				var indices: [Int32] = []
+				for i in 0 ..< Int32(vertices.count) {
+					indices.append(i)
+				}
+				let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
+				let geometry = SCNGeometry(sources: [verticesSource], elements: [element])
+				geometry.firstMaterial = SCNMaterial()
+				geometry.firstMaterial?.isDoubleSided = true
+				geometry.firstMaterial?.diffuse.contents = SKColor.random()
+				node.transform = _node.worldTransform
+				//node.geometry = geometry
+				node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: geometry, options: [
+					.type: SCNPhysicsShape.ShapeType.concavePolyhedron.rawValue
+				]))
+				facesNode.addChildNode(node)
 			}
-			let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
-			let geometry = SCNGeometry(sources: [verticesSource], elements: [element])
-			geometry.firstMaterial = SCNMaterial()
-			geometry.firstMaterial?.isDoubleSided = true
-			geometry.firstMaterial?.diffuse.contents = SKColor.random()
-			node.transform = _node.worldTransform
-			//node.geometry = geometry
-			node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: geometry, options: [
-				.type: SCNPhysicsShape.ShapeType.concavePolyhedron.rawValue
-			]))
-			facesNode.addChildNode(node)
 		}
 		node.addChildNode(facesNode)
 		
 		for _ in 0 ..< numAABBs {
-			let box = try AABB(stream: stream)
-			node.addChildNode(box.getNode(treeKlz: self))
+			try autoreleasepool {
+				let box = try AABB(stream: stream)
+				node.addChildNode(box.getNode(treeKlz: self))
+			}
 		}
-		
+
 		for _ in 0 ..< numXTOBBs {
-			let xtobb = try XTOBB(stream: stream)
-			node.addChildNode(xtobb.getNode(treeKlz: self))
+			try autoreleasepool {
+				let xtobb = try XTOBB(stream: stream)
+				node.addChildNode(xtobb.getNode(treeKlz: self))
+			}
 		}
-		
+
 		for _ in 0 ..< numCylinders {
-			let cylinder = try Cylinder(stream: stream)
-			node.addChildNode(cylinder.getNode(treeKlz: self))
+			try autoreleasepool {
+				let cylinder = try Cylinder(stream: stream)
+				node.addChildNode(cylinder.getNode(treeKlz: self))
+			}
 		}
-		
+
 		for _ in 0 ..< numOBBs {
-			let obb = try OBB(stream: stream)
-			node.addChildNode(obb.getNode(treeKlz: self))
+			try autoreleasepool {
+				let obb = try OBB(stream: stream)
+				node.addChildNode(obb.getNode(treeKlz: self))
+			}
 		}
-		
+
 		for _ in 0 ..< numSpheres {
-			let sphere = try Sphere(stream: stream)
-			node.addChildNode(sphere.getNode(treeKlz: self))
+			try autoreleasepool {
+				let sphere = try Sphere(stream: stream)
+				node.addChildNode(sphere.getNode(treeKlz: self))
+			}
 		}
 		
 		// Collision Grid

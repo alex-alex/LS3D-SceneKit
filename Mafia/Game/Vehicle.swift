@@ -27,9 +27,10 @@ final class Vehicle {
 	}
 	
 	init(scene: SCNScene, node: SCNNode) {
-		self.node = node
+		//self.node = node
 		
 		let taxiNode = node.childNode(withName: "BODY", recursively: false)!
+		self.node = taxiNode
 		
 		/*let orphans = taxiNodeX.childNodes.filter({ node -> Bool in
 			guard let name = node.name else { return true }
@@ -40,9 +41,9 @@ final class Vehicle {
 		taxiNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)
 		taxiNode.physicsBody?.allowsResting = false
 		taxiNode.physicsBody?.mass = 1000
-		//taxiNode.physicsBody?.restitution = 0.1
-		//taxiNode.physicsBody?.friction = 0.5
-		//taxiNode.physicsBody?.rollingFriction = 0
+		taxiNode.physicsBody?.restitution = 0.1
+		taxiNode.physicsBody?.friction = 0.5
+		taxiNode.physicsBody?.rollingFriction = 0
 		
 		let whl0 = node.childNode(withName: "WHL0", recursively: true)!
 		let whr0 = node.childNode(withName: "WHR0", recursively: true)!
@@ -56,10 +57,10 @@ final class Vehicle {
 		
 		let wheelHalfWidth = 0.5 * (whl0.boundingBox.max.x - whl0.boundingBox.min.x)
 		
-		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 1.5, 0)
-		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 1.5, 0)
-		wheel2.connectionPosition = whl1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 1.5, 0)
-		wheel3.connectionPosition = whr1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 1.5, 0)
+		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 1, 0)
+		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 1, 0)
+		wheel2.connectionPosition = whl1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 1, 0)
+		wheel3.connectionPosition = whr1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 1, 0)
 		
 		physicsVehicle = SCNPhysicsVehicle(chassisBody: taxiNode.physicsBody!, wheels: [
 			wheel0, wheel1, wheel2, wheel3

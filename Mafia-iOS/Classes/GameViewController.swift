@@ -55,9 +55,9 @@ class GameViewController: UIViewController {
 		gameView.addGestureRecognizer(walkGesture)
 
 		// fire gesture
-		fireGesture = UITapGestureRecognizer(target: self, action: #selector(fireGestureRecognized))
-		fireGesture.delegate = self
-		view.addGestureRecognizer(fireGesture)
+//		fireGesture = UITapGestureRecognizer(target: self, action: #selector(fireGestureRecognized))
+//		fireGesture.delegate = self
+//		view.addGestureRecognizer(fireGesture)
 		
 		// ------
 		
@@ -103,12 +103,13 @@ extension GameViewController {
 		let vAngle = acos(Float(translation.y) / 200) - (.pi / 2)
 
 		if game.mode == .walk {
-			let hAngle = acos(Float(translation.x) / 500 * 80) - (.pi / 2)
 			if let playerNode = game.scene.playerNode {
+//				let hAngle = acos(Float(translation.x) / 5) - (.pi / 2)
 //				scene.playerNode!.eulerAngles.y += hAngle
 //				scene.playerNode!.position.y += vAngle
-				//scene.playerNode!.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: hAngle), asImpulse: true)
+				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: Float(translation.x)), asImpulse: true)
 			} else {
+				let hAngle = acos(Float(translation.x) / 500 * 80) - (.pi / 2)
 				game.elevation = max((-.pi/2.5), min(0, game.elevation - vAngle))
 				game.cameraContainer.eulerAngles.x = game.elevation
 				game.cameraContainer.eulerAngles.y += hAngle
@@ -148,10 +149,6 @@ extension GameViewController {
 	func fireGestureRecognized(gesture: UITapGestureRecognizer) {
 		print("== fireGestureRecognized ==")
 		game.scene.pressedJump = true
-		
-		/*let taxiNodeX = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-		let taxiNode = taxiNodeX.childNode(withName: "BODY", recursively: false)!
-		print("taxiNode.position =", taxiNode.presentation.position)*/
 	}
 	
 }
@@ -163,11 +160,11 @@ extension GameViewController: SCNSceneRendererDelegate {
 		
 		if game.mode == .walk {
 			if let playerNode = game.scene.playerNode {
-				let angle = playerNode.presentation.eulerAngles.y
+				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
 //				let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 5000)), y: 0, z: max(-1, min(1, Float(-translation.y) / 5000)))
 //				scene.playerNode!.position.x -= impulse.x * cos(angle) - impulse.z * sin(angle)
 //				scene.playerNode!.position.z += impulse.x * -sin(angle) - impulse.z * cos(angle)
-				var impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 500)), y: 0, z: max(-1, min(1, Float(-translation.y) / 500)))
+				var impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 50)), y: 0, z: max(-1, min(1, Float(-translation.y) / 50)))
 				impulse = SCNVector3(
 					x: (impulse.x * cos(angle) - impulse.z * sin(angle))*80,
 					y: 0,
@@ -188,7 +185,13 @@ extension GameViewController: SCNSceneRendererDelegate {
 			let p1 = node.presentation.worldPosition
 			let p2 = game.scene.playerNode!.presentation.worldPosition
 			hud.compass.isHidden = false
-			hud.compassNeedle.zRotation = CGFloat(atan2(p2.z - p1.z, p2.x - p1.x) - game.scene.playerNode!.eulerAngles.y)
+			let playerAngle: SCNFloat
+			if game.mode == .walk {
+				playerAngle = game.scene.playerNode!.presentation.rotation.y * game.scene.playerNode!.presentation.rotation.w - .pi
+			} else {
+				playerAngle = game.vehicle.node.presentation.rotation.y * game.vehicle.node.presentation.rotation.w - .pi/2
+			}
+			hud.compassNeedle.zRotation = CGFloat(atan2(p2.z - p1.z, p2.x - p1.x) + playerAngle)
 		} else {
 			hud.compass.isHidden = true
 		}
@@ -218,7 +221,7 @@ extension GameViewController: UIGestureRecognizerDelegate {
 extension GameViewController {
 	
 	func objectivesChanged() {
-		hud.objectivesLabel.text = game.scene.objectives.map({ TextDb.get($0)! }).joined(separator: "\n")
+		//hud.objectivesLabel.text = game.scene.objectives.map({ TextDb.get($0)! }).joined(separator: "\n")
 	}
 	
 }
