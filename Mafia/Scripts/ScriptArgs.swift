@@ -88,7 +88,6 @@ import Foundation
 extension Script {
 	
 	func getArgumentsForCommand(str: String, scanner: Scanner) -> [Argument] {
-		let x = type(of: self)
 		switch str {
 		case "compareownerwithex":		return getArgs_compareownerwithex(scanner)
 		case "console_addtext":			return getArgs_console_addtext(scanner)

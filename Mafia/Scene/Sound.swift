@@ -43,7 +43,7 @@ final class Sound {
 		
 		let _: UInt16 = try stream.read()		// const 0x4062
 		let _: UInt32 = try stream.read()		// always 10?
-		let param4: Float = try stream.read()	// 0 - 1 (volume?)
+		let _: Float = try stream.read()		// 0 - 1 (volume?)
 //		audioSource.volume = param4
 		
 		let _: UInt16 = try stream.read()		// const 0x4063
@@ -70,12 +70,12 @@ final class Sound {
 		let _: UInt16 = try stream.read()		// const 0x4067
 		let _: UInt32 = try stream.read()		// always 6?
 		
-		//					let _: UInt16 = try stream.read()		// const 0x00b8
+//		let _: UInt16 = try stream.read()		// const 0x00b8
 		
-		//					stream.currentOffset += partSize - 78 - Int(len)
+//		stream.currentOffset += partSize - 78 - Int(len)
 		
-		let data: [UInt8] = try stream.read(maxLength: partSize - 78 - Int(len))
-		//					print("sound data:", data.map({ String(format: "%02x", $0) }).joined(separator: " "), "\n\n")
+		let _: [UInt8] = try stream.read(maxLength: partSize - 78 - Int(len))
+//		print("sound data:", data.map({ String(format: "%02x", $0) }).joined(separator: " "), "\n\n")
 	}
 	
 	func play() {

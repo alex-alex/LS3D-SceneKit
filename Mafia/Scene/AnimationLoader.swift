@@ -189,7 +189,7 @@ func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	
 	let _: UInt64 = try stream.read() // timestamp
 	
-	let dataSize: UInt32 = try stream.read()
+	let _: UInt32 = try stream.read() // dataSize
 	let objectsCount: UInt16 = try stream.read()
 	let timerMax: UInt16 = try stream.read() // 25 units = 1 sec
 	

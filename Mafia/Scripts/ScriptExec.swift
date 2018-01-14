@@ -98,8 +98,8 @@ extension Script {
 	}
 	
 	private func compareownerwithex(_ args: [Argument]) {
-		let actorId = args[0].getValueOrVarValue(vars: vars)
-		let carId = args[1].getValueOrVarValue(vars: vars)
+		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
+		let _ = args[1].getValueOrVarValue(vars: vars) // carId
 		let label1 = args[2].getString()
 		let label2 = args[3].getString()
 		if scene.game.mode == .car {
@@ -262,7 +262,7 @@ extension Script {
 	}
 	
 	private func getenemyaistate(_ args: [Argument]) {
-		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
 		next()
@@ -287,14 +287,14 @@ extension Script {
 	private func human_getactanimid(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		if let node = actors[actorId] {
+		if let _ = actors[actorId] {
 			vars[varId] = scene.pressedJump ? 98 : 0
 		}
 		next()
 	}
 	
 	private func human_getproperty(_ args: [Argument]) {
-		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
 		next()

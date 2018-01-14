@@ -107,7 +107,7 @@ func readObject(stream: InputStream, node: SCNNode, id: Int) throws -> Int {
 	
 	let numLODs: UInt8 = try stream.read()
 	for lod in 0 ..< numLODs {
-		let clippingRange: Float = try stream.read()
+		let _: Float = try stream.read() // clippingRange
 		
 		let numVerts: UInt16 = try stream.read()
 		
@@ -215,10 +215,10 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 //		}
 		
 		let numBones: UInt8 = try stream.read()
-		let y: UInt32 = try stream.read()
+		let _: UInt32 = try stream.read() // y
 		
-		let min = try SCNVector3(stream: stream)
-		let max = try SCNVector3(stream: stream)
+		let _ = try SCNVector3(stream: stream) // min
+		let _ = try SCNVector3(stream: stream) // max
 		
 //		print("minmax:", minX, minY, minZ, maxX, maxY, maxZ)
 		
@@ -246,8 +246,8 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 			let boneId: UInt32 = try stream.read()
 			boneIds.append(Int(boneId))
 			
-			let bMin = try SCNVector3(stream: stream)
-			let bMax = try SCNVector3(stream: stream)
+			let _ = try SCNVector3(stream: stream) // bMin
+			let _ = try SCNVector3(stream: stream) // bMax
 			
 //			let filtered = vertices.filter {
 //				$0.x > SCNFloat(bMinX) && $0.x < SCNFloat(bMaxX) &&
@@ -348,8 +348,8 @@ func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
 
 func readMirror(stream: InputStream) throws {
 	
-	let min = try SCNVector3(stream: stream)
-	let max = try SCNVector3(stream: stream)
+	let _ = try SCNVector3(stream: stream) // min
+	let _ = try SCNVector3(stream: stream) // max
 	
 	for _ in 0 ..< 4 {
 		let _: Float = try stream.read()
@@ -361,11 +361,11 @@ func readMirror(stream: InputStream) throws {
 	}
 	
 	
-	let r: Float = try stream.read()
-	let g: Float = try stream.read()
-	let b: Float = try stream.read()
+	let _: Float = try stream.read() // r
+	let _: Float = try stream.read() // g
+	let _: Float = try stream.read() // b
 	
-	let reflectionStrength: Float = try stream.read()
+	let _: Float = try stream.read() // reflectionStrength
 	
 	let numVerts: UInt32 = try stream.read()
 	let numFaces: UInt32 = try stream.read()
@@ -390,7 +390,7 @@ func readMirror(stream: InputStream) throws {
 func readSector(stream: InputStream) throws {
 //	print("SECTOR")
 	
-	let flags: (UInt32, UInt32) = try (stream.read(), stream.read())
+	let _: (UInt32, UInt32) = try (stream.read(), stream.read()) // flags
 	
 	let numVerts: UInt32 = try stream.read()
 	let numFaces: UInt32 = try stream.read()
@@ -410,22 +410,22 @@ func readSector(stream: InputStream) throws {
 		vertIndices.append(CInt(vertIndice))
 	}
 	
-	let min = try SCNVector3(stream: stream)
-	let max = try SCNVector3(stream: stream)
+	let _ = try SCNVector3(stream: stream) // min
+	let _ = try SCNVector3(stream: stream) // max
 	
 	let numPortals: UInt8 = try stream.read()
 	
 	for _ in 0 ..< numPortals {
 		let numVerts_p: UInt8 = try stream.read()
 		
-		let plane_n = try SCNVector3(stream: stream)
+		let _ = try SCNVector3(stream: stream) // plane_n
 		
-		let plane_d: Float = try stream.read()
+		let _: Float = try stream.read() // plane_d
 		
-		let Flags_p: UInt32 = try stream.read()
+		let _: UInt32 = try stream.read() // Flags_p
 
-		let nearRange: Float = try stream.read()
-		let farRange: Float = try stream.read()
+		let _: Float = try stream.read() // nearRange
+		let _: Float = try stream.read() // farRange
 		
 		var positionOfPoint_p: [SCNVector3] = []
 		for _ in 0 ..< numVerts_p {
@@ -553,18 +553,17 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		material.transparency = CGFloat(opacity)
 		
 		if flags.contains(.reflectionTexture) {
-			let ratio: Float = try stream.read()
+			let _: Float = try stream.read() // ratio
 			let textureNameLength: UInt8 = try stream.read()
 			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
-//			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
-//			material.reflective.contents = NSImage(contentsOf: url)
+			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
+			material.reflective.contents = NSImage(contentsOf: url)
 		}
 		
 		if flags.contains(.diffuseTexture) {
 			let textureNameLength: UInt8 = try stream.read()
 			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
-			var url = mainDirectory.appendingPathComponent("maps/"+textureName.lowercased())
-			
+			let url = mainDirectory.appendingPathComponent("maps/"+textureName.lowercased())
 			let data = try! Data(contentsOf: url)
 			
 			#if os(macOS)
@@ -614,11 +613,11 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		}
 		
 		if flags.contains(.opacityTextureAnimation) || flags.contains(.diffuseTextureAnimation) {
-			let numFrames: UInt32 = try stream.read()
-			let unknown: UInt16 = try stream.read()
-			let delay: UInt32 = try stream.read()
-			let unknown2: UInt32 = try stream.read()
-			let unknown3: UInt32 = try stream.read()
+			let _: UInt32 = try stream.read()		// numFrames
+			let _: UInt16 = try stream.read()		// unknown
+			let _: UInt32 = try stream.read()		// delay
+			let _: UInt32 = try stream.read()		// unknown2
+			let _: UInt32 = try stream.read()		// unknown3
 		}
 		
 		materials.append(material)
@@ -639,13 +638,13 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		let frameType = try FrameType(forcedRawValue: stream.read())
 		
 		let visualType: VisualType
-		let visualFlags: UInt16
+//		let visualFlags: UInt16
 		if frameType == .visual {
 			visualType = try VisualType(forcedRawValue: stream.read())
-			visualFlags = try stream.read()
+			let _: UInt16 = try stream.read() // visualFlags
 		} else {
 			visualType = .object
-			visualFlags = 0
+//			visualFlags = 0
 		}
 		
 		let parentId: UInt16 = try stream.read()
@@ -660,14 +659,14 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		node.scale = try SCNVector3(stream: stream)
 		node.orientation = try SCNQuaternion(stream: stream)
 		
-		let cullingFlags: UInt8 = try stream.read()
+		let _: UInt8 = try stream.read() // cullingFlags
 		//node.geometry?.firstMaterial?.cullMode
 		
 		let nameLength: UInt8 = try stream.read()
 		node.name = try stream.read(maxLength: Int(nameLength))
 		
 		let descriptionLength: UInt8 = try stream.read()
-		let description: String = try stream.read(maxLength: Int(descriptionLength))
+		let _: String = try stream.read(maxLength: Int(descriptionLength)) // description
 //		print("NODE:", node.name ?? "", "(\(description))")
 		
 		switch frameType {
@@ -684,16 +683,16 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 				try readMorph(stream: stream, node: node, id: i)
 			case .billboard:
 				try readObject(stream: stream, node: node, id: i)
-				let axis: UInt32 = try stream.read()
-				let axisMode: UInt8 = try stream.read()
+				let _: UInt32 = try stream.read()	// axis
+				let _: UInt8 = try stream.read()	// axisMode
 			case .morph:
 				try readObject(stream: stream, node: node, id: i)
 				try readMorph(stream: stream, node: node, id: i)
 			case .lens:
 				let numGlows: UInt8 = try stream.read()
 				for _ in 0 ..< numGlows {
-					let pos: Float = try stream.read()
-					let materialID: UInt16 = try stream.read()
+					let _: Float = try stream.read()	// pos
+					let _: UInt16 = try stream.read()	// materialID
 				}
 			case .mirror:
 				try readMirror(stream: stream)
@@ -706,7 +705,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			
 		case .dummy:
 //			print("DUMMY: \(node.name) (\(description))")
-			let _node = try readDummy(stream: stream)
+			let _ = try readDummy(stream: stream) // _node
 			//node.addChildNode(_node)
 			
 		case .target:

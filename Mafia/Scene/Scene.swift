@@ -115,7 +115,7 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 	
 	let startOffset = stream.currentOffset
 	
-	let secSgn = try SceneSection(forcedRawValue: stream.read())
+	let _ = try SceneSection(forcedRawValue: stream.read()) // secSgn
 //	guard secSgn == 44576 else { throw SceneError.file }
 	
 	let _secSize: UInt32 = try stream.read()
@@ -188,8 +188,8 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 						stream.currentOffset += partSize - 6
 						
 					case .music:
-						let min = try SCNVector3(stream: stream)
-						let max = try SCNVector3(stream: stream)
+						let _ = try SCNVector3(stream: stream) // min
+						let _ = try SCNVector3(stream: stream) // max
 						
 					case .sound:
 						scene.sounds[objectNode] = try Sound(scene: scene, node: objectNode, stream: stream, partSize: partSize)
@@ -322,17 +322,17 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 	//						DWORD TYPE (?)
 	//						BYTE OPEN_UP
 	//						BYTE OPEN_DOWN
-	//						FLOAT MOVE_ANGLE (1,5 = 90�)
+	//						FLOAT MOVE_ANGLE (90°)
 	//						BYTE START_OPEN
 	//						BYTE LOCKED
 	//						FLOAT OPEN_SPEED
 	//						FLOAT CLOSE_SPEED
 							
-							let open: String = try stream.read(maxLength: 16)
+							let _: String = try stream.read(maxLength: 16) // open
 	//						print("door open:", open)
-							let close: String = try stream.read(maxLength: 16)
+							let _: String = try stream.read(maxLength: 16) // close
 	//						print("door close:", close)
-							let locked: String = try stream.read(maxLength: 16)
+							let _: String = try stream.read(maxLength: 16) // locked
 	//						print("door locked:", locked)
 							
 							stream.currentOffset += 1
@@ -340,10 +340,10 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 						case .trolley:
 							stream.currentOffset += 1
 							
-							let numOfLinkedWagons: UInt32 = try stream.read()		// 0
-							let distanceBetweenWagons: Float = try stream.read()	// 17
+							let _: UInt32 = try stream.read()						// numOfLinkedWagons / 0
+							let _: Float = try stream.read()						// distanceBetweenWagons / 17
 							let _: Float = try stream.read()						// 8 (const)
-							let maxSpeed: Float = try stream.read()					// 9.7222
+							let _: Float = try stream.read()						// maxSpeed / 9.7222
 							let _: Float = try stream.read()						// 1 (const)
 							let _: Float = try stream.read()						// 10000 (const)
 							
@@ -353,47 +353,47 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 						case .traffic:
 							
 							let _: UInt32 = try stream.read()						// 5 (const)
-							let outerRadiusToHide: Float = try stream.read()		// 180
-							let innerRadiusForGener: Float = try stream.read()		// 150
-							let outerRadiusForGener: Float = try stream.read()		// 170
-							let numOfGeneratedCars: UInt32 = try stream.read()		// 13
+							let _: Float = try stream.read()						// outerRadiusToHide / 180
+							let _: Float = try stream.read()						// innerRadiusForGener / 150
+							let _: Float = try stream.read()						// outerRadiusForGener / 170
+							let _: UInt32 = try stream.read()						// numOfGeneratedCars /	13
 							let numOfCarsInDatabase: UInt32 = try stream.read()
 							
 							for _ in 0 ..< numOfCarsInDatabase {
-								let modelName: String = try stream.read(maxLength: 20)
+								let _: String = try stream.read(maxLength: 20) // modelName
 	//							print("CAR modelName:", modelName)
 								
-								let modelDensity: Float = try stream.read()
+								let _: Float = try stream.read() // modelDensity
 	//							print("CAR density:", modelDensity)
 								
-								let colors: UInt32 = try stream.read()
+								let _: UInt32 = try stream.read() // colors
 	//							print("CAR colors:", colors)
 								
-								let isPolice: UInt16 = try stream.read()
+								let _: UInt16 = try stream.read() // isPolice
 	//							print("CAR isPolice:", isPolice)
 								
-								let gangsterFlags: UInt16 = try stream.read()
+								let _: UInt16 = try stream.read() // gangsterFlags
 	//							print("CAR gangsterFlags:", gangsterFlags)
 							}
 							
 						case .pedestrians:
 							stream.currentOffset += 5
 							
-							let genRadiusFromPoint: Float = try stream.read()		// 100
-							let outerRadiusToHide: Float = try stream.read()		// 100
-							let innerRadiusForGen: Float = try stream.read()		// 50
-							let outerRadiusForGener: Float = try stream.read()		// 90
-							let innerRadiusForGener: Float = try stream.read()		// 50
-							let numOfGeneratedPeds: UInt32 = try stream.read()		// 100
+							let _: Float = try stream.read()						// genRadiusFromPoint / 100
+							let _: Float = try stream.read()						// outerRadiusToHide / 100
+							let _: Float = try stream.read()						// innerRadiusForGen / 50
+							let _: Float = try stream.read()						// outerRadiusForGener / 90
+							let _: Float = try stream.read()						// innerRadiusForGener / 50
+							let _: UInt32 = try stream.read()						// numOfGeneratedPeds / 100
 							let numOfPedsInDatabase: UInt32 = try stream.read()
 							
 							for _ in 0 ..< numOfPedsInDatabase {
-								let modelName: String = try stream.read(maxLength: 17)
+								let _: String = try stream.read(maxLength: 17) // modelName
 	//							print("PED modelName:", modelName)
 							}
 							
 							for _ in 0 ..< numOfPedsInDatabase {
-								let modelDensity: UInt32 = try stream.read()
+								let _: UInt32 = try stream.read() // modelDensity
 	//							print("PED density:", modelDensity)
 							}
 							
@@ -436,11 +436,11 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 							stream.currentOffset += 2
 							let _: Float = try stream.read()	// center of mass?
 							let _: Float = try stream.read()
-							let weight: Float = try stream.read()
-							let friction: Float = try stream.read()
+							let _: Float = try stream.read()	// weight
+							let _: Float = try stream.read()	// friction
 							let _: Float = try stream.read()
 							// 0-crate,1-crate1,2-barrel,3-barrel1,4-label,5-box,6-wood,7-plate,8-no_sound
-							let sound: UInt32 = try stream.read()
+							let _: UInt32 = try stream.read()	// sound
 							stream.currentOffset += 5
 							
 							node?.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)

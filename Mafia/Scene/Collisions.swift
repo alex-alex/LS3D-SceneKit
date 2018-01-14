@@ -371,15 +371,15 @@ final class Collisions {
 		
 		stream.currentOffset = gridDataOffset
 		
-		let minX: Float = try stream.read()
-		let minY: Float = try stream.read()
-		let maxX: Float = try stream.read()
-		let maxY: Float = try stream.read()
-		let cellWidth: Float = try stream.read()
-		let cellLength: Float = try stream.read()
+		let _: Float = try stream.read()		// minX
+		let _: Float = try stream.read()		// minY
+		let _: Float = try stream.read()		// maxX
+		let _: Float = try stream.read()		// maxY
+		let _: Float = try stream.read()		// cellWidth
+		let _: Float = try stream.read()		// cellLength
 		let width: UInt32 = try stream.read()
 		let length: UInt32 = try stream.read()
-		let unknown: Float = try stream.read()
+		let _: Float = try stream.read()		// unknown
 		
 		//	print("minX:", minX)
 		//	print("minY:", minY)
@@ -420,11 +420,11 @@ final class Collisions {
 		// Collision Grid Cell Boundaries
 		
 		for _ in 0 ... width {
-			let x: Float = try stream.read()
+			let _: Float = try stream.read() // x
 		}
 		
 		for _ in 0 ... length {
-			let y: Float = try stream.read()
+			let _: Float = try stream.read() // y
 		}
 		
 		// Collision Data

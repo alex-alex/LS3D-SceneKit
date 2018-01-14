@@ -57,8 +57,8 @@ final class SceneCache {
 				let objSgn: UInt16 = try stream.read()
 				guard objSgn == 0x07d0 else { throw Error.file }
 				
-				let _objSize: UInt32 = try stream.read()
-				let objSize = Int(_objSize)
+				let _: UInt32 = try stream.read() // _objSize
+				//let objSize = Int(_objSize)
 				
 				let objNameSize: UInt32 = try stream.read()
 				var objName: String = try stream.read(maxLength: Int(objNameSize))
