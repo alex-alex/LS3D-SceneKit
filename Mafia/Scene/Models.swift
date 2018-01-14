@@ -193,7 +193,7 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 	var meshes: [SingleMesh] = []
 	for lod in 0 ..< numLODs {
 		
-		guard let vertexSource = node.geometry?.getGeometrySources(for: .vertex).first else { fatalError() }
+		guard let vertexSource = node.geometry?.sources(for: .vertex).first else { fatalError() }
 		
 //		let stride = vertexSource.dataStride
 //		let offset = vertexSource.dataOffset

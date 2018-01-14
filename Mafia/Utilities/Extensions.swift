@@ -36,8 +36,8 @@ public extension InputStream {
 		return buffer
 	}
 	
-	public func read<T : Integer>() throws -> T {
-		var buffer : T = 0
+	public func read<T : BinaryInteger>() throws -> T {
+		var buffer : T = 0 as! T
 		
 		let n = withUnsafePointer(to: &buffer) { p in
 			p.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { p in

@@ -87,7 +87,7 @@ struct Triangle {
 		for vertex in vertices {
 			guard let vertexNode = treeKlz.getNode(linkId: UInt32(vertex.linkIndex)),
 				  let nodeGeometry = vertexNode.geometry,
-				  let vertexSource = nodeGeometry.getGeometrySources(for: .vertex).first,
+				  let vertexSource = nodeGeometry.sources(for: .vertex).first,
 				  vertex.vertexBufferIndex < vertexSource.vectorCount else { continue }
 			
 			let nsData = vertexSource.data as NSData

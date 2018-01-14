@@ -88,7 +88,7 @@ class GameViewController: UIViewController {
 
 extension GameViewController {
 	
-	func lookGestureRecognized(gesture: UIPanGestureRecognizer) {
+	@objc func lookGestureRecognized(gesture: UIPanGestureRecognizer) {
 		let translation = gesture.translation(in: view)
 		let vAngle = acos(Float(translation.y) / 200) - (.pi / 2)
 
@@ -119,7 +119,7 @@ extension GameViewController {
 		gesture.setTranslation(.zero, in: view)
 	}
 	
-	func walkGestureRecognized(gesture: UIPanGestureRecognizer) {
+	@objc func walkGestureRecognized(gesture: UIPanGestureRecognizer) {
 		if gesture.state == .ended || gesture.state == .cancelled {
 			gesture.setTranslation(.zero, in: view)
 		}
@@ -138,7 +138,7 @@ extension GameViewController {
 		}
 	}
 	
-	func fireGestureRecognized(gesture: UITapGestureRecognizer) {
+	@objc func fireGestureRecognized(gesture: UITapGestureRecognizer) {
 		print("== fireGestureRecognized ==")
 		game.scene.pressedJump = true
 	}
