@@ -68,21 +68,23 @@ struct Triangle {
 		}
 	}
 	
-	var volume: Volume
+	//var volume: Volume
 	var vertices: [VertexLink] = []
-	var plane: Plane
+	//var plane: Plane
 	
 	init(stream: InputStream) throws {
-		volume = try Volume(stream: stream, hasLink: false)
+		//volume = try Volume(stream: stream, hasLink: false)
+		stream.currentOffset += 4
 		
 		for _ in 0 ..< 3 {
 			try vertices.append(VertexLink(stream: stream))
 		}
 		
-		plane = try Plane(stream: stream)
+		//plane = try Plane(stream: stream)
+		stream.currentOffset += 16
 	}
 	
-	func getVertices(treeKlz: Collisions) -> (SCNNode, [SCNVector3])? {
+	func getVertices(treeKlz: Collisions) -> (UInt32, [SCNVector3])? {
 		var newVertices: [SCNVector3] = []
 		for vertex in vertices {
 			guard let vertexNode = treeKlz.getNode(linkId: UInt32(vertex.linkIndex)),
@@ -104,8 +106,8 @@ struct Triangle {
 			newVertices.append(SCNVector3(x, y, z))
 		}
 		
-		if newVertices.count == 3, let _node = treeKlz.getNode(linkId: UInt32(vertices[0].linkIndex)), _node.physicsBody == nil {
-			return (_node, newVertices)
+		if newVertices.count == 3 {
+			return (UInt32(vertices[0].linkIndex), newVertices)
 		}
 		
 		return nil
@@ -301,7 +303,8 @@ final class Collisions {
 	
 	let node = SCNNode()
 	let rootNode: SCNNode
-	var names: [(Int, String)] = []
+	//var names: [(Int, String)] = []
+	var nodes: [Int: SCNNode] = [:]
 	
 	init(name: String, scene: SCNScene) throws {
 		self.rootNode = scene.rootNode
@@ -315,15 +318,38 @@ final class Collisions {
 	}
 	
 	func getNode(linkId: UInt32) -> SCNNode? {
-		let (_, name) = names[Int(linkId)]
-		
+		return nodes[Int(linkId)]
+	}
+	
+	func _getNode(i: Int, name: String) -> SCNNode? {
 		let comps = name.split(separator: ".")
 		if comps.count > 1 {
 			guard comps.count == 2 else { fatalError() }
 			guard let parent = rootNode.childNode(withName: String(comps[0]), recursively: true) else { return nil }
-			return parent.childNode(withName: String(comps[1]), recursively: false)
+			let node = parent.childNode(withName: String(comps[1]), recursively: false)
+			return node
 		} else {
-			return rootNode.childNode(withName: name, recursively: true)
+			var node: SCNNode? = nil
+			if i == 1 {
+				node = rootNode.childNodes[0].childNode(withName: String(comps[0]), recursively: false)
+			} else if i == 2 {
+				node = rootNode.childNodes[1].childNode(withName: String(comps[0]), recursively: false)
+			}
+			
+			if node == nil {
+//				print("recursive")
+				node = rootNode.childNode(withName: String(comps[0]), recursively: true)
+			}
+			
+			if node == nil {
+				print("not found")
+			}
+			
+//			if i != 1 {
+//			print("###", i, name, "#", node?.parent?.name, node?.parent?.parent?.name, node?.parent?.parent?.parent?.name, node?.parent?.parent?.parent?.parent?.name)
+//			}
+			
+			return node
 		}
 	}
 	
@@ -350,6 +376,8 @@ final class Collisions {
 			try linkNameOffsetTable.append(stream.read())
 		}
 		
+		print("numLinks:", numLinks)
+		
 		for i in 0 ..< numLinks {
 			let startOffset = Int(linkNameOffsetTable[i])
 			stream.currentOffset = startOffset
@@ -364,7 +392,9 @@ final class Collisions {
 			
 			let str: String = try stream.read(maxLength: endOffset - startOffset)
 			
-			names.append((Int(linkType), str))
+			//names.append((Int(linkType), str))
+			
+			nodes[i] = _getNode(i: Int(linkType), name: str)
 		}
 		
 		// Collision Data Header
@@ -431,7 +461,9 @@ final class Collisions {
 		
 		stream.currentOffset += 4
 		
-		var nodesVertices: [SCNNode: [SCNVector3]] = [:]
+		var nodesVertices: [UInt32: [SCNVector3]] = [:]
+		print("=== numFaces:", numFaces)
+		
 		for _ in 0 ..< numFaces {
 			try autoreleasepool {
 				let face = try Triangle(stream: stream)
@@ -445,14 +477,13 @@ final class Collisions {
 			}
 		}
 		
-		/*let faceCollisionsNode = SCNNode()
-		let shape = SCNPhysicsShape(node: facesNode, options: [:])
-		faceCollisionsNode.physicsBody = SCNPhysicsBody(type: .static, shape: shape)
-		treeKlz.node.addChildNode(faceCollisionsNode)*/
+		print("=== Loaded Scene Collision Face Vertices")
 		
 		let facesNode = SCNNode()
-		for (_node, vertices) in nodesVertices {
+		for (linkId, vertices) in nodesVertices {
 			autoreleasepool {
+				guard let _node = getNode(linkId: linkId) else { return }
+				
 				let node = SCNNode()
 				let verticesSource = SCNGeometrySource(vertices: vertices)
 				var indices: [Int32] = []
@@ -461,9 +492,9 @@ final class Collisions {
 				}
 				let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
 				let geometry = SCNGeometry(sources: [verticesSource], elements: [element])
-				geometry.firstMaterial = SCNMaterial()
-				geometry.firstMaterial?.isDoubleSided = true
-				geometry.firstMaterial?.diffuse.contents = SKColor.random()
+//				geometry.firstMaterial = SCNMaterial()
+//				geometry.firstMaterial?.isDoubleSided = true
+//				geometry.firstMaterial?.diffuse.contents = SKColor.random()
 				node.transform = _node.worldTransform
 				//node.geometry = geometry
 				node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: geometry, options: [
@@ -473,6 +504,8 @@ final class Collisions {
 			}
 		}
 		node.addChildNode(facesNode)
+		
+		print("=== Loaded Scene Collision Faces")
 		
 		for _ in 0 ..< numAABBs {
 			try autoreleasepool {

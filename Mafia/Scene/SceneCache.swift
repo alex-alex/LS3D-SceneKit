@@ -17,8 +17,10 @@ final class SceneCache {
 	
 	let node = SCNNode()
 	
-	init(name: String) throws {
+	init?(name: String) throws {
 		let url = mainDirectory.appendingPathComponent(name + "/cache.bin")
+		
+		guard (try? url.checkResourceIsReachable()) == true else { return nil }
 		
 		guard let stream = InputStream(url: url) else { throw Error.file }
 		stream.open()
@@ -96,6 +98,8 @@ final class SceneCache {
 			
 			node.addChildNode(baseNode)
 		}
+		
+		stream.close()
 	}
 	
 }

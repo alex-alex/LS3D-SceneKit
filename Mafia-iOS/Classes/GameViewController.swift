@@ -14,6 +14,8 @@ import CoreMotion
 
 class GameViewController: UIViewController {
 	
+	var gameView: SCNView!
+	
 	var game: Game!
 	
 	var lookGesture: UIPanGestureRecognizer!
@@ -26,11 +28,13 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 		
+		gameView = view as! SCNView
+		
 		try! TextDb.load()
 		
-		let gameView = view as! SCNView
 		game = Game(vc: self)
-		game.setup(in: gameView)
+		game.setup()
+		game.play()
 		
 		// ------
 		
@@ -66,10 +70,6 @@ class GameViewController: UIViewController {
 				}
 			}
 		}
-		
-		// ------
-		
-		game.play(in: gameView)
 	}
     
     override var shouldAutorotate: Bool {

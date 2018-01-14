@@ -314,7 +314,6 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 							guard node != nil else { print("SCRIPT HAS EMPTY NODE!!!"); break }
 							let script = Script(script: scriptStr, scene: scene, node: node!)
 							scene.scripts[name] = script
-							script.start()
 						
 						case .door:
 							stream.currentOffset += 21
@@ -421,7 +420,6 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 							
 							let script = Script(script: scriptStr, scene: scene, node: node!)
 							scene.scripts[name] = script
-							script.start()
 							
 						case .unknown2:
 							stream.currentOffset += partSize - 6
@@ -467,10 +465,8 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 				
 				let scriptLength: UInt32 = try stream.read()
 				let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
-				print("INIT_SCRIPT \(name):\n\(scriptStr)")
 				let script = Script(script: scriptStr, scene: scene, node: scene.rootNode)
 				scene.initScripts[name] = script
-				script.start()
 			}
 		}
 	}

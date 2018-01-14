@@ -49,9 +49,12 @@ final class Game: NSObject {
 	init(vc: GameViewController) {
 		self.vc = vc
 		
-		let missionName = "mise08-hotel"
+		let missionName = "freeride"
+		
+		scnScene.rootNode.name = "__root__"
 		
 		let sceneModel = try! loadModel(named: "missions/\(missionName)/scene")
+		sceneModel.name = "__model__"
 		scnScene.rootNode.addChildNode(sceneModel)
 		print("== Loaded Scene Model")
 		
@@ -60,24 +63,38 @@ final class Game: NSObject {
 		super.init()
 		
 		scene.game = self
+		scene.rootNode.name = "__scene__"
 		scnScene.rootNode.addChildNode(scene.rootNode)
 		print("== Loaded Scene")
 		
-//		let sceneCache = try! SceneCache(name: "missions/"+missionName)
-//		scnScene.rootNode.addChildNode(sceneCache.node)
-//		print("== Loaded Scene Cache")
+		if let sceneCache = try! SceneCache(name: "missions/"+missionName) {
+			scnScene.rootNode.addChildNode(sceneCache.node)
+			sceneCache.node.name = "__cache__"
+			print("== Loaded Scene Cache")
+		}
 		
-		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
-		scnScene.rootNode.addChildNode(collisions.node)
-		print("== Loaded Scene Collisions")
+//		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
+//		collisions.node.name = "__colliions__"
+//		scnScene.rootNode.addChildNode(collisions.node)
+//		print("== Loaded Scene Collisions")
+
+		let floorNode = SCNNode()
+		floorNode.opacity = 0
+		let floor = SCNFloor()
+		floor.reflectivity = 0
+		floorNode.geometry = floor
+		floorNode.physicsBody = SCNPhysicsBody.static()
+		scnScene.rootNode.addChildNode(floorNode)
 		
 		// -----
 		
-		if scene.playerNode == nil {
-			scene.playerNode = try! loadModel(named: "models/tommy")
-			scene.playerNode!.position = SCNVector3(x: -535.497498, y: 20.0, z: -431.622375)
-			scnScene.rootNode.addChildNode(scene.playerNode!)
-		}
+//		if scene.playerNode == nil {
+//			//load z mise08-mesto
+//			let spawnPoint = scnScene.rootNode.childNode(withName: "emeth_1", recursively: true)!
+//			scene.playerNode = try! loadModel(named: "models/tommy")
+//			scene.playerNode!.transform = spawnPoint.worldTransform
+//			scnScene.rootNode.addChildNode(scene.playerNode!)
+//		}
 		
 		// -----
 		
@@ -143,7 +160,8 @@ final class Game: NSObject {
 		}
 	}
 	
-	func setup(in view: SCNView) {
+	func setup() {
+		let view = vc.gameView!
 		view.delegate = self
 		view.rendersContinuously = true
 		view.scene = scnScene
@@ -151,7 +169,7 @@ final class Game: NSObject {
 		view.allowsCameraControl = false
 		view.autoenablesDefaultLighting = false
 		view.showsStatistics = true
-		//view.debugOptions = [.showPhysicsShapes]
+//		view.debugOptions = [.showPhysicsShapes]
 		view.backgroundColor = .darkGray
 		view.pointOfView = cameraNode
 		if let playerNode = scene.playerNode {
@@ -164,8 +182,8 @@ final class Game: NSObject {
 		hud.setup(in: view)
 	}
 	
-	func play(in view: SCNView) {
-		view.play(nil)
+	func play() {
+		vc.gameView.play(nil)
 	}
 	
 }

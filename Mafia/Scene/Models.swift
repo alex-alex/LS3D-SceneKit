@@ -553,11 +553,18 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		material.transparency = CGFloat(opacity)
 		
 		if flags.contains(.reflectionTexture) {
-			let _: Float = try stream.read() // ratio
+			let ratio: Float = try stream.read()
 			let textureNameLength: UInt8 = try stream.read()
 			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
 			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
-			material.reflective.contents = NSImage(contentsOf: url)
+			#if os(macOS)
+				material.reflective.contents = NSImage(contentsOf: url)
+			#elseif os(iOS)
+				material.reflective.contents = UIImage(contentsOfFile: url.path)
+			#endif
+			material.reflective.intensity = CGFloat(ratio)
+			material.reflective.wrapS = .repeat
+			material.reflective.wrapT = .repeat
 		}
 		
 		if flags.contains(.diffuseTexture) {
@@ -605,6 +612,8 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			#elseif os(iOS)
 				material.transparent.contents = UIImage(contentsOfFile: url.path)
 			#endif
+			material.transparent.wrapS = .repeat
+			material.transparent.wrapT = .repeat
 		}
 		
 		if !flags.contains(.diffuseTexture) && !flags.contains(.opacityTexture) {

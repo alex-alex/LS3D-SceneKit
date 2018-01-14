@@ -23,8 +23,8 @@ class GameViewController: NSViewController {
 		try! TextDb.load()
 		
 		game = Game(vc: self)
-		game.setup(in: gameView)
-		game.play(in: gameView)
+		game.setup()
+		game.play()
     }
 
 }
