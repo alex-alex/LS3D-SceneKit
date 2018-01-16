@@ -29,7 +29,7 @@ final class Game: NSObject {
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
 	
-	var mode: Mode = .walk {
+	var mode: Mode = .car {
 		didSet {
 			cameraContainer.removeFromParentNode()
 			if mode == .walk {
@@ -49,7 +49,8 @@ final class Game: NSObject {
 	init(vc: GameViewController) {
 		self.vc = vc
 		
-		let missionName = "freeride"
+		let missionName = "tutorial"
+//		let missionName = "freeride"
 		
 		scnScene.rootNode.name = "__root__"
 		
@@ -73,18 +74,18 @@ final class Game: NSObject {
 			print("== Loaded Scene Cache")
 		}
 		
-//		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
-//		collisions.node.name = "__colliions__"
-//		scnScene.rootNode.addChildNode(collisions.node)
-//		print("== Loaded Scene Collisions")
+		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
+		collisions.node.name = "__colliions__"
+		scnScene.rootNode.addChildNode(collisions.node)
+		print("== Loaded Scene Collisions")
 
-		let floorNode = SCNNode()
-		floorNode.opacity = 0
-		let floor = SCNFloor()
-		floor.reflectivity = 0
-		floorNode.geometry = floor
-		floorNode.physicsBody = SCNPhysicsBody.static()
-		scnScene.rootNode.addChildNode(floorNode)
+//		let floorNode = SCNNode()
+//		floorNode.opacity = 0
+//		let floor = SCNFloor()
+//		floor.reflectivity = 0
+//		floorNode.geometry = floor
+//		floorNode.physicsBody = SCNPhysicsBody.static()
+//		scnScene.rootNode.addChildNode(floorNode)
 		
 		// -----
 		
@@ -123,9 +124,10 @@ final class Game: NSObject {
 		
 		// -----
 		
-//		let carNodeName = "cad_road" // taxi2
-//		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-//		vehicle = Vehicle(scene: scnScene, node: carNode)
+		let carNodeName = "taxi2"
+//		let carNodeName = "cad_road"
+		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
+		vehicle = Vehicle(scene: scnScene, node: carNode)
 		
 		// -----
 		
