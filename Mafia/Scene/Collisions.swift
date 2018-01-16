@@ -168,10 +168,10 @@ struct XTOBB {
 //		node.geometry = box
 //		node.transform = transform
 		
-//		if volume.mtlId == 41 {
-//			let shape = SCNPhysicsShape(node: _node, options: [:])
-//			_node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
-//		} else {
+		if volume.mtlId == 41 {
+			let shape = SCNPhysicsShape(node: _node, options: [:])
+			_node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
+		} else {
 //			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
 //			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])
 //			node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
@@ -179,7 +179,7 @@ struct XTOBB {
 				SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron
 			])
 			_node.physicsBody = SCNPhysicsBody(type: .static, shape: shape)
-//		}
+		}
 		
 		return node
 	}
