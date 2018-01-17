@@ -11,6 +11,8 @@
 		FA0A0D791D5FB08A00878046 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D781D5FB08A00878046 /* Models.swift */; };
 		FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45571D610BB500B7C721 /* SceneCache.swift */; };
 		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
+		FA2FE8B9200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
+		FA2FE8BA200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
 		FA355C44200923E600512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3A200923E500512DC0 /* GameViewController.swift */; };
 		FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3C200923E500512DC0 /* AppDelegate.swift */; };
 		FA355C47200923E600512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3E200923E600512DC0 /* Assets.xcassets */; };
@@ -75,6 +77,7 @@
 		FA0A0D781D5FB08A00878046 /* Models.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		FA0D45571D610BB500B7C721 /* SceneCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneCache.swift; sourceTree = "<group>"; };
 		FA177F8C1E3534B2009FA6D7 /* Script.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Script.swift; sourceTree = "<group>"; };
+		FA2FE8B8200FD1650057A80E /* Aurora.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Aurora.ttf; sourceTree = "<group>"; };
 		FA355C3A200923E500512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		FA355C3C200923E500512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FA355C3E200923E600512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -149,8 +152,17 @@
 				FA6ABE9720081A5900BB3BBD /* Game */,
 				FA6ABE9D20081ADE00BB3BBD /* Scene */,
 				FA6ABE9C20081ACD00BB3BBD /* Scripts */,
+				FA2FE8B7200FD1490057A80E /* Resources */,
 			);
 			path = Mafia;
+			sourceTree = "<group>";
+		};
+		FA2FE8B7200FD1490057A80E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				FA2FE8B8200FD1650057A80E /* Aurora.ttf */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		FA355C2B200922FF00512DC0 /* Mafia-Mac */ = {
@@ -352,6 +364,7 @@
 			files = (
 				FA355C552009241000512DC0 /* Assets.xcassets in Resources */,
 				FA355C562009241000512DC0 /* MainMenu.xib in Resources */,
+				FA2FE8B9200FD1650057A80E /* Aurora.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -359,6 +372,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				FA2FE8BA200FD1650057A80E /* Aurora.ttf in Resources */,
 				FA355C47200923E600512DC0 /* Assets.xcassets in Resources */,
 				FA355C49200923E600512DC0 /* Main.storyboard in Resources */,
 				FA355C48200923E600512DC0 /* LaunchScreen.storyboard in Resources */,
