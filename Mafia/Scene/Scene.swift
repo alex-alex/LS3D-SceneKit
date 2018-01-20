@@ -254,9 +254,9 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 	//					print("lightType: (\(str))")
 						
 					case .lightMap:
-//						stream.currentOffset += partSize - 6
-						let lightData = try stream.read(maxLength: partSize - 6)
-						print("lightMap:", lightData.map({ String(format: "%02x", $0) }).joined())
+						stream.currentOffset += partSize - 6
+//						let lightData = try stream.read(maxLength: partSize - 6)
+//						print("lightMap:", lightData.map({ String(format: "%02x", $0) }).joined())
 						
 					case .lens:
 						stream.currentOffset += partSize - 6
