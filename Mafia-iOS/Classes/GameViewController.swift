@@ -16,7 +16,7 @@ class GameViewController: UIViewController {
 	
 	var gameView: SCNView!
 	
-	var game: Game!
+	var gameManager: GameManager!
 	
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
@@ -29,12 +29,7 @@ class GameViewController: UIViewController {
         super.viewDidLoad()
 		
 		gameView = view as! SCNView
-		
-		try! TextDb.load()
-		
-		game = Game(vc: self)
-		game.setup()
-		game.play()
+		gameManager = GameManager(view: gameView)
 		
 		// ------
 		
@@ -59,14 +54,14 @@ class GameViewController: UIViewController {
 			//gameView.preferredFramesPerSecond
 			motionManager.accelerometerUpdateInterval = 1/60
 			motionManager.startAccelerometerUpdates(to: .main) { data, error in
-				guard self.game.mode == .car, let data = data else { return }
+				guard self.gameManager.game?.mode == .car, let data = data else { return }
 				
 				self.accelerometer.update(with: data.acceleration)
 				
 				if self.accelerometer.x > 0 {
-					self.game.vehicle.vehicleSteering = CGFloat(self.accelerometer.y*1.3)
+					self.gameManager.game.vehicle.vehicleSteering = CGFloat(self.accelerometer.y*1.3)
 				} else {
-					self.game.vehicle.vehicleSteering = CGFloat(-self.accelerometer.y*1.3)
+					self.gameManager.game.vehicle.vehicleSteering = CGFloat(-self.accelerometer.y*1.3)
 				}
 			}
 		}
@@ -92,28 +87,18 @@ extension GameViewController {
 		let translation = gesture.translation(in: view)
 		let vAngle = acos(Float(translation.y) / 200) - (.pi / 2)
 
-		if game.mode == .walk {
-			if let playerNode = game.scene.playerNode {
+		if gameManager.game?.mode == .walk {
+			if let playerNode = gameManager.game.scene.playerNode {
 //				let hAngle = acos(Float(translation.x) / 5) - (.pi / 2)
 //				scene.playerNode!.eulerAngles.y += hAngle
 //				scene.playerNode!.position.y += vAngle
 				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: Float(translation.x)), asImpulse: true)
 			} else {
 				let hAngle = acos(Float(translation.x) / 200) - (.pi / 2)
-				game.elevation = max((-.pi/2.5), min(0, game.elevation - vAngle))
-				game.cameraContainer.eulerAngles.x = game.elevation
-				game.cameraContainer.eulerAngles.y += hAngle
+				gameManager.game.elevation = max((-.pi/2.5), min(0, gameManager.game.elevation - vAngle))
+				gameManager.game.cameraContainer.eulerAngles.x = gameManager.game.elevation
+				gameManager.game.cameraContainer.eulerAngles.y += hAngle
 			}
-		} else {
-			/*let hAngle = acos(Float(translation.x) / 200) - (.pi / 2)
-			
-			vehicleSteering -= CGFloat(hAngle)
-			if vehicleSteering < -0.6 {
-				vehicleSteering = -0.6
-			}
-			if vehicleSteering > 0.6 {
-				vehicleSteering = 0.6
-			}*/
 		}
 
 		gesture.setTranslation(.zero, in: view)
@@ -132,15 +117,15 @@ extension GameViewController {
 //			try! playAnimation(named: "anims/walk1.5ds", in: scene.playerNode!, repeat: true, animationKey: "__walking__")
 		}*/
 		
-		if game.mode == .car {
+		if gameManager.game?.mode == .car {
 			let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 50)), y: 0, z: max(-1, min(1, Float(-translation.y) / 50)))
-			game.vehicle.force = CGFloat(impulse.z) * 3000
+			gameManager.game.vehicle.force = CGFloat(impulse.z) * 3000
 		}
 	}
 	
 	@objc func fireGestureRecognized(gesture: UITapGestureRecognizer) {
 		print("== fireGestureRecognized ==")
-		game.scene.pressedJump = true
+		gameManager.game.scene.pressedJump = true
 	}
 	
 }

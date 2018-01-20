@@ -7,24 +7,18 @@
 //
 
 import AppKit
-import QuartzCore
 import SceneKit
-import SpriteKit
 
 class GameViewController: NSViewController {
     
     @IBOutlet weak var gameView: SCNView!
 	
-	var game: Game!
+	var gameManager: GameManager!
     
     override func awakeFromNib() {
         super.awakeFromNib()
-	
-		try! TextDb.load()
 		
-		game = Game(vc: self)
-		game.setup()
-		game.play()
+		gameManager = GameManager(view: gameView)
     }
 
 }

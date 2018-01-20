@@ -22,7 +22,6 @@ final class Game: NSObject {
 		case walk, car
 	}
 	
-	var vc: GameViewController!
 	var hud: HudScene!
 	
 	let scnScene = SCNScene()
@@ -46,12 +45,7 @@ final class Game: NSObject {
 	var elevation: SCNFloat = 0
 	var lastControl: Control? = nil
 	
-	init(vc: GameViewController) {
-		self.vc = vc
-		
-		let missionName = "tutorial"
-//		let missionName = "freeride"
-		
+	init(missionName: String) {
 		scnScene.rootNode.name = "__root__"
 		
 		let sceneModel = try! loadModel(named: "missions/\(missionName)/scene")
@@ -162,30 +156,17 @@ final class Game: NSObject {
 		}
 	}
 	
-	func setup() {
-		let view = vc.gameView!
-		view.delegate = self
-		view.rendersContinuously = true
+	func setup(in view: SCNView) {
+		hud = HudScene(size: view.bounds.size, game: self)
 		view.scene = scnScene
-		view.antialiasingMode = .none
-		view.allowsCameraControl = false
-		view.autoenablesDefaultLighting = false
-		view.showsStatistics = true
-//		view.debugOptions = [.showPhysicsShapes]
-		view.backgroundColor = .darkGray
+		view.overlaySKScene = hud
+		view.delegate = self
 		view.pointOfView = cameraNode
 		if let playerNode = scene.playerNode {
 			view.audioListener = playerNode
 		} else {
 			view.audioListener = cameraContainer
 		}
-		
-		hud = HudScene(size: view.bounds.size, game: self)
-		hud.setup(in: view)
-	}
-	
-	func play() {
-		vc.gameView.play(nil)
 	}
 	
 }
@@ -220,10 +201,9 @@ extension Game: SCNSceneRendererDelegate {
 		}
 		
 		#elseif os(iOS)
-			
-		let translation = vc.walkGesture.translation(in: vc.view)
 		
 		if mode == .walk {
+			/*let translation = vc.walkGesture.translation(in: vc.view)
 			if let playerNode = scene.playerNode {
 				let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
 //				let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 5000)), y: 0, z: max(-1, min(1, Float(-translation.y) / 5000)))
@@ -241,7 +221,7 @@ extension Game: SCNSceneRendererDelegate {
 				let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 500)), y: 0, z: max(-1, min(1, Float(-translation.y) / 500)))
 				cameraContainer.position.x -= impulse.x * cos(angle) - impulse.z * sin(angle)
 				cameraContainer.position.z += impulse.x * -sin(angle) - impulse.z * cos(angle)
-			}
+			}*/
 		} else {
 			vehicle.applyForces()
 		}
@@ -314,7 +294,7 @@ extension Game {
 	}
 	
 	func actionButtonTapped() {
-		#if os(iOS)
+		/*#if os(iOS)
 		let actions = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 })
 		if actions.count == 1 {
 			performAction(actions[0])
@@ -328,11 +308,11 @@ extension Game {
 			alert.addAction(UIAlertAction(title: "Zrušit", style: .cancel, handler: nil))
 			vc.present(alert, animated: true)
 		}
-		#endif
+		#endif*/
 	}
 	
 	func openInventory() {
-		#if os(iOS)
+		/*#if os(iOS)
 		let alert = UIAlertController(title: "Inventář", message: nil, preferredStyle: .alert)
 		for weapon in scene.weapons[scene.playerNode!] ?? [] {
 			alert.addAction(UIAlertAction(title: weapon.name + (weapon.position == .hand ? " (v ruce)" : ""), style: .default, handler: { _ in
@@ -348,7 +328,7 @@ extension Game {
 			}
 		}))
 		vc.present(alert, animated: true)
-		#endif
+		#endif*/
 	}
 	
 }

@@ -146,10 +146,6 @@ final class HudScene: SKScene {
 		fatalError()
 	}
 	
-	func setup(in view: SCNView) {
-		view.overlaySKScene = self
-	}
-	
 	#if os(iOS)
 	
 	override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {

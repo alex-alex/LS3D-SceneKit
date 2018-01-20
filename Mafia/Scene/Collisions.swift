@@ -39,6 +39,8 @@ struct Plane {
 struct Volume {
 	var type: VolumeType
 	var sortInfo: UInt8
+	// 0b0000_0010 - destroyable
+	// 0b0100_0000 - bullet penetrable
 	var flags: UInt8
 	var mtlId: UInt8
 	var linkId: UInt32?

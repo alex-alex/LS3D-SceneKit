@@ -86,6 +86,20 @@ enum ObjectDefinitionType: UInt32 {
 	case truck			= 36
 }
 
+enum LightType: UInt32 {
+	/// bodové: světlo v prostoru svítí do všech stran
+	case point = 1
+	/// kuželové: simuluje se zastínění světla stínítkem
+	case cone
+	/// ambientní: určuje celkové osvícení scény
+	case ambient
+	/// směrové: simuluje svit vzdálelého zdroje (např. slunce), světlo tedy svítí v celé scéně stále stejným směrem
+	case directional
+	/// mlha: vzdálené objekty plynule přechází do určené barvy
+	case fog
+	case layeredFog
+}
+
 final class Scene {
 	
 	var game: Game!
@@ -185,7 +199,45 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 						stream.currentOffset += partSize - 6
 						
 					case .light:
-						stream.currentOffset += partSize - 6
+						objectNode.light = SCNLight()
+						
+						stream.currentOffset += 6
+						let lightTypeRaw: UInt32 = try stream.read()
+						let lightType = try LightType(forcedRawValue: lightTypeRaw)
+						
+						switch lightType {
+						case .point:
+							objectNode.light?.type = .omni
+						case .cone:
+							objectNode.light?.type = .spot
+						case .ambient:
+							objectNode.light?.type = .ambient
+						case .directional:
+							objectNode.light?.type = .directional
+						case .fog, .layeredFog:
+							objectNode.light?.type = .ambient
+							objectNode.light?.intensity = 0
+						}
+						
+						stream.currentOffset += 6
+						let r: Float = try stream.read()
+						let g: Float = try stream.read()
+						let b: Float = try stream.read()
+						objectNode.light?.color = SKColor(red: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: 1)
+						
+						stream.currentOffset += 6
+						let power: Float = try stream.read()
+						objectNode.light?.intensity = CGFloat(power * 100)
+						
+						stream.currentOffset += 6
+						let _: Float = try stream.read()	// cone 1 / 0.3490658402
+						let _: Float = try stream.read()	// cone 2 / 0.6981316805
+						
+						stream.currentOffset += 6
+						let _: Float = try stream.read()	// range near
+						let _: Float = try stream.read()	// range far
+						
+						stream.currentOffset += partSize - 72
 						
 					case .music:
 						let _ = try SCNVector3(stream: stream) // min
@@ -202,7 +254,9 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 	//					print("lightType: (\(str))")
 						
 					case .lightMap:
-						stream.currentOffset += partSize - 6
+//						stream.currentOffset += partSize - 6
+						let lightData = try stream.read(maxLength: partSize - 6)
+						print("lightMap:", lightData.map({ String(format: "%02x", $0) }).joined())
 						
 					case .lens:
 						stream.currentOffset += partSize - 6
@@ -215,7 +269,7 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 					}
 				}
 				
-				if type != .model {
+				if type != .model && type != .camera {
 	//				print("OBJECT TYPE: \(type) \(objectNode.name)")
 					
 					if objectNode.name == "target" {
@@ -239,7 +293,10 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 							box.firstMaterial?.diffuse.contents = SKColor.brown
 						case .camera:
 							box.firstMaterial?.diffuse.contents = SKColor.orange
+						case .object:
+							box.firstMaterial?.diffuse.contents = SKColor.red
 						default:
+							print("type:", type.rawValue)
 							box.firstMaterial?.diffuse.contents = SKColor.green
 						}
 						
