@@ -208,6 +208,7 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 						switch lightType {
 						case .point:
 							objectNode.light?.type = .omni
+//							objectNode.light?.mod
 						case .cone:
 							objectNode.light?.type = .spot
 						case .ambient:
@@ -227,7 +228,11 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 						
 						stream.currentOffset += 6
 						let power: Float = try stream.read()
-						objectNode.light?.intensity = CGFloat(power * 100)
+						if objectNode.light?.type == .spot {
+							objectNode.light?.intensity = CGFloat(power * 1000)
+						} else {
+							objectNode.light?.intensity = CGFloat(power * 100)
+						}
 						
 						stream.currentOffset += 6
 						let _: Float = try stream.read()	// cone 1 / 0.3490658402
@@ -269,7 +274,7 @@ private func readSection(stream: InputStream, scene: inout Scene) throws {
 					}
 				}
 				
-				if type != .model && type != .camera {
+				if type != .model && type != .object && type != .camera && type != .light {
 	//				print("OBJECT TYPE: \(type) \(objectNode.name)")
 					
 					if objectNode.name == "target" {

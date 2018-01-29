@@ -29,7 +29,7 @@ final class Sound {
 		
 		let len: UInt32 = try stream.read()
 		let sound: String = try stream.read(maxLength: Int(len))
-		//					print("SOUND src:", objectNode.name, sound)
+//		print("SOUND src:", objectNode.name, sound)
 		
 		let url = mainDirectory.appendingPathComponent("sounds/" + sound.lowercased())
 		audioSource = SCNAudioSource(url: url)!

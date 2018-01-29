@@ -544,10 +544,10 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		let diffuseB: Float = try stream.read()
 		material.diffuse.contents = SKColor(red: CGFloat(diffuseR), green: CGFloat(diffuseG), blue: CGFloat(diffuseB), alpha: 1)
 		
-		let emissionR: Float = try stream.read()
-		let emissionG: Float = try stream.read()
-		let emissionB: Float = try stream.read()
-		material.emission.contents = SKColor(red: CGFloat(emissionR), green: CGFloat(emissionG), blue: CGFloat(emissionB), alpha: 1)
+		let _: Float = try stream.read() // emissionR
+		let _: Float = try stream.read() // emissionG
+		let _: Float = try stream.read() // emissionB
+//		material.emission.contents = SKColor(red: CGFloat(emissionR), green: CGFloat(emissionG), blue: CGFloat(emissionB), alpha: 1)
 		
 		let opacity: Float = try stream.read()
 		material.transparency = CGFloat(opacity)

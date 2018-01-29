@@ -105,20 +105,30 @@ func readPositions(stream: InputStream) throws -> [Int: SCNVector3] {
 	return positions
 }
 
-struct Animation {
+class Animation {
 	let name: String
 	let timerMax: Int
 	let rotations: [Int: SCNQuaternion]
 	let scales: [Int: SCNVector3]
 	let positions: [Int: SCNVector3]
 	
+	var lastScale: SCNVector3? = nil
+	
+	init(name: String, timerMax: Int, rotations: [Int: SCNQuaternion], scales: [Int: SCNVector3], positions: [Int: SCNVector3]) {
+		self.name = name
+		self.timerMax = timerMax
+		self.rotations = rotations
+		self.scales = scales
+		self.positions = positions
+	}
+	
 	var action: SCNAction {
 		var actions: [SCNAction] = []
 		for t in 0 ... timerMax {
 			actions.append(SCNAction.sequence([
 				SCNAction.run { node in
-					SCNTransaction.begin()
-					SCNTransaction.animationDuration = 0.04
+//					SCNTransaction.begin()
+//					SCNTransaction.animationDuration = 0.04
 					if let position = self.positions[t] {
 						node.position = position
 					}
@@ -128,7 +138,7 @@ struct Animation {
 					if let rotation = self.rotations[t] {
 						node.orientation = rotation
 					}
-					SCNTransaction.commit()
+//					SCNTransaction.commit()
 				},
 				SCNAction.wait(duration: 0.04)
 			]))

@@ -62,18 +62,18 @@ final class Game: NSObject {
 			print("== Loaded Scene Cache")
 		}
 		
-		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
-		collisions.node.name = "__colliions__"
-		scnScene.rootNode.addChildNode(collisions.node)
-		print("== Loaded Scene Collisions")
-
-//		let floorNode = SCNNode()
-//		floorNode.opacity = 0
-//		let floor = SCNFloor()
-//		floor.reflectivity = 0
-//		floorNode.geometry = floor
-//		floorNode.physicsBody = SCNPhysicsBody.static()
-//		scnScene.rootNode.addChildNode(floorNode)
+//		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
+//		collisions.node.name = "__colliions__"
+//		scnScene.rootNode.addChildNode(collisions.node)
+//		print("== Loaded Scene Collisions")
+		
+		let floorNode = SCNNode()
+		floorNode.opacity = 0
+		let floor = SCNFloor()
+		floor.reflectivity = 0
+		floorNode.geometry = floor
+		floorNode.physicsBody = SCNPhysicsBody.static()
+		scnScene.rootNode.addChildNode(floorNode)
 		
 		// -----
 		

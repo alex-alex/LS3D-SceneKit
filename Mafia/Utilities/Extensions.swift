@@ -8,6 +8,7 @@
 
 import Foundation
 import SceneKit
+import GLKit
 
 public extension InputStream {
 	
@@ -226,6 +227,25 @@ extension SCNQuaternion {
 		let y: Float = try stream.read()
 		let z: Float = try stream.read()
 		self.init(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z), w: -SCNFloat(w))
+	}
+	
+	var eulerAngles: SCNVector3 {
+		let ysqr = y * y
+		
+		let t0 = 2.0 * (w * x + y * z)
+		let t1 = 1.0 - 2.0 * (x * x + ysqr)
+		let nx = atan2(t0, t1)
+
+		var t2 = 2.0 * (w * y - z * x)
+		t2 = t2 > 1 ? 1 : t2
+		t2 = t2 < -1 ? -1 : t2
+		let ny = asin(t2)
+
+		let t3 = +2.0 * (w * z + x * y)
+		let t4 = +1.0 - 2.0 * (ysqr + z * z)
+		let nz = atan2(t3, t4)
+		
+		return SCNVector3(nx, ny, nz)
 	}
 }
 
