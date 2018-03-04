@@ -54,6 +54,32 @@ final class HudScene: SKScene {
 		actionButton.strokeColor = SKColor.clear
 		addChild(actionButton)
 
+		renderButtons()
+
+		objectivesLabel = SKLabelNode()
+		objectivesLabel.fontName = "Arial"
+		objectivesLabel.fontSize = 17
+		objectivesLabel.horizontalAlignmentMode = .center
+		objectivesLabel.verticalAlignmentMode = .center
+		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
+		addChild(objectivesLabel)
+
+		scaleMode = .resizeFill
+		isHidden = false
+		isUserInteractionEnabled = true
+	}
+
+	required init?(coder aDecoder: NSCoder) {
+		fatalError()
+	}
+
+}
+
+// MARK: - Buttons
+
+extension HudScene {
+
+	func renderButtons() {
 		inventoryButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
 		inventoryButton.isHidden = false
 		inventoryButton.position = CGPoint(x: size.width-45, y: size.height-45)
@@ -128,23 +154,13 @@ final class HudScene: SKScene {
 		carButtonLabel.text = "Car"
 		carButtonLabel.verticalAlignmentMode = .center
 		carButton.addChild(carButtonLabel)
-
-		objectivesLabel = SKLabelNode()
-		objectivesLabel.fontName = "Arial"
-		objectivesLabel.fontSize = 17
-		objectivesLabel.horizontalAlignmentMode = .center
-		objectivesLabel.verticalAlignmentMode = .center
-		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
-		addChild(objectivesLabel)
-
-		scaleMode = .resizeFill
-		isHidden = false
-		isUserInteractionEnabled = true
 	}
 
-	required init?(coder aDecoder: NSCoder) {
-		fatalError()
-	}
+}
+
+// MARK: - Control
+
+extension HudScene {
 
 	#if os(iOS)
 
@@ -213,8 +229,6 @@ final class HudScene: SKScene {
 	override func keyDown(with event: NSEvent) {
 		super.keyDown(with: event)
 
-		//let playerNode = game.scene.playerNode ?? game.cameraNode
-
 		SCNTransaction.begin()
 		SCNTransaction.animationDuration = 0.2
 
@@ -238,15 +252,9 @@ final class HudScene: SKScene {
 		case 13: // W
 			if game.mode == .walk {
 				if let playerNode = game.scene.playerNode {
-					print("playerNode.position =", playerNode.position)
-					print("playerNode.eulerAngles =", playerNode.eulerAngles)
 					game.scene.pressedJump = true
-				} else {
-					print("cameraNode.position =", game.cameraNode.position)
-					print("cameraNode.eulerAngles =", game.cameraNode.eulerAngles)
 				}
 			} else {
-				print("game.vehicle.node.position =", game.vehicle.node.presentation.position)
 				reverse = !reverse
 			}
 
