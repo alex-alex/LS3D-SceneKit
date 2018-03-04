@@ -50,7 +50,7 @@ final class Script {
 	var mainInEvent = false
 	
 	var eventIdQueue: [String] = []
-	var currentEventId: String? = nil
+	var currentEventId: String?
 	var lineBeforeEvent: Int = 0
 	var executingEvent = false
 	var eventCompletionHandler: (() -> Void)?

@@ -37,17 +37,17 @@ final class Game: NSObject {
 	
 	var vehicle: Vehicle!
 	var elevation: SCNFloat = 0
-	var lastControl: Control? = nil
+	var lastControl: Control?
 	
-	init(missionName: String) {
+	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
 		
-		let sceneModel = try! loadModel(named: "missions/\(missionName)/scene")
+		let sceneModel = try loadModel(named: "missions/\(missionName)/scene")
 		sceneModel.name = "__model__"
 		scnScene.rootNode.addChildNode(sceneModel)
 		print("== Loaded Scene Model")
 		
-		scene = try! loadScene(named: "missions/"+missionName)
+		scene = try loadScene(named: "missions/"+missionName)
 		
 		super.init()
 		
@@ -56,13 +56,13 @@ final class Game: NSObject {
 		scnScene.rootNode.addChildNode(scene.rootNode)
 		print("== Loaded Scene")
 		
-		if let sceneCache = try! SceneCache(name: "missions/"+missionName) {
+		if let sceneCache = try SceneCache(name: "missions/"+missionName) {
 			scnScene.rootNode.addChildNode(sceneCache.node)
 			sceneCache.node.name = "__cache__"
 			print("== Loaded Scene Cache")
 		}
 		
-		let collisions = try! Collisions(name: "missions/"+missionName, scene: scnScene)
+		let collisions = try Collisions(name: "missions/"+missionName, scene: scnScene)
 		collisions.node.name = "__colliions__"
 		scnScene.rootNode.addChildNode(collisions.node)
 		print("== Loaded Scene Collisions")
@@ -282,8 +282,6 @@ extension Game {
 			
 			scene.weapons[scene.playerNode!]!.append(weapon)
 			weapon.position = .hand
-			
-			break
 		}
 	}
 	

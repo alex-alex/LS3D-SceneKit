@@ -16,14 +16,14 @@ class MainMenu {
 	let cameraNode = SCNNode()
 	let scene: Scene
 	
-	init() {
+	init() throws {
 		scnScene.rootNode.name = "__root__"
 		
-		let sceneModel = try! loadModel(named: "missions/00menu/scene")
+		let sceneModel = try loadModel(named: "missions/00menu/scene")
 		sceneModel.name = "__model__"
 		scnScene.rootNode.addChildNode(sceneModel)
 		
-		scene = try! loadScene(named: "missions/00menu")
+		scene = try loadScene(named: "missions/00menu")
 		scene.rootNode.name = "__scene__"
 		scnScene.rootNode.addChildNode(scene.rootNode)
 		

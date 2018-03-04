@@ -359,8 +359,7 @@ func readMirror(stream: InputStream) throws {
 	for _ in 0 ..< 16 {
 		try transformationMatrix.append(stream.read())
 	}
-	
-	
+
 	let _: Float = try stream.read() // r
 	let _: Float = try stream.read() // g
 	let _: Float = try stream.read() // b
@@ -476,6 +475,7 @@ func readJoint(stream: InputStream) throws -> (SCNMatrix4, Int) {
 }
 
 @discardableResult
+// swiftlint:disable:next function_body_length
 func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode {
 	
 //	print("-- loadModel:", name)
@@ -571,7 +571,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			let textureNameLength: UInt8 = try stream.read()
 			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
 			let url = mainDirectory.appendingPathComponent("maps/"+textureName.lowercased())
-			let data = try! Data(contentsOf: url)
+			let data = try Data(contentsOf: url)
 			
 			#if os(macOS)
 				if flags.contains(.colorKey) {

@@ -104,7 +104,7 @@ final class Scene {
 	
 	var game: Game!
 	let rootNode = SCNNode()
-	var playerNode: SCNNode? = nil
+	var playerNode: SCNNode?
 	
 	var initScripts: [String: Script] = [:]
 	var scripts: [String: Script] = [:]
@@ -112,7 +112,7 @@ final class Scene {
 	var sounds: [SCNNode: Sound] = [:]
 	var weapons: [SCNNode: [Weapon]] = [:]
 	var actions: [Action] = []
-	var compassNode: SCNNode? = nil
+	var compassNode: SCNNode?
 	
 	var objectives: [Int] = [] {
 		didSet {
@@ -125,6 +125,7 @@ final class Scene {
 	
 }
 
+// swiftlint:disable:next function_body_length
 private func readSection(stream: InputStream, scene: inout Scene) throws {
 	
 	let startOffset = stream.currentOffset

@@ -24,7 +24,8 @@ class GameManager {
 	
 	init(view: SCNView) {
 		self.view = view
-		
+
+		// swiftlint:disable:next force_try
 		try! TextDb.load()
 		
 		view.rendersContinuously = true
@@ -44,7 +45,8 @@ class GameManager {
 		view.scene = SCNScene()
 		view.overlaySKScene = LoadingScene(textId: 0, imageName: "00menu.tga")
 		DispatchQueue.global().async {
-			self.mainMenu = MainMenu()
+			// swiftlint:disable:next force_try
+			self.mainMenu = try! MainMenu()
 			self.mainMenu?.setup(in: self.view)
 		}
 	}
@@ -53,7 +55,8 @@ class GameManager {
 		view.scene = SCNScene()
 		view.overlaySKScene = LoadingScene(textId: textId, imageName: imageName)
 		DispatchQueue.global().async {
-			self.game = Game(missionName: folder)
+			// swiftlint:disable:next force_try
+			self.game = try! Game(missionName: folder)
 			self.game.setup(in: self.view)
 		}
 	}

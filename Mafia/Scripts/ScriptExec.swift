@@ -193,6 +193,7 @@ extension Script {
 	
 	private func enemy_playanim(_ args: [Argument]) {
 		let animName = args[0].getString()
+		// swiftlint:disable:next force_try
 		try! playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: node) {
 			self.next()
 		}
@@ -287,7 +288,7 @@ extension Script {
 	private func human_getactanimid(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		if let _ = actors[actorId] {
+		if actors[actorId] != nil {
 			vars[varId] = scene.pressedJump ? 98 : 0
 		}
 		next()

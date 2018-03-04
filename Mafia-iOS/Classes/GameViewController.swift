@@ -28,7 +28,7 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 		
-		gameView = view as! SCNView
+		gameView = view as! SCNView // swiftlint:disable:this force_cast
 		gameManager = GameManager(view: gameView)
 		
 		// ------
@@ -53,7 +53,7 @@ class GameViewController: UIViewController {
 		if motionManager.isAccelerometerAvailable {
 			//gameView.preferredFramesPerSecond
 			motionManager.accelerometerUpdateInterval = 1/60
-			motionManager.startAccelerometerUpdates(to: .main) { data, error in
+			motionManager.startAccelerometerUpdates(to: .main) { data, _ in
 				guard self.gameManager.game?.mode == .car, let data = data else { return }
 				
 				self.accelerometer.update(with: data.acceleration)

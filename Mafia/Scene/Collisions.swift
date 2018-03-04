@@ -101,9 +101,9 @@ struct Triangle {
 			var y: Float = 0
 			var z: Float = 0
 			
-			nsData.getBytes(&x, range: NSMakeRange(vertexOffset, 4))
-			nsData.getBytes(&y, range: NSMakeRange(vertexOffset+4, 4))
-			nsData.getBytes(&z, range: NSMakeRange(vertexOffset+8, 4))
+			nsData.getBytes(&x, range: NSRange(location: vertexOffset, length: 4))
+			nsData.getBytes(&y, range: NSRange(location: vertexOffset+4, length: 4))
+			nsData.getBytes(&z, range: NSRange(location: vertexOffset+8, length: 4))
 			
 			newVertices.append(SCNVector3(x, y, z))
 		}
@@ -355,7 +355,8 @@ final class Collisions {
 			return node
 		}
 	}
-	
+
+	// swiftlint:disable:next function_body_length
 	private func process(stream: InputStream) throws {
 		// KLZ Header
 		

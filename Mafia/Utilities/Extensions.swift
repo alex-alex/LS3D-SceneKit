@@ -37,7 +37,7 @@ public extension InputStream {
 		return buffer
 	}
 	
-	public func read<T : BinaryInteger>() throws -> T {
+	public func read<T: BinaryInteger>() throws -> T {
 		var buffer: T = 0
 		
 		let n = withUnsafePointer(to: &buffer) { p in
@@ -54,7 +54,7 @@ public extension InputStream {
 		}
 	}
 	
-	public func read<T : FloatingPoint>() throws -> T {
+	public func read<T: FloatingPoint>() throws -> T {
 		var buffer: T = 0
 		
 		let n = withUnsafePointer(to: &buffer) { p in
@@ -97,24 +97,24 @@ public extension RawRepresentable {
 	}
 }
 
-func +(lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
+func + (lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
 	return SCNVector3(x: lhs.x + rhs.x, y: lhs.y + rhs.y, z: lhs.z + rhs.z)
 }
 
-func -(lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
+func - (lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
 	return SCNVector3(x: lhs.x - rhs.x, y: lhs.y - rhs.y, z: lhs.z - rhs.z)
 }
 
 func += (lhs: inout SCNVector3, rhs: SCNVector3) {
-	lhs = lhs + rhs
+	lhs = lhs + rhs // swiftlint:disable:this shorthand_operator
 }
 
-func +(lhs: SCNVector4, rhs: SCNVector4) -> SCNVector4 {
+func + (lhs: SCNVector4, rhs: SCNVector4) -> SCNVector4 {
 	return SCNVector4(x: lhs.x + rhs.x, y: lhs.y + rhs.y, z: lhs.z + rhs.z, w: lhs.w + rhs.w)
 }
 
 func += (lhs: inout SCNVector4, rhs: SCNVector4) {
-	lhs = lhs + rhs
+	lhs = lhs + rhs // swiftlint:disable:this shorthand_operator
 }
 
 extension CGImage {
@@ -157,9 +157,9 @@ extension CGImage {
 	
 	extension NSColor {
 		static func random() -> NSColor {
-			let hue : CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
-			let saturation : CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from white
-			let brightness : CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from black
+			let hue: CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
+			let saturation: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from white
+			let brightness: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from black
 			return NSColor(calibratedHue: hue, saturation: saturation, brightness: brightness, alpha: 1)
 		}
 	}
@@ -190,9 +190,9 @@ extension CGImage {
 	
 	extension UIColor {
 		static func random() -> UIColor {
-			let hue : CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
-			let saturation : CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from white
-			let brightness : CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from black
+			let hue: CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
+			let saturation: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from white
+			let brightness: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from black
 			return UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1)
 		}
 	}

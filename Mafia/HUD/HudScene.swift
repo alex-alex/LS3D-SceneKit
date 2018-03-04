@@ -172,18 +172,16 @@ final class HudScene: SKScene {
 				}
 			case dropButton, dropButton.children[0]:
 				game.lastControl = .WEAPONDROP
-				for (i, weapon) in (game.scene.weapons[game.scene.playerNode!] ?? []).enumerated() {
-					if weapon.position == .hand {
-						print("dropping", weapon.name)
-						game.scene.weapons[game.scene.playerNode!]!.remove(at: i)
-						
-						let batNode = game.scene.rootNode.childNode(withName: "2bbat", recursively: true)!
-						batNode.isHidden = false
-//						let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
-						game.scene.actions.append(.weapon(batNode, weapon))
-						
-						break
-					}
+				for (i, weapon) in (game.scene.weapons[game.scene.playerNode!] ?? []).enumerated() where weapon.position == .hand {
+					print("dropping", weapon.name)
+					game.scene.weapons[game.scene.playerNode!]!.remove(at: i)
+
+					let batNode = game.scene.rootNode.childNode(withName: "2bbat", recursively: true)!
+					batNode.isHidden = false
+//					let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
+					game.scene.actions.append(.weapon(batNode, weapon))
+
+					break
 				}
 			case jumpButton, jumpButton.children[0]:
 				game.lastControl = .JUMP

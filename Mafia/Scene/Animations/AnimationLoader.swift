@@ -112,7 +112,7 @@ class Animation {
 	let scales: [Int: SCNVector3]
 	let positions: [Int: SCNVector3]
 	
-	var lastScale: SCNVector3? = nil
+	var lastScale: SCNVector3?
 	
 	init(name: String, timerMax: Int, rotations: [Int: SCNQuaternion], scales: [Int: SCNVector3], positions: [Int: SCNVector3]) {
 		self.name = name
