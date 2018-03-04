@@ -277,12 +277,35 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 		boneIndices += Array(repeating: 0, count: Swift.max(remaining, 0))
 
 		let boneWeightsData = Data(bytes: boneWeights, count: boneWeights.count * MemoryLayout<Float>.size)
-		let boneWeightsSource = SCNGeometrySource(data: boneWeightsData, semantic: .boneWeights, vectorCount: boneWeights.count, usesFloatComponents: true, componentsPerVector: 1, bytesPerComponent: MemoryLayout<Float>.size, dataOffset: 0, dataStride: MemoryLayout<Float>.size)
+		let boneWeightsSource = SCNGeometrySource(
+			data: boneWeightsData,
+			semantic: .boneWeights,
+			vectorCount: boneWeights.count,
+			usesFloatComponents: true,
+			componentsPerVector: 1,
+			bytesPerComponent: MemoryLayout<Float>.size,
+			dataOffset: 0,
+			dataStride: MemoryLayout<Float>.size
+		)
 
 		let boneIndicesData = Data(bytes: boneIndices, count: boneIndices.count * MemoryLayout<UInt8>.size)
-		let boneIndicesSource = SCNGeometrySource(data: boneIndicesData, semantic: .boneIndices, vectorCount: boneIndices.count, usesFloatComponents: false, componentsPerVector: 1, bytesPerComponent: MemoryLayout<UInt8>.size, dataOffset: 0, dataStride: MemoryLayout<UInt8>.size)
+		let boneIndicesSource = SCNGeometrySource(
+			data: boneIndicesData,
+			semantic: .boneIndices,
+			vectorCount: boneIndices.count,
+			usesFloatComponents: false,
+			componentsPerVector: 1,
+			bytesPerComponent: MemoryLayout<UInt8>.size,
+			dataOffset: 0,
+			dataStride: MemoryLayout<UInt8>.size
+		)
 
-		let mesh = SingleMesh(boneIds: boneIds, transforms: transforms, boneWeights: boneWeightsSource, boneIndices: boneIndicesSource)
+		let mesh = SingleMesh(
+			boneIds: boneIds,
+			transforms: transforms,
+			boneWeights: boneWeightsSource,
+			boneIndices: boneIndicesSource
+		)
 		meshes.append(mesh)
 	}
 	return meshes
@@ -450,7 +473,11 @@ func readDummy(stream: InputStream) throws -> SCNNode {
 	let node = SCNNode(geometry: box)
 	node.name = "DUMMY"
 	node.isHidden = true
-	node.position = SCNVector3(x: SCNFloat(min.x + width / 2), y: SCNFloat(min.y + height / 2), z: SCNFloat(min.z + length / 2))
+	node.position = SCNVector3(
+		x: SCNFloat(min.x + width / 2),
+		y: SCNFloat(min.y + height / 2),
+		z: SCNFloat(min.z + length / 2)
+	)
 
 	return node
 }
@@ -537,12 +564,22 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		let ambientR: Float = try stream.read()
 		let ambientG: Float = try stream.read()
 		let ambientB: Float = try stream.read()
-		material.ambient.contents = SKColor(red: CGFloat(ambientR), green: CGFloat(ambientG), blue: CGFloat(ambientB), alpha: 1)
+		material.ambient.contents = SKColor(
+			red: CGFloat(ambientR),
+			green: CGFloat(ambientG),
+			blue: CGFloat(ambientB),
+			alpha: 1
+		)
 
 		let diffuseR: Float = try stream.read()
 		let diffuseG: Float = try stream.read()
 		let diffuseB: Float = try stream.read()
-		material.diffuse.contents = SKColor(red: CGFloat(diffuseR), green: CGFloat(diffuseG), blue: CGFloat(diffuseB), alpha: 1)
+		material.diffuse.contents = SKColor(
+			red: CGFloat(diffuseR),
+			green: CGFloat(diffuseG),
+			blue: CGFloat(diffuseB),
+			alpha: 1
+		)
 
 		let _: Float = try stream.read() // emissionR
 		let _: Float = try stream.read() // emissionG
@@ -578,9 +615,10 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 					let b = CGFloat(data[54])/255
 					let g = CGFloat(data[55])/255
 					let r = CGFloat(data[56])/255
+					let color = NSColor(red: r, green: g, blue: b, alpha: 1)
 					if let source = CGImageSourceCreateWithData(data as CFData, nil),
 					   let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
-					   let masked = cgImage.removeColor((r, g, b)) {
+					   let masked = cgImage.removeColor(color.cgColor) {
 						material.diffuse.contents = masked.caLayer()
 					} else {
 						material.diffuse.contents = NSImage(data: data)
@@ -593,7 +631,8 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 					let b = CGFloat(data[54])/255
 					let g = CGFloat(data[55])/255
 					let r = CGFloat(data[56])/255
-					material.diffuse.contents = UIImage(data: data)?.removeColor((r, g, b))?.cgImage?.caLayer()
+					let color = UIColor(red: r, green: g, blue: b, alpha: 1)
+					material.diffuse.contents = UIImage(data: data)?.removeColor(color)?.cgImage?.caLayer()
 				} else {
 					material.diffuse.contents = UIImage(data: data)
 				}
@@ -741,7 +780,13 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		let boneNodes = mesh.boneIds.map({ joints[$0]!.0 })
 //		let boneTransforms = mesh.boneIds.map({ NSValue(scnMatrix4: joints[$0]!.1) })
 		let boneInverseBindTransforms = mesh.transforms.map({ NSValue(scnMatrix4: $0) })
-		node.skinner = SCNSkinner(baseGeometry: node.geometry, bones: boneNodes, boneInverseBindTransforms: boneInverseBindTransforms, boneWeights: mesh.boneWeights, boneIndices: mesh.boneIndices)
+		node.skinner = SCNSkinner(
+			baseGeometry: node.geometry,
+			bones: boneNodes,
+			boneInverseBindTransforms: boneInverseBindTransforms,
+			boneWeights: mesh.boneWeights,
+			boneIndices: mesh.boneIndices
+		)
 	}
 
 	let _animation: UInt8 = try stream.read()

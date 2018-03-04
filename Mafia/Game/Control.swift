@@ -30,7 +30,7 @@ enum Control: String {
 //	case DRVUP
 //	case GEARDOWN
 	case MAP
-	case UP
+	case UP // swiftlint:disable:this identifier_name
 //	case MOTORSWITCH
 //	case DRVDOWN
 	case HANDBRAKE

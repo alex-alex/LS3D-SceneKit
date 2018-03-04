@@ -28,8 +28,8 @@ enum VolumeType: UInt8 {
 }
 
 struct Plane {
-	var n: SCNVector3
-	var d: Float
+	var n: SCNVector3 // swiftlint:disable:this identifier_name
+	var d: Float // swiftlint:disable:this identifier_name
 	init(stream: InputStream) throws {
 		n = try SCNVector3(stream: stream)
 		d = try stream.read()
@@ -129,12 +129,21 @@ struct AABB {
 
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		let node = SCNNode()
-		let box = SCNBox(width: CGFloat(max.x-min.x), height: CGFloat(max.y-min.y), length: CGFloat(max.z-min.z), chamferRadius: 0)
+		let box = SCNBox(
+			width: CGFloat(max.x-min.x),
+			height: CGFloat(max.y-min.y),
+			length: CGFloat(max.z-min.z),
+			chamferRadius: 0
+		)
 		box.firstMaterial = SCNMaterial()
 		box.firstMaterial?.cullMode = .front
 		box.firstMaterial?.diffuse.contents = SKColor.red
 //		node.geometry = box
-		node.position = SCNVector3(CGFloat(min.x+(max.x-min.x)/2), CGFloat(min.y+(max.y-min.y)/2), CGFloat(min.z+(max.z-min.z)/2))
+		node.position = SCNVector3(
+			CGFloat(min.x+(max.x-min.x)/2),
+			CGFloat(min.y+(max.y-min.y)/2),
+			CGFloat(min.z+(max.z-min.z)/2)
+		)
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
 		return node
 	}
@@ -230,7 +239,12 @@ struct OBB {
 
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		let node = SCNNode()
-		let box = SCNBox(width: CGFloat(maxExtent.x-minExtent.x), height: CGFloat(maxExtent.y-minExtent.y), length: CGFloat(maxExtent.z-minExtent.z), chamferRadius: 0)
+		let box = SCNBox(
+			width: CGFloat(maxExtent.x-minExtent.x),
+			height: CGFloat(maxExtent.y-minExtent.y),
+			length: CGFloat(maxExtent.z-minExtent.z),
+			chamferRadius: 0
+		)
 		box.firstMaterial = SCNMaterial()
 		box.firstMaterial?.cullMode = .front
 		box.firstMaterial?.diffuse.contents = SKColor.magenta
@@ -324,7 +338,7 @@ final class Collisions {
 		return nodes[Int(linkId)]
 	}
 
-	func _getNode(i: Int, name: String) -> SCNNode? {
+	func getNodeInternal(type: Int, name: String) -> SCNNode? {
 		let comps = name.split(separator: ".")
 		if comps.count > 1 {
 			guard comps.count == 2 else { fatalError() }
@@ -333,9 +347,9 @@ final class Collisions {
 			return node
 		} else {
 			var node: SCNNode? = nil
-			if i == 1 {
+			if type == 1 {
 				node = rootNode.childNodes[0].childNode(withName: String(comps[0]), recursively: false)
-			} else if i == 2 {
+			} else if type == 2 {
 				node = rootNode.childNodes[1].childNode(withName: String(comps[0]), recursively: false)
 			}
 
@@ -398,7 +412,7 @@ final class Collisions {
 
 			//names.append((Int(linkType), str))
 
-			nodes[i] = _getNode(i: Int(linkType), name: str)
+			nodes[i] = getNodeInternal(type: Int(linkType), name: str)
 		}
 
 		// Collision Data Header

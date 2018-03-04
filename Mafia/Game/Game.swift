@@ -97,7 +97,10 @@ final class Game: NSObject {
 			playerNode.addChildNode(cylinderNode)
 
 			let cylinderShape = SCNPhysicsShape(geometry: SCNCylinder(radius: 0.25, height: 1.5), options: nil)
-			let playerPhysicsShape = SCNPhysicsShape(shapes: [cylinderShape], transforms: [NSValue(scnMatrix4: SCNMatrix4MakeTranslation(0, 1, 0))])
+			let playerPhysicsShape = SCNPhysicsShape(
+				shapes: [cylinderShape],
+				transforms: [NSValue(scnMatrix4: SCNMatrix4MakeTranslation(0, 1, 0))]
+			)
 			playerNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: playerPhysicsShape)
 			playerNode.physicsBody?.allowsResting = false
 			playerNode.physicsBody?.mass = 80

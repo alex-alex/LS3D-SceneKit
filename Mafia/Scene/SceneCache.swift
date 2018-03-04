@@ -83,7 +83,12 @@ final class SceneCache {
 				let rotationX: Float = try stream.read()
 				let rotationY: Float = try stream.read()
 				let rotationZ: Float = try stream.read()
-				objNode.orientation = SCNQuaternion(x: SCNFloat(rotationX), y: SCNFloat(rotationY), z: SCNFloat(rotationZ), w: -SCNFloat(rotationW))
+				objNode.orientation = SCNQuaternion(
+					x: SCNFloat(rotationX),
+					y: SCNFloat(rotationY),
+					z: SCNFloat(rotationZ),
+					w: -SCNFloat(rotationW)
+				)
 
 				let scaleX: Float = try stream.read()
 				let scaleY: Float = try stream.read()

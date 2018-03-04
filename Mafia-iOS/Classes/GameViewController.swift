@@ -118,7 +118,11 @@ extension GameViewController {
 		}*/
 
 		if gameManager.game?.mode == .car {
-			let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 50)), y: 0, z: max(-1, min(1, Float(-translation.y) / 50)))
+			let impulse = SCNVector3(
+				x: max(-1, min(1, Float(translation.x) / 50)),
+				y: 0,
+				z: max(-1, min(1, Float(-translation.y) / 50))
+			)
 			gameManager.game.vehicle.force = CGFloat(impulse.z) * 3000
 		}
 	}
@@ -132,7 +136,9 @@ extension GameViewController {
 
 extension GameViewController: UIGestureRecognizerDelegate {
 
-	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+	func gestureRecognizer(
+		_ gestureRecognizer: UIGestureRecognizer,
+		shouldReceive touch: UITouch) -> Bool {
 		if gestureRecognizer == lookGesture {
 			return touch.location(in: view).x > view.frame.size.width / 2
 		} else if gestureRecognizer == walkGesture {
@@ -141,7 +147,9 @@ extension GameViewController: UIGestureRecognizerDelegate {
 		return true
 	}
 
-	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+	func gestureRecognizer(
+		_ gestureRecognizer: UIGestureRecognizer,
+		shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
 		return true
 	}
 

@@ -40,9 +40,9 @@ public extension InputStream {
 	public func read<T: BinaryInteger>() throws -> T {
 		var buffer: T = 0
 
-		let n = withUnsafePointer(to: &buffer) { p in
-			p.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { p in
-				self.read(UnsafeMutablePointer<UInt8>(mutating: p), maxLength: MemoryLayout<T>.size) // UnsafeMutablePointer<UInt8>(p)
+		let n = withUnsafePointer(to: &buffer) { ptr in
+			ptr.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { ptr in
+				self.read(UnsafeMutablePointer<UInt8>(mutating: ptr), maxLength: MemoryLayout<T>.size)
 			})
 		}
 
@@ -57,9 +57,9 @@ public extension InputStream {
 	public func read<T: FloatingPoint>() throws -> T {
 		var buffer: T = 0
 
-		let n = withUnsafePointer(to: &buffer) { p in
-			p.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { p in
-				self.read(UnsafeMutablePointer<UInt8>(mutating: p), maxLength: MemoryLayout<T>.size) // UnsafeMutablePointer<UInt8>(p)
+		let n = withUnsafePointer(to: &buffer) { ptr in
+			ptr.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { ptr in
+				self.read(UnsafeMutablePointer<UInt8>(mutating: ptr), maxLength: MemoryLayout<T>.size)
 			})
 		}
 
@@ -118,8 +118,9 @@ func += (lhs: inout SCNVector4, rhs: SCNVector4) {
 }
 
 extension CGImage {
-	func removeColor(_ color: (CGFloat, CGFloat, CGFloat)) -> CGImage? {
-		return copy(maskingColorComponents: [color.0, color.0, color.1, color.1, color.2, color.2])
+	func removeColor(_ color: CGColor) -> CGImage? {
+		let comps = color.components ?? [0, 0, 0]
+		return copy(maskingColorComponents: [comps[0], comps[0], comps[1], comps[1], comps[2], comps[2]])
 	}
 
 	func caLayer() -> CALayer {
@@ -182,8 +183,8 @@ extension CGImage {
 //	}
 
 	extension UIImage {
-		func removeColor(_ color: (CGFloat, CGFloat, CGFloat)) -> UIImage? {
-			guard let cgImage = cgImage?.removeColor(color) else { return nil }
+		func removeColor(_ color: UIColor) -> UIImage? {
+			guard let cgImage = cgImage?.removeColor(color.cgColor) else { return nil }
 			return UIImage(cgImage: cgImage)
 		}
 	}
@@ -251,7 +252,12 @@ extension SCNQuaternion {
 
 extension SCNMatrix4 {
 	init(values: [SCNFloat]) {
-		self.init(m11: values[0], m12: values[1], m13: values[2], m14: values[3], m21: values[4], m22: values[5], m23: values[6], m24: values[7], m31: values[8], m32: values[9], m33: values[10], m34: values[11], m41: values[12], m42: values[13], m43: values[14], m44: values[15])
+		self.init(
+			m11: values[0], m12: values[1], m13: values[2], m14: values[3],
+			m21: values[4], m22: values[5], m23: values[6], m24: values[7],
+			m31: values[8], m32: values[9], m33: values[10], m34: values[11],
+			m41: values[12], m42: values[13], m43: values[14], m44: values[15]
+		)
 	}
 
 	init(stream: InputStream) throws {

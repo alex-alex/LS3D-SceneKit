@@ -12,7 +12,8 @@ import SceneKit
 #if os(macOS)
     let mainDirectory = URL(fileURLWithPath: "/Users/Alex/Development/Mafia/Mafia")
 #elseif os(iOS)
-    let mainDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Mafia")
+	let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    let mainDirectory = documentDirectory.appendingPathComponent("Mafia")
 #endif
 
 class GameManager {

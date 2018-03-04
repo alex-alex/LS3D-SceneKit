@@ -277,7 +277,9 @@ extension Script {
 	private func human_anyweaponinhand(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		if let actor = actors[actorId], let weapons = scene.weapons[actor], weapons.contains(where: { $0.position == .hand }) {
+		if let actor = actors[actorId],
+			let weapons = scene.weapons[actor],
+			weapons.contains(where: { $0.position == .hand }) {
 			vars[varId] = 1
 		} else {
 			vars[varId] = 0

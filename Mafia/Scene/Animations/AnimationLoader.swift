@@ -114,7 +114,12 @@ class Animation {
 
 	var lastScale: SCNVector3?
 
-	init(name: String, timerMax: Int, rotations: [Int: SCNQuaternion], scales: [Int: SCNVector3], positions: [Int: SCNVector3]) {
+	init(
+		name: String,
+		timerMax: Int,
+		rotations: [Int: SCNQuaternion],
+		scales: [Int: SCNVector3],
+		positions: [Int: SCNVector3]) {
 		self.name = name
 		self.timerMax = timerMax
 		self.rotations = rotations
@@ -208,13 +213,23 @@ func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	for _ in 0 ..< objectsCount {
 		let nameOffset: UInt32 = try stream.read() + 18
 		let animOffset: UInt32 = try stream.read() + 18
-		try animations.append(readAnimation(stream: stream, timerMax: Int(timerMax), nameOffset: nameOffset, animOffset: animOffset))
+		try animations.append(readAnimation(
+			stream: stream,
+			timerMax: Int(timerMax),
+			nameOffset: nameOffset,
+			animOffset: animOffset)
+		)
 	}
 
 	return (animations, Double(timerMax)/25)
 }
 
-func playAnimation(named name: String, in node: SCNNode, repeat: Bool = false, animationKey: String? = nil, completionHandler: (() -> Void)? = nil) throws {
+func playAnimation(
+	named name: String,
+	in node: SCNNode,
+	repeat: Bool = false,
+	animationKey: String? = nil,
+	completionHandler: (() -> Void)? = nil) throws {
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
 	let (animations, duration) = try loadAnimation(named: name)

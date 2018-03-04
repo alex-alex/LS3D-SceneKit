@@ -14,7 +14,7 @@ final class TextDb {
 		case file
 	}
 
-	static var db: [UInt32: String] = [:]
+	static var data: [UInt32: String] = [:]
 
 	static func load(lang: String = "cz") throws {
 		let url = mainDirectory.appendingPathComponent("/tables/textdb_\(lang).def")
@@ -46,11 +46,11 @@ final class TextDb {
 			}
 		}
 
-		db = table
+		data = table
 	}
 
 	static func get(_ val: Int) -> String? {
-		return db[UInt32(val)]
+		return data[UInt32(val)]
 	}
 
 }
