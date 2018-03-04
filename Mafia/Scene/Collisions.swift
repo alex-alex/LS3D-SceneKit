@@ -19,7 +19,7 @@ enum VolumeType: UInt8 {
 	case face5			= 5
 	case face6			= 6
 	case face7			= 7
-	
+
 	case XTOBB			= 0x80
 	case AABB			= 0x81
 	case sphere			= 0x82
@@ -44,13 +44,13 @@ struct Volume {
 	var flags: UInt8
 	var mtlId: UInt8
 	var linkId: UInt32?
-	
+
 	init(stream: InputStream, hasLink: Bool) throws {
 		type = try VolumeType(forcedRawValue: stream.read())
 		sortInfo = try stream.read()
 		flags = try stream.read()
 		mtlId = try stream.read()
-		
+
 		if hasLink {
 			let _linkId: UInt32 = try stream.read()
 			linkId = _linkId
@@ -69,23 +69,23 @@ struct Triangle {
 			linkIndex = try stream.read()
 		}
 	}
-	
+
 	//var volume: Volume
 	var vertices: [VertexLink] = []
 	//var plane: Plane
-	
+
 	init(stream: InputStream) throws {
 		//volume = try Volume(stream: stream, hasLink: false)
 		stream.currentOffset += 4
-		
+
 		for _ in 0 ..< 3 {
 			try vertices.append(VertexLink(stream: stream))
 		}
-		
+
 		//plane = try Plane(stream: stream)
 		stream.currentOffset += 16
 	}
-	
+
 	func getVertices(treeKlz: Collisions) -> (UInt32, [SCNVector3])? {
 		var newVertices: [SCNVector3] = []
 		for vertex in vertices {
@@ -93,25 +93,25 @@ struct Triangle {
 				  let nodeGeometry = vertexNode.geometry,
 				  let vertexSource = nodeGeometry.sources(for: .vertex).first,
 				  vertex.vertexBufferIndex < vertexSource.vectorCount else { continue }
-			
+
 			let nsData = vertexSource.data as NSData
 			let vertexOffset = vertexSource.dataOffset + Int(vertex.vertexBufferIndex) * vertexSource.dataStride
-			
+
 			var x: Float = 0
 			var y: Float = 0
 			var z: Float = 0
-			
+
 			nsData.getBytes(&x, range: NSRange(location: vertexOffset, length: 4))
 			nsData.getBytes(&y, range: NSRange(location: vertexOffset+4, length: 4))
 			nsData.getBytes(&z, range: NSRange(location: vertexOffset+8, length: 4))
-			
+
 			newVertices.append(SCNVector3(x, y, z))
 		}
-		
+
 		if newVertices.count == 3 {
 			return (UInt32(vertices[0].linkIndex), newVertices)
 		}
-		
+
 		return nil
 	}
 }
@@ -120,13 +120,13 @@ struct AABB {
 	var volume: Volume
 	var min: SCNVector3
 	var max: SCNVector3
-	
+
 	init(stream: InputStream) throws {
 		volume = try Volume(stream: stream, hasLink: true)
 		min = try SCNVector3(stream: stream)
 		max = try SCNVector3(stream: stream)
 	}
-	
+
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		let node = SCNNode()
 		let box = SCNBox(width: CGFloat(max.x-min.x), height: CGFloat(max.y-min.y), length: CGFloat(max.z-min.z), chamferRadius: 0)
@@ -148,7 +148,7 @@ struct XTOBB {
 	var maxExtent: SCNVector3
 	var transform: SCNMatrix4
 	var inverseTransform: SCNMatrix4
-	
+
 	init(stream: InputStream) throws {
 		volume = try Volume(stream: stream, hasLink: true)
 		min = try SCNVector3(stream: stream)
@@ -158,10 +158,10 @@ struct XTOBB {
 		transform = try SCNMatrix4(stream: stream)
 		inverseTransform = try SCNMatrix4(stream: stream)
 	}
-	
+
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		guard let _node = treeKlz.getNode(linkId: volume.linkId!) else { return SCNNode() }
-		
+
 		let node = SCNNode()
 //		let box = SCNBox(width: CGFloat(maxExtent.x-minExtent.x), height: CGFloat(maxExtent.y-minExtent.y), length: CGFloat(maxExtent.z-minExtent.z), chamferRadius: 0)
 //		box.firstMaterial = SCNMaterial()
@@ -169,7 +169,7 @@ struct XTOBB {
 //		box.firstMaterial?.diffuse.contents = SKColor.green
 //		node.geometry = box
 //		node.transform = transform
-		
+
 		if volume.mtlId == 41 {
 			let shape = SCNPhysicsShape(node: _node, options: [:])
 			_node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
@@ -183,7 +183,7 @@ struct XTOBB {
 //			])
 //			_node.physicsBody = SCNPhysicsBody(type: .static, shape: shape)
 		}
-		
+
 		return node
 	}
 }
@@ -192,13 +192,13 @@ struct Cylinder {
 	var volume: Volume
 	var position: CGPoint
 	var radius: Float
-	
+
 	init(stream: InputStream) throws {
 		volume = try Volume(stream: stream, hasLink: true)
 		position = try CGPoint(stream: stream)
 		radius = try stream.read()
 	}
-	
+
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		//let _node = treeKlz.getNode(linkId: volume.linkId!)
 		let node = SCNNode()
@@ -219,7 +219,7 @@ struct OBB {
 	var maxExtent: SCNVector3
 	var transform: SCNMatrix4
 	var inverseTransform: SCNMatrix4
-	
+
 	init(stream: InputStream) throws {
 		volume = try Volume(stream: stream, hasLink: true)
 		minExtent = try SCNVector3(stream: stream)
@@ -227,7 +227,7 @@ struct OBB {
 		transform = try SCNMatrix4(stream: stream)
 		inverseTransform = try SCNMatrix4(stream: stream)
 	}
-	
+
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		let node = SCNNode()
 		let box = SCNBox(width: CGFloat(maxExtent.x-minExtent.x), height: CGFloat(maxExtent.y-minExtent.y), length: CGFloat(maxExtent.z-minExtent.z), chamferRadius: 0)
@@ -245,13 +245,13 @@ struct Sphere {
 	var volume: Volume
 	var position: SCNVector3
 	var radius: Float
-	
+
 	init(stream: InputStream) throws {
 		volume = try Volume(stream: stream, hasLink: true)
 		position = try SCNVector3(stream: stream)
 		radius = try stream.read()
 	}
-	
+
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		let node = SCNNode()
 		let sphere = SCNSphere(radius: CGFloat(radius))
@@ -276,21 +276,21 @@ struct Reference {
 struct Cell {
 	var numReferences: UInt32
 	var height: Float
-	
+
 	init(stream: InputStream) throws {
 		numReferences = try stream.read()
 		stream.currentOffset += 4
 		height = try stream.read()
 		stream.currentOffset += 4
-		
+
 		for _ in 0 ..< numReferences {
 			_ = try Reference(stream: stream)
 		}
-		
+
 		for _ in 0 ..< numReferences {
 			let _: UInt8 = try stream.read()
 		}
-		
+
 		let padding = numReferences % 4
 		if padding != 0 {
 			stream.currentOffset += Int(padding)
@@ -299,31 +299,31 @@ struct Cell {
 }
 
 final class Collisions {
-	
+
 	enum Error: Swift.Error {
 		case file
 	}
-	
+
 	let node = SCNNode()
 	let rootNode: SCNNode
 	//var names: [(Int, String)] = []
 	var nodes: [Int: SCNNode] = [:]
-	
+
 	init(name: String, scene: SCNScene) throws {
 		self.rootNode = scene.rootNode
-		
+
 		let url = mainDirectory.appendingPathComponent(name + "/tree.klz")
-		
+
 		guard let stream = InputStream(url: url) else { throw Error.file }
 		stream.open()
-		
+
 		try process(stream: stream)
 	}
-	
+
 	func getNode(linkId: UInt32) -> SCNNode? {
 		return nodes[Int(linkId)]
 	}
-	
+
 	func _getNode(i: Int, name: String) -> SCNNode? {
 		let comps = name.split(separator: ".")
 		if comps.count > 1 {
@@ -338,20 +338,20 @@ final class Collisions {
 			} else if i == 2 {
 				node = rootNode.childNodes[1].childNode(withName: String(comps[0]), recursively: false)
 			}
-			
+
 			if node == nil {
 //				print("recursive")
 				node = rootNode.childNode(withName: String(comps[0]), recursively: true)
 			}
-			
+
 			if node == nil {
 				print("not found")
 			}
-			
+
 //			if i != 1 {
 //			print("###", i, name, "#", node?.parent?.name, node?.parent?.parent?.name, node?.parent?.parent?.parent?.name, node?.parent?.parent?.parent?.parent?.name)
 //			}
-			
+
 			return node
 		}
 	}
@@ -359,52 +359,52 @@ final class Collisions {
 	// swiftlint:disable:next function_body_length
 	private func process(stream: InputStream) throws {
 		// KLZ Header
-		
+
 		let str: String = try stream.read(maxLength: 4)
 		guard str == "GifC" else { throw Error.file }
-		
+
 		let ver: UInt32 = try stream.read()
 		guard ver == 5 else { throw Error.file }
-		
+
 		let _gridDataOffset: UInt32 = try stream.read() // 5484
 		let gridDataOffset = Int(_gridDataOffset)
 		let _numLinks: UInt32 = try stream.read() // 287
 		let numLinks = Int(_numLinks)
 		let _: UInt32 = try stream.read() // 379
 		let _: UInt32 = try stream.read() // 0
-		
+
 		// Links
-		
+
 		var linkNameOffsetTable: [UInt32] = []
 		for _ in 0 ..< numLinks {
 			try linkNameOffsetTable.append(stream.read())
 		}
-		
+
 		print("numLinks:", numLinks)
-		
+
 		for i in 0 ..< numLinks {
 			let startOffset = Int(linkNameOffsetTable[i])
 			stream.currentOffset = startOffset
 			let linkType: UInt32 = try stream.read()
-			
+
 			let endOffset: Int
 			if i < numLinks - 1 {
 				endOffset = Int(linkNameOffsetTable[i + 1])
 			} else {
 				endOffset = gridDataOffset
 			}
-			
+
 			let str: String = try stream.read(maxLength: endOffset - startOffset)
-			
+
 			//names.append((Int(linkType), str))
-			
+
 			nodes[i] = _getNode(i: Int(linkType), name: str)
 		}
-		
+
 		// Collision Data Header
-		
+
 		stream.currentOffset = gridDataOffset
-		
+
 		let _: Float = try stream.read()		// minX
 		let _: Float = try stream.read()		// minY
 		let _: Float = try stream.read()		// maxX
@@ -414,7 +414,7 @@ final class Collisions {
 		let width: UInt32 = try stream.read()
 		let length: UInt32 = try stream.read()
 		let _: Float = try stream.read()		// unknown
-		
+
 		//	print("minX:", minX)
 		//	print("minY:", minY)
 		//	print("maxX:", maxX)
@@ -424,7 +424,7 @@ final class Collisions {
 		//	print("width:", width)
 		//	print("length:", length)
 		//	print("unknown:", unknown)
-		
+
 		//	let box = SCNPlane(width: CGFloat(maxX-minX), height: CGFloat(maxY-minY))
 		//	box.firstMaterial = SCNMaterial()
 		//	box.firstMaterial?.diffuse.contents = SKColor.black
@@ -433,9 +433,9 @@ final class Collisions {
 		//	node.eulerAngles = SCNVector3(x: .pi/2, y: 0, z: 0)
 		//	node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
 		//	treeKlz.node.addChildNode(node)
-		
+
 		stream.currentOffset += 3 * 4
-		
+
 		let numFaces: UInt32 = try stream.read()
 		stream.currentOffset += 4
 		let numXTOBBs: UInt32 = try stream.read()
@@ -448,26 +448,26 @@ final class Collisions {
 		stream.currentOffset += 4
 		let numCylinders: UInt32 = try stream.read()
 		stream.currentOffset += 4
-		
+
 		stream.currentOffset += 2 * 4
-		
+
 		// Collision Grid Cell Boundaries
-		
+
 		for _ in 0 ... width {
 			let _: Float = try stream.read() // x
 		}
-		
+
 		for _ in 0 ... length {
 			let _: Float = try stream.read() // y
 		}
-		
+
 		// Collision Data
-		
+
 		stream.currentOffset += 4
-		
+
 		var nodesVertices: [UInt32: [SCNVector3]] = [:]
 		print("=== numFaces:", numFaces)
-		
+
 		for _ in 0 ..< numFaces {
 			try autoreleasepool {
 				let face = try Triangle(stream: stream)
@@ -480,14 +480,14 @@ final class Collisions {
 				}
 			}
 		}
-		
+
 		print("=== Loaded Scene Collision Face Vertices")
-		
+
 		let facesNode = SCNNode()
 		for (linkId, vertices) in nodesVertices {
 			autoreleasepool {
 				guard let _node = getNode(linkId: linkId) else { return }
-				
+
 				let node = SCNNode()
 				let verticesSource = SCNGeometrySource(vertices: vertices)
 				var indices: [Int32] = []
@@ -508,9 +508,9 @@ final class Collisions {
 			}
 		}
 		node.addChildNode(facesNode)
-		
+
 		print("=== Loaded Scene Collision Faces")
-		
+
 		for _ in 0 ..< numAABBs {
 			try autoreleasepool {
 				let box = try AABB(stream: stream)
@@ -545,7 +545,7 @@ final class Collisions {
 				node.addChildNode(sphere.getNode(treeKlz: self))
 			}
 		}
-		
+
 		// Collision Grid
 		//
 		// The primitives defined above are referenced by those cells of the grid that are intersected
@@ -558,16 +558,16 @@ final class Collisions {
 		//     see face col data description above
 		//
 		// Failing to obey these rules causes certain collision data to be ignored
-		
+
 		stream.currentOffset += 4
-		
+
 		/*for _ in 0 ..< length * width {
 		let _ = try Cell(stream: stream)
 		}*/
-		
+
 		//print("offset:", stream.currentOffset)
-		
+
 		stream.close()
 	}
-	
+
 }

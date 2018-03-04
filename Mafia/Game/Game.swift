@@ -11,17 +11,17 @@ import SceneKit
 import SpriteKit
 
 final class Game: NSObject {
-	
+
 	enum Mode {
 		case walk, car
 	}
-	
+
 	var hud: HudScene!
-	
+
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
-	
+
 	var mode: Mode = .car {
 		didSet {
 			cameraContainer.removeFromParentNode()
@@ -32,36 +32,36 @@ final class Game: NSObject {
 			}
 		}
 	}
-	
+
 	let scene: Scene
-	
+
 	var vehicle: Vehicle!
 	var elevation: SCNFloat = 0
 	var lastControl: Control?
-	
+
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
-		
+
 		let sceneModel = try loadModel(named: "missions/\(missionName)/scene")
 		sceneModel.name = "__model__"
 		scnScene.rootNode.addChildNode(sceneModel)
 		print("== Loaded Scene Model")
-		
+
 		scene = try loadScene(named: "missions/"+missionName)
-		
+
 		super.init()
-		
+
 		scene.game = self
 		scene.rootNode.name = "__scene__"
 		scnScene.rootNode.addChildNode(scene.rootNode)
 		print("== Loaded Scene")
-		
+
 		if let sceneCache = try SceneCache(name: "missions/"+missionName) {
 			scnScene.rootNode.addChildNode(sceneCache.node)
 			sceneCache.node.name = "__cache__"
 			print("== Loaded Scene Cache")
 		}
-		
+
 		let collisions = try Collisions(name: "missions/"+missionName, scene: scnScene)
 		collisions.node.name = "__colliions__"
 		scnScene.rootNode.addChildNode(collisions.node)
@@ -74,9 +74,9 @@ final class Game: NSObject {
 		floorNode.geometry = floor
 		floorNode.physicsBody = SCNPhysicsBody.static()
 		scnScene.rootNode.addChildNode(floorNode)
-		
+
 		// -----
-		
+
 //		if scene.playerNode == nil {
 //			//load z mise08-mesto
 //			let spawnPoint = scnScene.rootNode.childNode(withName: "emeth_1", recursively: true)!
@@ -84,9 +84,9 @@ final class Game: NSObject {
 //			scene.playerNode!.transform = spawnPoint.worldTransform
 //			scnScene.rootNode.addChildNode(scene.playerNode!)
 //		}
-		
+
 		// -----
-		
+
 		if let playerNode = scene.playerNode {
 			let cylinderNode = SCNNode()
 			cylinderNode.geometry = SCNCylinder(radius: 0.25, height: 1.5)
@@ -95,7 +95,7 @@ final class Game: NSObject {
 			cylinderNode.geometry?.firstMaterial?.diffuse.contents = SKColor.red
 			cylinderNode.position = SCNVector3(0, 1, 0)
 			playerNode.addChildNode(cylinderNode)
-			
+
 			let cylinderShape = SCNPhysicsShape(geometry: SCNCylinder(radius: 0.25, height: 1.5), options: nil)
 			let playerPhysicsShape = SCNPhysicsShape(shapes: [cylinderShape], transforms: [NSValue(scnMatrix4: SCNMatrix4MakeTranslation(0, 1, 0))])
 			playerNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: playerPhysicsShape)
@@ -106,25 +106,25 @@ final class Game: NSObject {
 			playerNode.physicsBody?.rollingFriction = 0
 			playerNode.physicsBody?.friction = 0
 			playerNode.physicsBody?.restitution = 0
-			
+
 			playerNode.position.y += 0.5
 		}
-		
+
 		// -----
-		
+
 		let carNodeName = "taxi2"
 //		let carNodeName = "cad_road"
 		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
 		vehicle = Vehicle(scene: scnScene, node: carNode)
-		
+
 		// -----
-		
+
 		let camera = SCNCamera()
 		camera.zFar = 1000
-		
+
 		cameraNode.camera = camera
 		cameraNode.scale = SCNVector3(x: 1, y: -1, z: 1)
-		
+
 		if mode == .car {
 			cameraNode.position = SCNVector3(x: 0, y: 2.2*2, z: -1.5*4)
 			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
@@ -135,10 +135,10 @@ final class Game: NSObject {
 			cameraContainer.position = SCNVector3(x: 0, y: 2, z: 0)
 			elevation = -.pi/2.5
 		}
-		
+
 		cameraContainer.eulerAngles.x = elevation
 		cameraContainer.addChildNode(cameraNode)
-		
+
 		if mode == .walk {
 			if let playerNode = scene.playerNode {
 				playerNode.addChildNode(cameraContainer)
@@ -149,7 +149,7 @@ final class Game: NSObject {
 			vehicle.node.addChildNode(cameraContainer)
 		}
 	}
-	
+
 	func setup(in view: SCNView) {
 		hud = HudScene(size: view.bounds.size, game: self)
 		view.scene = scnScene
@@ -162,21 +162,21 @@ final class Game: NSObject {
 			view.audioListener = cameraContainer
 		}
 	}
-	
+
 }
 
 // MARK: - SCNSceneRendererDelegate
 
 extension Game: SCNSceneRendererDelegate {
-	
+
 	func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
 		#if os(macOS)
-		
+
 		guard let vehicle = vehicle?.physicsVehicle else { return }
-		
+
 		vehicle.setSteeringAngle(hud.vehicleSteering, forWheelAt: 0)
 		vehicle.setSteeringAngle(hud.vehicleSteering, forWheelAt: 1)
-		
+
 		if hud.ride {
 			vehicle.applyBrakingForce(0, forWheelAt: 2)
 			vehicle.applyBrakingForce(0, forWheelAt: 3)
@@ -193,9 +193,9 @@ extension Game: SCNSceneRendererDelegate {
 			vehicle.applyBrakingForce(1000, forWheelAt: 2)
 			vehicle.applyBrakingForce(1000, forWheelAt: 3)
 		}
-		
+
 		#elseif os(iOS)
-		
+
 		if mode == .walk {
 			/*let translation = vc.walkGesture.translation(in: vc.view)
 			if let playerNode = scene.playerNode {
@@ -219,9 +219,9 @@ extension Game: SCNSceneRendererDelegate {
 		} else {
 			vehicle.applyForces()
 		}
-			
+
 		#endif
-		
+
 		if let node = scene.compassNode {
 			let p1 = node.presentation.worldPosition
 			let p2 = scene.playerNode!.presentation.worldPosition
@@ -236,16 +236,16 @@ extension Game: SCNSceneRendererDelegate {
 		} else {
 			hud.compass.isHidden = true
 		}
-		
+
 		hud.actionButton.isHidden = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 }).isEmpty
 	}
-	
+
 }
 
 // MARK: - Actions
 
 extension Game {
-	
+
 	func performAction(_ action: Action) {
 		switch action {
 		case .action(let script, _):
@@ -257,12 +257,12 @@ extension Game {
 				}
 			})!
 			scene.actions.remove(at: index)
-			
+
 			script.next()
-			
+
 		case .weapon(let node, let weapon):
 			node.isHidden = true
-			
+
 			let index = scene.actions.index(where: { action in
 				if case .weapon(_, let _weapon) = action {
 					return weapon.uuid == _weapon.uuid
@@ -271,20 +271,20 @@ extension Game {
 				}
 			})!
 			scene.actions.remove(at: index)
-			
+
 			if scene.weapons[scene.playerNode!] == nil {
 				scene.weapons[scene.playerNode!] = []
 			}
-			
+
 			for weapon in scene.weapons[scene.playerNode!]! {
 				weapon.position = .inventory
 			}
-			
+
 			scene.weapons[scene.playerNode!]!.append(weapon)
 			weapon.position = .hand
 		}
 	}
-	
+
 	func actionButtonTapped() {
 		/*#if os(iOS)
 		let actions = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 })
@@ -302,7 +302,7 @@ extension Game {
 		}
 		#endif*/
 	}
-	
+
 	func openInventory() {
 		/*#if os(iOS)
 		let alert = UIAlertController(title: "Inventář", message: nil, preferredStyle: .alert)
@@ -322,5 +322,5 @@ extension Game {
 		vc.present(alert, animated: true)
 		#endif*/
 	}
-	
+
 }

@@ -9,12 +9,12 @@
 import Foundation
 
 final class Weapon {
-	
+
 	enum Position {
 		case hand
 		case inventory
 	}
-	
+
 	private static var names: [Int: String] = [
 		0: "Empty hands",
 		1: "Special Action",
@@ -52,21 +52,21 @@ final class Weapon {
 		33: "Thompson 1928 no sound",
 		34: "Pump shotgun no sound"
 	]
-	
+
 	let uuid = NSUUID()
 	let id: Int
 	var clipAmmo: Int = 0
 	var restAmmo: Int = 0
 	var position: Position = .inventory
-	
+
 	var name: String {
 		return Weapon.names[id]!
 	}
-	
+
 	init(id: Int, clipAmmo: Int = 0, restAmmo: Int = 0) {
 		self.id = id
 		self.clipAmmo = clipAmmo
 		self.restAmmo = restAmmo
 	}
-	
+
 }

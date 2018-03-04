@@ -86,7 +86,7 @@ import Foundation
 }*/
 
 extension Script {
-	
+
 	func getArgumentsForCommand(str: String, scanner: Scanner) -> [Argument] {
 		switch str {
 		case "compareownerwithex":		return getArgs_compareownerwithex(scanner)
@@ -119,17 +119,17 @@ extension Script {
 		default:						return []
 		}
 	}
-	
+
 	// ----
-	
+
 	private func getArgs_compareownerwithex(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_console_addtext(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_createweaponfromframe(_ scanner: Scanner) -> [Argument] {
 		var args = [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 		if let val = scanVarOrValueOptional(scanner) {
@@ -140,23 +140,23 @@ extension Script {
 		}
 		return args
 	}
-	
+
 	private func getArgs_ctrl_read(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_detector_inrange(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_detector_issignal(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_detector_setsignal(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_detector_waitforuse(_ scanner: Scanner) -> [Argument] {
 		if let txtId = scanParamOptional(scanner) {
 			return [.label(txtId)]
@@ -164,12 +164,12 @@ extension Script {
 			return []
 		}
 	}
-	
+
 	private func getArgs_enemy_playanim(_ scanner: Scanner) -> [Argument] {
 		guard let animName = scanString(scanner) else { fatalError() }
 		return [.string(animName)]
 	}
-	
+
 	private func getArgs_findactor(_ scanner: Scanner) -> [Argument] {
 		let actorId = scanVarOrValue(scanner)
 		if let name = scanString(scanner) {
@@ -178,7 +178,7 @@ extension Script {
 			return [actorId]
 		}
 	}
-	
+
 	private func getArgs_findframe(_ scanner: Scanner) -> [Argument] {
 		let frameId = scanVarOrValue(scanner)
 		if let name = scanString(scanner) {
@@ -187,39 +187,39 @@ extension Script {
 			return [frameId]
 		}
 	}
-	
+
 	private func getArgs_frm_seton(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_getactorsdist(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_getenemyaistate(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_goto(_ scanner: Scanner) -> [Argument] {
 		return [.label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_human_anyweaponinhand(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_human_getactanimid(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_human_getproperty(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), .label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_human_isweapon(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_human_talk(_ scanner: Scanner) -> [Argument] {
 		var args = [scanVarOrValue(scanner), .label(scanParam(scanner))]
 		if let val = scanValue(scanner) {
@@ -227,10 +227,10 @@ extension Script {
 		}
 		return args
 	}
-	
+
 	private func getArgs_if(_ scanner: Scanner) -> [Argument] {
 		let arg1 = scanVarOrValue(scanner)
-		
+
 		let op: String
 		if scanner.scanString("=", into: nil) {
 			op = "="
@@ -244,22 +244,22 @@ extension Script {
 			fatalError()
 		}
 		scanner.scanCharacters(from: .whitespaces, into: nil)
-		
+
 		return [arg1, .label(op), scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_let(_ scanner: Scanner) -> [Argument] {
 		guard let var1 = scanVar(scanner) else { fatalError() }
-		
+
 		guard scanner.scanString("=", into: nil) else { fatalError() }
 		scanner.scanCharacters(from: .whitespaces, into: nil)
-		
+
 		let arg2 = scanVarOrValue(scanner)
-		
+
 		if scanner.isAtEnd {
 			return [.variable(var1), arg2]
 		}
-		
+
 		let op: String
 		if scanner.scanString("+", into: nil) {
 			op = "+"
@@ -273,32 +273,32 @@ extension Script {
 			fatalError()
 		}
 		scanner.scanCharacters(from: .whitespaces, into: nil)
-		
+
 		return [.variable(var1), arg2, .label(op), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_mission_objectives(_ scanner: Scanner) -> [Argument] {
 		return [.label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_rnd(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_setcompass(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
-	
+
 	private func getArgs_setevent(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
 	}
-	
+
 	private func getArgs_wait(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
-	
+
 	// ----
-	
+
 	func scanParamOptional(_ scanner: Scanner) -> String? {
 		var str: NSString?
 		let charset = CharacterSet(charactersIn: ",").union(.whitespaces)
@@ -306,12 +306,12 @@ extension Script {
 		scanner.scanCharacters(from: charset, into: nil)
 		return str as String?
 	}
-	
+
 	func scanParam(_ scanner: Scanner) -> String {
 		guard let ret = scanParamOptional(scanner) else { fatalError() }
 		return ret
 	}
-	
+
 	private func scanString(_ scanner: Scanner) -> String? {
 		var str: NSString?
 		let charset = CharacterSet(charactersIn: "\"")
@@ -321,7 +321,7 @@ extension Script {
 		scanner.scanCharacters(from: .whitespaces, into: nil)
 		return (str as String?)
 	}
-	
+
 	private func scanVar(_ scanner: Scanner) -> Int? {
 		var var1 = 0
 		guard scanner.scanString("flt[", into: nil) else { return nil }
@@ -331,7 +331,7 @@ extension Script {
 		scanner.scanCharacters(from: charset, into: nil)
 		return var1
 	}
-	
+
 	private func scanValue(_ scanner: Scanner) -> Float? {
 		var value: Float = 0
 		guard scanner.scanFloat(&value) else { return nil }
@@ -339,7 +339,7 @@ extension Script {
 		scanner.scanCharacters(from: charset, into: nil)
 		return value
 	}
-	
+
 	private func scanVarOrValueOptional(_ scanner: Scanner) -> Argument? {
 		if let varId = scanVar(scanner) {
 			return .variable(varId)
@@ -349,7 +349,7 @@ extension Script {
 			return nil
 		}
 	}
-	
+
 	private func scanVarOrValue(_ scanner: Scanner) -> Argument {
 		if let arg = scanVarOrValueOptional(scanner) {
 			return arg
@@ -357,5 +357,5 @@ extension Script {
 			fatalError()
 		}
 	}
-	
+
 }

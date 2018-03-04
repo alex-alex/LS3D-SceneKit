@@ -21,23 +21,23 @@ struct MovementFlags: OptionSet {
 }
 
 func readRotations(stream: InputStream) throws -> [Int: SCNQuaternion] {
-	
+
 	let _animGroupsCount: UInt16 = try stream.read()
 	let animGroupsCount = Int(_animGroupsCount)
-	
+
 	var timers: [Int] = []
-	
+
 	for _ in 0 ..< animGroupsCount {
 		let timer: UInt16 = try stream.read()
 		timers.append(Int(timer))
 	}
-	
+
 	if animGroupsCount % 2 == 0 {
 		stream.currentOffset += 2
 	}
-	
+
 	var rotations: [Int: SCNQuaternion] = [:]
-	
+
 	for i in 0 ..< animGroupsCount {
 		let w: Float = try stream.read()
 		let x: Float = try stream.read()
@@ -45,63 +45,63 @@ func readRotations(stream: InputStream) throws -> [Int: SCNQuaternion] {
 		let z: Float = try stream.read()
 		rotations[timers[i]] = SCNQuaternion(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z), w: -SCNFloat(w))
 	}
-	
+
 	return rotations
 }
 
 func readScales(stream: InputStream) throws -> [Int: SCNVector3] {
-	
+
 	let _animGroupsCount: UInt16 = try stream.read()
 	let animGroupsCount = Int(_animGroupsCount)
-	
+
 	var timers: [Int] = []
-	
+
 	for _ in 0 ..< animGroupsCount {
 		let timer: UInt16 = try stream.read()
 		timers.append(Int(timer))
 	}
-	
+
 	if animGroupsCount % 2 == 0 {
 		stream.currentOffset += 2
 	}
-	
+
 	var scales: [Int: SCNVector3] = [:]
-	
+
 	for i in 0 ..< animGroupsCount {
 		let x: Float = try stream.read()
 		let y: Float = try stream.read()
 		let z: Float = try stream.read()
 		scales[timers[i]] = SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
 	}
-	
+
 	return scales
 }
 
 func readPositions(stream: InputStream) throws -> [Int: SCNVector3] {
-	
+
 	let _animGroupsCount: UInt16 = try stream.read()
 	let animGroupsCount = Int(_animGroupsCount)
-	
+
 	var timers: [Int] = []
-	
+
 	for _ in 0 ..< animGroupsCount {
 		let timer: UInt16 = try stream.read()
 		timers.append(Int(timer))
 	}
-	
+
 	if animGroupsCount % 2 == 0 {
 		stream.currentOffset += 2
 	}
-	
+
 	var positions: [Int: SCNVector3] = [:]
-	
+
 	for i in 0 ..< animGroupsCount {
 		let x: Float = try stream.read()
 		let y: Float = try stream.read()
 		let z: Float = try stream.read()
 		positions[timers[i]] = SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
 	}
-	
+
 	return positions
 }
 
@@ -111,9 +111,9 @@ class Animation {
 	let rotations: [Int: SCNQuaternion]
 	let scales: [Int: SCNVector3]
 	let positions: [Int: SCNVector3]
-	
+
 	var lastScale: SCNVector3?
-	
+
 	init(name: String, timerMax: Int, rotations: [Int: SCNQuaternion], scales: [Int: SCNVector3], positions: [Int: SCNVector3]) {
 		self.name = name
 		self.timerMax = timerMax
@@ -121,7 +121,7 @@ class Animation {
 		self.scales = scales
 		self.positions = positions
 	}
-	
+
 	var action: SCNAction {
 		var actions: [SCNAction] = []
 		for t in 0 ... timerMax {
@@ -149,68 +149,68 @@ class Animation {
 
 func readAnimation(stream: InputStream, timerMax: Int, nameOffset: UInt32, animOffset: UInt32) throws -> Animation {
 	let startOffset = stream.currentOffset
-	
+
 	stream.currentOffset = Int(nameOffset)
-	
+
 	let name: String = try stream.read(maxLength: 100)
-	
+
 	stream.currentOffset = Int(animOffset)
-	
+
 	let flags = try MovementFlags(rawValue: stream.read())
-	
+
 	let rotations: [Int: SCNQuaternion]
 	let scales: [Int: SCNVector3]
 	let positions: [Int: SCNVector3]
-	
+
 	if flags.contains(.rotation) {
 		rotations = try readRotations(stream: stream)
 	} else {
 		rotations = [:]
 	}
-	
+
 	if flags.contains(.position) {
 		positions = try readPositions(stream: stream)
 	} else {
 		positions = [:]
 	}
-	
+
 	if flags.contains(.scale) {
 		scales = try readScales(stream: stream)
 	} else {
 		scales = [:]
 	}
-	
+
 	stream.currentOffset = startOffset
-	
+
 	return Animation(name: name, timerMax: timerMax, rotations: rotations, scales: scales, positions: positions)
 }
 
 func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	let url = mainDirectory.appendingPathComponent(name.lowercased())
-	
+
 	guard let stream = InputStream(url: url) else { throw AnimationError.file }
 	stream.open()
-	
+
 	let str: String = try stream.read(maxLength: 4)
 	guard str == "5DS" else { throw AnimationError.file }
-	
+
 	let ver: UInt16 = try stream.read()
 	guard ver == 20 else { throw AnimationError.file }
-	
+
 	let _: UInt64 = try stream.read() // timestamp
-	
+
 	let _: UInt32 = try stream.read() // dataSize
 	let objectsCount: UInt16 = try stream.read()
 	let timerMax: UInt16 = try stream.read() // 25 units = 1 sec
-	
+
 	var animations: [Animation] = []
-	
+
 	for _ in 0 ..< objectsCount {
 		let nameOffset: UInt32 = try stream.read() + 18
 		let animOffset: UInt32 = try stream.read() + 18
 		try animations.append(readAnimation(stream: stream, timerMax: Int(timerMax), nameOffset: nameOffset, animOffset: animOffset))
 	}
-	
+
 	return (animations, Double(timerMax)/25)
 }
 

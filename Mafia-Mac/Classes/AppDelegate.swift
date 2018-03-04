@@ -10,17 +10,17 @@ import Cocoa
 
 @NSApplicationMain
 class AppDelegate: NSObject {
-    
+
     @IBOutlet weak var window: NSWindow!
-	
+
 }
 
 // MARK: - NSApplicationDelegate
 
 extension AppDelegate: NSApplicationDelegate {
-	
+
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // Insert code here to initialize your application
     }
-    
+
 }

@@ -10,7 +10,7 @@ import Foundation
 import SceneKit
 
 extension Script {
-    
+
 	func performCommand(command: (String, [Argument])) {
 		switch command.0 {
 //		"{"
@@ -67,9 +67,9 @@ extension Script {
 		default:						noop(); // print("UNKNOWN COMMAND: \(command.0)")
 		}
 	}
-	
+
 	// ---
-	
+
 	func next() {
 		queue.asyncAfter(deadline: .now() + 0.02) { //[unowned self] in
 			if !self.executingEvent, !self.eventIdQueue.isEmpty {
@@ -83,20 +83,20 @@ extension Script {
 			self.run()
 		}
 	}
-	
+
 	func goto(label: String) {
 		if label == "-1" { return next() }
 		guard let line = labels[label] else { fatalError() }
 		currentLine = line
 		next()
 	}
-	
+
 	// ----
-	
+
 	private func noop() {
 		next()
 	}
-	
+
 	private func compareownerwithex(_ args: [Argument]) {
 		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let _ = args[1].getValueOrVarValue(vars: vars) // carId
@@ -108,13 +108,13 @@ extension Script {
 			goto(label: label2)
 		}
 	}
-	
+
 	private func console_addtext(_ args: [Argument]) {
 		let txtId = args[0].getValueOrVarValue(vars: vars)
 		print("console_addtext:", TextDb.get(txtId) as Any)
 		next()
 	}
-	
+
 	private func createweaponfromframe(_ args: [Argument]) {
 		let frmId = args[0].getValueOrVarValue(vars: vars)
 		let weaponId = args[1].getValueOrVarValue(vars: vars)
@@ -126,7 +126,7 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func ctrl_read(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let controlStr = args[1].getString()
@@ -137,47 +137,47 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func detector_inrange(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let distance = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = (node.distance(to: scene.playerNode!) <= Float(distance)) ? 1 : 0
 		next()
 	}
-	
+
 	private func detector_issignal(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let label1 = args[1].getString()
 		let label2 = args[2].getString()
-		
+
 		let script: Script
 		if actorId == -1 {
 			script = self
 		} else {
 			script = scene.scripts[actors[actorId]!.name!]!
 		}
-		
+
 		if script.signal {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
 		}
 	}
-	
+
 	private func detector_setsignal(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let val = args[1].getValueOrVarValue(vars: vars)
-		
+
 		let script: Script
 		if actorId == -1 {
 			script = self
 		} else {
 			script = scene.scripts[actors[actorId]!.name!]!
 		}
-		
+
 		script.signal = val == 1
 	}
-	
+
 	private func detector_waitforuse(_ args: [Argument]) {
 		if args.count > 0 {
 			let str = TextDb.get(Int(args[0].getString())!)!
@@ -186,11 +186,11 @@ extension Script {
 			scene.actions.append(.action(self, nil))
 		}
 	}
-	
+
 	private func end(_ args: [Argument]) {
 		completionHandler?()
 	}
-	
+
 	private func enemy_playanim(_ args: [Argument]) {
 		let animName = args[0].getString()
 		// swiftlint:disable:next force_try
@@ -198,14 +198,14 @@ extension Script {
 			self.next()
 		}
 	}
-	
+
 	private func event(_ args: [Argument]) {
 		if !executingEvent {
 			mainInEvent = true
 		}
 		next()
 	}
-	
+
 	private func findactor(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
@@ -218,7 +218,7 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func findframe(_ args: [Argument]) {
 		let frmId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
@@ -231,7 +231,7 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func frm_seton(_ args: [Argument]) {
 		let frmId = args[0].getValueOrVarValue(vars: vars)
 		let setOn = args[1].getValueOrVarValue(vars: vars) == 1
@@ -244,7 +244,7 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func getactorsdist(_ args: [Argument]) {
 		let actor1Id = args[0].getValueOrVarValue(vars: vars)
 		let actor2Id = args[1].getValueOrVarValue(vars: vars)
@@ -261,19 +261,19 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func getenemyaistate(_ args: [Argument]) {
 		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
 		next()
 	}
-	
+
 	private func goto(_ args: [Argument]) {
 		let label = args[0].getString()
 		goto(label: label)
 	}
-	
+
 	private func human_anyweaponinhand(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
@@ -284,7 +284,7 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func human_getactanimid(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
@@ -293,14 +293,14 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func human_getproperty(_ args: [Argument]) {
 		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
 		next()
 	}
-	
+
 	private func human_isweapon(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
@@ -312,16 +312,16 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func human_talk(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let soundId = args[1].getString()
 //		let _ = args[2].getValueOrVarValue(vars: vars)
-		
+
 		if soundId == "21990001" {
 			return goto(label: "20")
 		}
-		
+
 		if let node = actors[actorId] {
 			let url = mainDirectory.appendingPathComponent("sounds/\(soundId).wav")
 			let source = SCNAudioSource(url: url)!
@@ -333,10 +333,10 @@ extension Script {
 			fatalError()
 		}
 	}
-	
+
 	private func `if`(_ args: [Argument]) {
 		let value1 = args[0].getValueOrVarValueFloat(vars: vars)
-		
+
 		let opStr = args[1].getString()
 		let operation: (Float, Float) -> Bool
 		if opStr == "=" {
@@ -350,29 +350,29 @@ extension Script {
 		} else {
 			fatalError()
 		}
-		
+
 		let value2 = args[2].getValueOrVarValueFloat(vars: vars)
-		
+
 		let label1 = args[3].getString()
 		let label2 = args[4].getString()
-		
+
 		if operation(value1, value2) {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
 		}
 	}
-	
+
 	private func `let`(_ args: [Argument]) {
 		guard case .variable(let var1) = args[0] else { fatalError() }
-		
+
 		let value2 = args[1].getValueOrVarValueFloat(vars: vars)
-		
+
 		if args.count < 3 {
 			vars[var1] = value2
 			return next()
 		}
-		
+
 		let opStr = args[2].getString()
 		let operation: (Float, Float) -> Float
 		if opStr == "+" {
@@ -386,24 +386,24 @@ extension Script {
 		} else {
 			fatalError()
 		}
-		
+
 		let value3 = args[3].getValueOrVarValueFloat(vars: vars)
-		
+
 		vars[var1] = operation(value2, value3)
 		next()
 	}
-	
+
 	private func mission_objectives(_ args: [Argument]) {
 		let txtId = args[0].getString()
 		scene.objectives.append(Int(txtId)!)
 		next()
 	}
-	
+
 	private func mission_objectivesclear(_ args: [Argument]) {
 		scene.objectives.removeAll()
 		next()
 	}
-	
+
 	private func `return`(_ args: [Argument]) {
 		if executingEvent {
 			eventCompletionHandler?()
@@ -415,14 +415,14 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func rnd(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let upperBound = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = Float(arc4random_uniform(UInt32(upperBound)))
 		next()
 	}
-	
+
 	private func setcompass(_ args: [Argument]) {
 		let frameId = args[0].getValueOrVarValue(vars: vars)
 		if frameId == -1 {
@@ -432,12 +432,12 @@ extension Script {
 		}
 		next()
 	}
-	
+
 	private func setevent(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let eventId = args[1].getString()
 		let labelId = args[2].getString()
-		
+
 		if let name = actors[actorId]?.name, let script = scene.scripts[name] {
 			script.eventIdQueue.append(eventId)
 			goto(label: labelId)
@@ -446,10 +446,10 @@ extension Script {
 			next()
 		}
 	}
-	
+
 	private func wait(_ args: [Argument]) {
 		let delay = args[0].getValueOrVarValue(vars: vars)
 		queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: next)
 	}
-	
+
 }

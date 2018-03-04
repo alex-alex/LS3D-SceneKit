@@ -12,7 +12,7 @@ import SceneKit
 enum Action {
 	case action(Script, String?)
 	case weapon(SCNNode, Weapon)
-	
+
 	var node: SCNNode {
 		switch self {
 		case .action(let script, _):
@@ -21,7 +21,7 @@ enum Action {
 			return node
 		}
 	}
-	
+
 	var title: String {
 		switch self {
 		case .action(_, let title):

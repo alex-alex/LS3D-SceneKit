@@ -13,26 +13,26 @@ import SpriteKit
 import CoreMotion
 
 class GameViewController: UIViewController {
-	
+
 	var gameView: SCNView!
-	
+
 	var gameManager: GameManager!
-	
+
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
 	var fireGesture: UITapGestureRecognizer!
-	
+
 	let motionManager = CMMotionManager()
 	var accelerometer = CMAcceleration()
-	
+
     override func viewDidLoad() {
         super.viewDidLoad()
-		
+
 		gameView = view as! SCNView // swiftlint:disable:this force_cast
 		gameManager = GameManager(view: gameView)
-		
+
 		// ------
-		
+
 		// look gesture
 		lookGesture = UIPanGestureRecognizer(target: self, action: #selector(lookGestureRecognized))
 		lookGesture.delegate = self
@@ -47,17 +47,17 @@ class GameViewController: UIViewController {
 //		fireGesture = UITapGestureRecognizer(target: self, action: #selector(fireGestureRecognized))
 //		fireGesture.delegate = self
 //		view.addGestureRecognizer(fireGesture)
-		
+
 		// ------
-		
+
 		if motionManager.isAccelerometerAvailable {
 			//gameView.preferredFramesPerSecond
 			motionManager.accelerometerUpdateInterval = 1/60
 			motionManager.startAccelerometerUpdates(to: .main) { data, _ in
 				guard self.gameManager.game?.mode == .car, let data = data else { return }
-				
+
 				self.accelerometer.update(with: data.acceleration)
-				
+
 				if self.accelerometer.x > 0 {
 					self.gameManager.game.vehicle.vehicleSteering = CGFloat(self.accelerometer.y*1.3)
 				} else {
@@ -66,15 +66,15 @@ class GameViewController: UIViewController {
 			}
 		}
 	}
-    
+
     override var shouldAutorotate: Bool {
         return true
     }
-    
+
     override var prefersStatusBarHidden: Bool {
         return true
     }
-    
+
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         return .landscape
     }
@@ -82,7 +82,7 @@ class GameViewController: UIViewController {
 }
 
 extension GameViewController {
-	
+
 	@objc func lookGestureRecognized(gesture: UIPanGestureRecognizer) {
 		let translation = gesture.translation(in: view)
 		let vAngle = acos(Float(translation.y) / 200) - (.pi / 2)
@@ -103,35 +103,35 @@ extension GameViewController {
 
 		gesture.setTranslation(.zero, in: view)
 	}
-	
+
 	@objc func walkGestureRecognized(gesture: UIPanGestureRecognizer) {
 		if gesture.state == .ended || gesture.state == .cancelled {
 			gesture.setTranslation(.zero, in: view)
 		}
-		
+
 		let translation = gesture.translation(in: view)
-		
+
 		/*if gesture.state == .ended || gesture.state == .cancelled {
 //			try! stopAnimation(named: "anims/walk1.5ds", in: scene.playerNode!, animationKey: "__walking__")
 		} else if gesture.state == .began {
 //			try! playAnimation(named: "anims/walk1.5ds", in: scene.playerNode!, repeat: true, animationKey: "__walking__")
 		}*/
-		
+
 		if gameManager.game?.mode == .car {
 			let impulse = SCNVector3(x: max(-1, min(1, Float(translation.x) / 50)), y: 0, z: max(-1, min(1, Float(-translation.y) / 50)))
 			gameManager.game.vehicle.force = CGFloat(impulse.z) * 3000
 		}
 	}
-	
+
 	@objc func fireGestureRecognized(gesture: UITapGestureRecognizer) {
 		print("== fireGestureRecognized ==")
 		gameManager.game.scene.pressedJump = true
 	}
-	
+
 }
 
 extension GameViewController: UIGestureRecognizerDelegate {
-	
+
 	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
 		if gestureRecognizer == lookGesture {
 			return touch.location(in: view).x > view.frame.size.width / 2
@@ -140,9 +140,9 @@ extension GameViewController: UIGestureRecognizerDelegate {
 		}
 		return true
 	}
-	
+
 	func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
 		return true
 	}
-	
+
 }

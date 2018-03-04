@@ -10,14 +10,14 @@ import AppKit
 import SceneKit
 
 class GameViewController: NSViewController {
-    
+
     @IBOutlet weak var gameView: SCNView!
-	
+
 	var gameManager: GameManager!
-    
+
     override func awakeFromNib() {
         super.awakeFromNib()
-		
+
 		gameManager = GameManager(view: gameView)
     }
 

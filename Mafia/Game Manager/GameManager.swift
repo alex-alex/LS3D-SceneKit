@@ -16,18 +16,18 @@ import SceneKit
 #endif
 
 class GameManager {
-	
+
 	let view: SCNView
-	
+
 	var mainMenu: MainMenu?
 	var game: Game!
-	
+
 	init(view: SCNView) {
 		self.view = view
 
 		// swiftlint:disable:next force_try
 		try! TextDb.load()
-		
+
 		view.rendersContinuously = true
 		view.backgroundColor = .black
 		view.showsStatistics = true
@@ -40,7 +40,7 @@ class GameManager {
 //		loadMenu()
 		view.play(nil)
 	}
-	
+
 	func loadMenu() {
 		view.scene = SCNScene()
 		view.overlaySKScene = LoadingScene(textId: 0, imageName: "00menu.tga")
@@ -50,7 +50,7 @@ class GameManager {
 			self.mainMenu?.setup(in: self.view)
 		}
 	}
-	
+
 	func loadMission(textId: Int, imageName: String, folder: String) {
 		view.scene = SCNScene()
 		view.overlaySKScene = LoadingScene(textId: textId, imageName: imageName)
@@ -60,5 +60,5 @@ class GameManager {
 			self.game.setup(in: self.view)
 		}
 	}
-	
+
 }

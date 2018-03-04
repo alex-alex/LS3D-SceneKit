@@ -11,7 +11,7 @@ import SceneKit
 import GLKit
 
 public extension InputStream {
-	
+
 	var currentOffset: Int {
 		get {
 			return (property(forKey: .fileCurrentOffsetKey) as? NSNumber ?? 0).intValue
@@ -20,7 +20,7 @@ public extension InputStream {
 			setProperty(NSNumber(value: newValue), forKey: .fileCurrentOffsetKey)
 		}
 	}
-	
+
 	public func read(maxLength: Int) throws -> [UInt8] {
 		var buffer: [UInt8] = []
 		while buffer.count < maxLength {
@@ -36,16 +36,16 @@ public extension InputStream {
 		}
 		return buffer
 	}
-	
+
 	public func read<T: BinaryInteger>() throws -> T {
 		var buffer: T = 0
-		
+
 		let n = withUnsafePointer(to: &buffer) { p in
 			p.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { p in
 				self.read(UnsafeMutablePointer<UInt8>(mutating: p), maxLength: MemoryLayout<T>.size) // UnsafeMutablePointer<UInt8>(p)
 			})
 		}
-		
+
 		if n > 0 {
 			assert(n == MemoryLayout<T>.size, "read length must be sizeof(T)")
 			return buffer
@@ -53,16 +53,16 @@ public extension InputStream {
 			fatalError()
 		}
 	}
-	
+
 	public func read<T: FloatingPoint>() throws -> T {
 		var buffer: T = 0
-		
+
 		let n = withUnsafePointer(to: &buffer) { p in
 			p.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { p in
 				self.read(UnsafeMutablePointer<UInt8>(mutating: p), maxLength: MemoryLayout<T>.size) // UnsafeMutablePointer<UInt8>(p)
 			})
 		}
-		
+
 		if n > 0 {
 			assert(n == MemoryLayout<T>.size, "read length must be sizeof(T)")
 			return buffer
@@ -70,7 +70,7 @@ public extension InputStream {
 			fatalError()
 		}
 	}
-	
+
 	public func read(maxLength: Int, encoding: String.Encoding = .utf8) throws -> String {
 		var bytes: [UInt8] = try read(maxLength: maxLength)
 		if bytes.last != 0 {
@@ -121,7 +121,7 @@ extension CGImage {
 	func removeColor(_ color: (CGFloat, CGFloat, CGFloat)) -> CGImage? {
 		return copy(maskingColorComponents: [color.0, color.0, color.1, color.1, color.2, color.2])
 	}
-	
+
 	func caLayer() -> CALayer {
 		let layer = CALayer()
 		#if os(macOS)
@@ -137,24 +137,24 @@ extension CGImage {
 #if os(macOS)
 
 	typealias SCNFloat = CGFloat
-	
+
 	extension NSImage {
 		var inversed: NSImage? {
 			guard let representation = representations.first as? NSBitmapImageRep,
 				  let startingCIImage = CIImage(bitmapImageRep: representation),
 				  let invertColorFilter = CIFilter(name: "CIColorInvert") else { return nil }
-			
+
 			invertColorFilter.setValue(startingCIImage, forKey: kCIInputImageKey)
-			
+
 			guard let outputImage = invertColorFilter.outputImage else { return nil }
-			
+
 			let finalImageRep = NSCIImageRep(ciImage: outputImage)
 			let finalImage: NSImage = NSImage(size: finalImageRep.size)
 			finalImage.addRepresentation(finalImageRep)
 			return finalImage
 		}
 	}
-	
+
 	extension NSColor {
 		static func random() -> NSColor {
 			let hue: CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
@@ -163,11 +163,11 @@ extension CGImage {
 			return NSColor(calibratedHue: hue, saturation: saturation, brightness: brightness, alpha: 1)
 		}
 	}
-	
+
 #elseif os(iOS)
-	
+
 	typealias SCNFloat = Float
-	
+
 //	extension UIImage {
 //		func inverseImage(cgResult: Bool) -> UIImage? {
 //			let coreImage = UIKit.CIImage(image: self)
@@ -180,14 +180,14 @@ extension CGImage {
 //			return UIImage(CIImage: result)
 //		}
 //	}
-	
+
 	extension UIImage {
 		func removeColor(_ color: (CGFloat, CGFloat, CGFloat)) -> UIImage? {
 			guard let cgImage = cgImage?.removeColor(color) else { return nil }
 			return UIImage(cgImage: cgImage)
 		}
 	}
-	
+
 	extension UIColor {
 		static func random() -> UIColor {
 			let hue: CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
@@ -196,7 +196,7 @@ extension CGImage {
 			return UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1)
 		}
 	}
-	
+
 #endif
 
 extension CGPoint {
@@ -214,7 +214,7 @@ extension SCNVector3 {
 		let z: Float = try stream.read()
 		self.init(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
 	}
-	
+
 	var length: Float {
 		return sqrtf(Float(x * x + y * y + z * z))
 	}
@@ -228,10 +228,10 @@ extension SCNQuaternion {
 		let z: Float = try stream.read()
 		self.init(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z), w: -SCNFloat(w))
 	}
-	
+
 	var eulerAngles: SCNVector3 {
 		let ysqr = y * y
-		
+
 		let t0 = 2.0 * (w * x + y * z)
 		let t1 = 1.0 - 2.0 * (x * x + ysqr)
 		let nx = atan2(t0, t1)
@@ -244,7 +244,7 @@ extension SCNQuaternion {
 		let t3 = +2.0 * (w * z + x * y)
 		let t4 = +1.0 - 2.0 * (ysqr + z * z)
 		let nz = atan2(t3, t4)
-		
+
 		return SCNVector3(nx, ny, nz)
 	}
 }
@@ -299,7 +299,7 @@ extension SCNNode {
 			associateObject(self, key: &nodeTypeKey, value: NSNumber(value: newValue.rawValue))
 		}
 	}
-	
+
 	func distance(to node: SCNNode) -> Float {
 		return (presentation.worldPosition - node.presentation.worldPosition).length
 	}
