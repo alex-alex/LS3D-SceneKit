@@ -177,10 +177,11 @@ struct XTOBB {
 //			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
 //			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])
 //			node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
-			let shape = SCNPhysicsShape(node: _node, options: [
-				SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron
-			])
-			_node.physicsBody = SCNPhysicsBody(type: .static, shape: shape)
+
+//			let shape = SCNPhysicsShape(node: _node, options: [
+//				SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron
+//			])
+//			_node.physicsBody = SCNPhysicsBody(type: .static, shape: shape)
 		}
 		
 		return node
