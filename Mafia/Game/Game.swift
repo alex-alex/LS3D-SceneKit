@@ -67,13 +67,13 @@ final class Game: NSObject {
 		scnScene.rootNode.addChildNode(collisions.node)
 		print("== Loaded Scene Collisions")
 
-		let floorNode = SCNNode()
-		floorNode.opacity = 0
-		let floor = SCNFloor()
-		floor.reflectivity = 0
-		floorNode.geometry = floor
-		floorNode.physicsBody = SCNPhysicsBody.static()
-		scnScene.rootNode.addChildNode(floorNode)
+//		let floorNode = SCNNode()
+//		floorNode.opacity = 0
+//		let floor = SCNFloor()
+//		floor.reflectivity = 0
+//		floorNode.geometry = floor
+//		floorNode.physicsBody = SCNPhysicsBody.static()
+//		scnScene.rootNode.addChildNode(floorNode)
 
 		// -----
 
