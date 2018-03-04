@@ -2,7 +2,7 @@
 //  CMAcceleration.swift
 //  Mafia
 //
-//  Created by Alex Studnička on 12/01/2018.
+//  Created by Alex Studnicka on 12/01/2018.
 //  Copyright © 2018 Alex Studnicka. All rights reserved.
 //
 
