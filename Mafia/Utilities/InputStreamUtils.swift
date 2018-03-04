@@ -7,7 +7,7 @@
 //
 
 import Foundation
-import CoreGraphics
+import SceneKit
 
 public extension InputStream {
 
@@ -89,5 +89,35 @@ extension CGPoint {
 		let x: Float = try stream.read()
 		let y: Float = try stream.read()
 		self.init(x: CGFloat(x), y: CGFloat(y))
+	}
+}
+
+extension SCNVector3 {
+	init(stream: InputStream) throws {
+		let x: Float = try stream.read()
+		let y: Float = try stream.read()
+		let z: Float = try stream.read()
+		self.init(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
+	}
+}
+
+extension SCNQuaternion {
+	init(stream: InputStream) throws {
+		let w: Float = try stream.read()
+		let x: Float = try stream.read()
+		let y: Float = try stream.read()
+		let z: Float = try stream.read()
+		self.init(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z), w: -SCNFloat(w))
+	}
+}
+
+extension SCNMatrix4 {
+	init(stream: InputStream) throws {
+		var transformationMatrix: [SCNFloat] = []
+		for _ in 0 ..< 16 {
+			let value: Float = try stream.read()
+			transformationMatrix.append(SCNFloat(value))
+		}
+		self.init(values: transformationMatrix)
 	}
 }

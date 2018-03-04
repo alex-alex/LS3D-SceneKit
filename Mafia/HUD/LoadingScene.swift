@@ -9,16 +9,6 @@
 import Foundation
 import SpriteKit
 
-extension SKTexture {
-	convenience init(imageUrl: URL) {
-		#if os(macOS)
-			self.init(image: NSImage(contentsOf: imageUrl)!)
-		#elseif os(iOS)
-			self.init(image: UIImage(contentsOfFile: imageUrl.path)!)
-		#endif
-	}
-}
-
 final class LoadingScene: SKScene {
 
 	var loaded = false

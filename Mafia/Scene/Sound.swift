@@ -57,15 +57,15 @@ final class Sound {
 
 		let _: UInt16 = try stream.read()		// const 0x4068
 		let _: UInt32 = try stream.read()		// always 2?
-		let _: Float = try stream.read()		// 1, 4, 5, 20, 40, 50, 80, 100 (distance?)
-		let _: Float = try stream.read()		// 10, 30, 60, 70, 120, 100, 150, 170, 250, 300, 2500
-		let _: Float = try stream.read()		// 0.4, 0.5, 1
-		let _: Float = try stream.read()		// 0, 0.3, 0.4, 0.8
 
-		// F1 - distance from the source of sound to F1 with a constant volume (10);
-		// F2 - distance from F1 to F2 with decreasing volume (100);
-		// F3 - volume level at distance F2; (0.1)
+		// F1 - distance from the source of sound to F1 with a constant volume (10)
+		let _: Float = try stream.read()
+		// F2 - distance from F1 to F2 with decreasing volume (100)
+		let _: Float = try stream.read()
+		// F3 - volume level at distance F2 (0.1)
+		let _: Float = try stream.read()
 		// F4 - volume level at distance F1 (0.7)
+		let _: Float = try stream.read()
 
 		let _: UInt16 = try stream.read()		// const 0x4067
 		let _: UInt32 = try stream.read()		// always 6?

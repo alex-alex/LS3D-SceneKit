@@ -46,18 +46,9 @@ extension CGImage {
 		}
 	}
 
-	extension NSColor {
-		static func random() -> NSColor {
-			let hue: CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
-			let saturation: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from white
-			let brightness: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from black
-			return NSColor(calibratedHue: hue, saturation: saturation, brightness: brightness, alpha: 1)
-		}
-	}
-
 #elseif os(iOS)
 
-//	extension UIImage {
+	extension UIImage {
 //		func inverseImage(cgResult: Bool) -> UIImage? {
 //			let coreImage = UIKit.CIImage(image: self)
 //			guard let filter = CIFilter(name: "CIColorInvert") else { return nil }
@@ -68,21 +59,10 @@ extension CGImage {
 //			}
 //			return UIImage(CIImage: result)
 //		}
-//	}
 
-	extension UIImage {
 		func removeColor(_ color: UIColor) -> UIImage? {
 			guard let cgImage = cgImage?.removeColor(color.cgColor) else { return nil }
 			return UIImage(cgImage: cgImage)
-		}
-	}
-
-	extension UIColor {
-		static func random() -> UIColor {
-			let hue: CGFloat = CGFloat(arc4random() % 256) / 256 // use 256 to get full range from 0.0 to 1.0
-			let saturation: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from white
-			let brightness: CGFloat = CGFloat(arc4random() % 128) / 256 + 0.5 // from 0.5 to 1.0 to stay away from black
-			return UIColor(hue: hue, saturation: saturation, brightness: brightness, alpha: 1)
 		}
 	}
 

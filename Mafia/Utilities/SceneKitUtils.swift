@@ -8,6 +8,7 @@
 
 import Foundation
 import SceneKit
+import SpriteKit
 
 #if os(macOS)
 	typealias SCNFloat = CGFloat
@@ -36,27 +37,12 @@ func += (lhs: inout SCNVector4, rhs: SCNVector4) {
 }
 
 extension SCNVector3 {
-	init(stream: InputStream) throws {
-		let x: Float = try stream.read()
-		let y: Float = try stream.read()
-		let z: Float = try stream.read()
-		self.init(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
-	}
-
 	var length: Float {
 		return sqrtf(Float(x * x + y * y + z * z))
 	}
 }
 
 extension SCNQuaternion {
-	init(stream: InputStream) throws {
-		let w: Float = try stream.read()
-		let x: Float = try stream.read()
-		let y: Float = try stream.read()
-		let z: Float = try stream.read()
-		self.init(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z), w: -SCNFloat(w))
-	}
-
 	var eulerAngles: SCNVector3 {
 		let ysqr = y * y
 
@@ -86,14 +72,15 @@ extension SCNMatrix4 {
 			m41: values[12], m42: values[13], m43: values[14], m44: values[15]
 		)
 	}
+}
 
-	init(stream: InputStream) throws {
-		var transformationMatrix: [SCNFloat] = []
-		for _ in 0 ..< 16 {
-			let value: Float = try stream.read()
-			transformationMatrix.append(SCNFloat(value))
-		}
-		self.init(values: transformationMatrix)
+extension SKTexture {
+	convenience init(imageUrl: URL) {
+		#if os(macOS)
+			self.init(image: NSImage(contentsOf: imageUrl)!)
+		#elseif os(iOS)
+			self.init(image: UIImage(contentsOfFile: imageUrl.path)!)
+		#endif
 	}
 }
 
