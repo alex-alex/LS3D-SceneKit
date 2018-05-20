@@ -76,6 +76,8 @@ struct MaterialFlags: OptionSet {
 	static let additiveBlend				= MaterialFlags(rawValue: 1 << 31)
 }
 
+//var imageCache: NSCache<NSString, UIImage> = NSCache()
+var imageCache: [String: UIImage] = [:]
 var materials: [SCNMaterial] = []
 var geometries: [Int: SCNGeometry] = [:]
 
@@ -330,8 +332,8 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 
 		if flags.contains(.diffuseTexture) {
 			let textureNameLength: UInt8 = try stream.read()
-			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
-			let url = mainDirectory.appendingPathComponent("maps/"+textureName.lowercased())
+			let textureName: String = (try stream.read(maxLength: Int(textureNameLength))).lowercased()
+			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
 			let data = try Data(contentsOf: url)
 
 			#if os(macOS)
@@ -351,14 +353,22 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 					material.diffuse.contents = NSImage(data: data)
 				}
 			#elseif os(iOS)
-				if flags.contains(.colorKey) {
-					let b = CGFloat(data[54])/255
-					let g = CGFloat(data[55])/255
-					let r = CGFloat(data[56])/255
-					let color = UIColor(red: r, green: g, blue: b, alpha: 1)
-					material.diffuse.contents = UIImage(data: data)?.removeColor(color)?.cgImage?.caLayer()
+				if let image = imageCache[textureName] {
+					material.diffuse.contents = image
 				} else {
-					material.diffuse.contents = UIImage(data: data)
+					if flags.contains(.colorKey) {
+						let b = CGFloat(data[54])/255
+						let g = CGFloat(data[55])/255
+						let r = CGFloat(data[56])/255
+						let color = UIColor(red: r, green: g, blue: b, alpha: 1)
+						let image = UIImage(data: data)?.removeColor(color)
+						imageCache[textureName] = image
+						material.diffuse.contents = image?.cgImage?.caLayer()
+					} else {
+						let image = UIImage(data: data)
+						imageCache[textureName] = image
+						material.diffuse.contents = image
+					}
 				}
 			#endif
 			material.diffuse.wrapS = .repeat
