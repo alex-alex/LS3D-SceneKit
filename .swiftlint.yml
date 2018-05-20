@@ -1,6 +1,7 @@
 disabled_rules:
   - cyclomatic_complexity
   - redundant_discardable_let
+  - identifier_name
 
 type_body_length:
   warning: 250
