@@ -121,444 +121,437 @@ final class Scene {
 	}
 	var pressedJump = false
 
-	init() {}
+	init(named name: String) throws {
+		let url = mainDirectory.appendingPathComponent(name + "/scene2.bin")
 
-}
+		guard let stream = InputStream(url: url) else { throw SceneError() }
+		stream.open()
 
-// swiftlint:disable:next function_body_length
-private func readSection(stream: InputStream, scene: inout Scene) throws {
+		let header: Int16 = try stream.read()
+		guard header == 0x4c53 else { throw SceneError() }
 
-	let startOffset = stream.currentOffset
+		let _fileSize: Int32 = try stream.read()
+		let fileSize = Int(_fileSize)
 
-	let _ = try SceneSection(forcedRawValue: stream.read()) // secSgn
-//	guard secSgn == 44576 else { throw SceneError.file }
+		stream.currentOffset = 160
 
-	let _secSize: UInt32 = try stream.read()
-	let secSize = Int(_secSize)
+		while stream.currentOffset < fileSize {
+			try readSection(stream: stream)
+		}
 
-	while stream.currentOffset < (startOffset + secSize) {
-		try autoreleasepool {
+		stream.close()
+	}
 
-			let objectStartOffset = stream.currentOffset
+	// swiftlint:disable:next function_body_length
+	private func readSection(stream: InputStream) throws {
+//		let scene = self
 
-			let objSgn = try SceneSectionItem(forcedRawValue: stream.read())
+		let startOffset = stream.currentOffset
 
-	//		print("--- \(objSgn)")
+		let _ = try SceneSection(forcedRawValue: stream.read()) // secSgn
+	//	guard secSgn == 44576 else { throw SceneError.file }
 
-			let _objSize: UInt32 = try stream.read()
-			let objSize = Int(_objSize)
+		let _secSize: UInt32 = try stream.read()
+		let secSize = Int(_secSize)
 
-			switch objSgn {
-			case .object:
+		while stream.currentOffset < (startOffset + secSize) {
+			try autoreleasepool {
 
-				let objectNode = SCNNode()
-				var type: ObjectType = .object
+				let objectStartOffset = stream.currentOffset
 
-				while stream.currentOffset < (objectStartOffset + objSize) {
-					let partSgn = try SceneObjectPart(forcedRawValue: stream.read())
+				let objSgn = try SceneSectionItem(forcedRawValue: stream.read())
 
-	//				print("------ \(partSgn)")
+		//		print("--- \(objSgn)")
 
-					let _partSize: UInt32 = try stream.read()
-					let partSize = Int(_partSize)
+				let _objSize: UInt32 = try stream.read()
+				let objSize = Int(_objSize)
 
-					switch partSgn {
-					case .name:
-						let str: String = try stream.read(maxLength: partSize - 6)
-						objectNode.name = str
+				switch objSgn {
+				case .object:
 
-					case .position:
-						let _ = try SCNVector3(stream: stream)
-	//					objectNode.position = position
+					let objectNode = SCNNode()
+					var type: ObjectType = .object
 
-					case .rotation:
-						let rotation = try SCNQuaternion(stream: stream)
-						objectNode.orientation = rotation
+					while stream.currentOffset < (objectStartOffset + objSize) {
+						let partSgn = try SceneObjectPart(forcedRawValue: stream.read())
 
-					case .globalPosition:
-						let globalPosition = try SCNVector3(stream: stream)
-						objectNode.position = globalPosition
+		//				print("------ \(partSgn)")
 
-					case .scale:
-						let scale = try SCNVector3(stream: stream)
-						objectNode.scale = scale
+						let _partSize: UInt32 = try stream.read()
+						let partSize = Int(_partSize)
 
-					case .model:
-						var str: String = try stream.read(maxLength: partSize - 6)
-						str = str.lowercased().replacingOccurrences(of: ".i3d", with: "")
-						try loadModel(named: "models/" + str, node: objectNode)
+						switch partSgn {
+						case .name:
+							let str: String = try stream.read(maxLength: partSize - 6)
+							objectNode.name = str
 
-					case .type:
-						type = try ObjectType(forcedRawValue: stream.read())
+						case .position:
+							let _ = try SCNVector3(stream: stream)
+		//					objectNode.position = position
 
-					case .inSector:
-						stream.currentOffset += 6
-						let _: String = try stream.read(maxLength: partSize - 12)
-	//					print("--------- \(str)")
-
-					case .unknown3:
-						stream.currentOffset += partSize - 6
-
-					case .light:
-						objectNode.light = SCNLight()
-
-						stream.currentOffset += 6
-						let lightTypeRaw: UInt32 = try stream.read()
-						let lightType = try LightType(forcedRawValue: lightTypeRaw)
-
-						switch lightType {
-						case .point:
-							objectNode.light?.type = .omni
-//							objectNode.light?.mod
-						case .cone:
-							objectNode.light?.type = .spot
-						case .ambient:
-							objectNode.light?.type = .ambient
-						case .directional:
-							objectNode.light?.type = .directional
-						case .fog, .layeredFog:
-							objectNode.light?.type = .ambient
-							objectNode.light?.intensity = 0
-						}
-
-						stream.currentOffset += 6
-						let r: Float = try stream.read()
-						let g: Float = try stream.read()
-						let b: Float = try stream.read()
-						objectNode.light?.color = SKColor(red: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: 1)
-
-						stream.currentOffset += 6
-						let power: Float = try stream.read()
-						if objectNode.light?.type == .spot {
-							objectNode.light?.intensity = CGFloat(power * 1000)
-						} else {
-							objectNode.light?.intensity = CGFloat(power * 100)
-						}
-
-						stream.currentOffset += 6
-						let _: Float = try stream.read()	// cone 1 / 0.3490658402
-						let _: Float = try stream.read()	// cone 2 / 0.6981316805
-
-						stream.currentOffset += 6
-						let _: Float = try stream.read()	// range near
-						let _: Float = try stream.read()	// range far
-
-						stream.currentOffset += partSize - 72
-
-					case .music:
-						let _ = try SCNVector3(stream: stream) // min
-						let _ = try SCNVector3(stream: stream) // max
-
-					case .sound:
-						scene.sounds[objectNode] = try Sound(scene: scene, node: objectNode, stream: stream, partSize: partSize)
-
-					case .occluder:
-						stream.currentOffset += partSize - 6
-
-					case .lightType:
-						let _: String = try stream.read(maxLength: partSize - 6)
-	//					print("lightType: (\(str))")
-
-					case .lightMap:
-						stream.currentOffset += partSize - 6
-//						let lightData = try stream.read(maxLength: partSize - 6)
-//						print("lightMap:", lightData.map({ String(format: "%02x", $0) }).joined())
-
-					case .lens:
-						stream.currentOffset += partSize - 6
-
-					case .unknown4:
-						stream.currentOffset += partSize - 6
-
-					case .sector:
-						stream.currentOffset += partSize - 6
-					}
-				}
-
-				if type != .model && type != .object && type != .camera && type != .light {
-	//				print("OBJECT TYPE: \(type) \(objectNode.name)")
-
-					if objectNode.name == "target" {
-						let box = SCNBox(width: 1, height: 1, length: 1, chamferRadius: 0)
-						box.firstMaterial = SCNMaterial()
-						box.firstMaterial?.diffuse.contents = SKColor.red
-						box.firstMaterial?.cullMode = .front
-						objectNode.geometry = box
-					} else {
-						let box = SCNBox(width: 0.2, height: 0.2, length: 0.2, chamferRadius: 0)
-						box.firstMaterial = SCNMaterial()
-
-						switch type {
-						case .light:
-							box.firstMaterial?.diffuse.contents = SKColor.yellow
-						case .sound:
-							box.firstMaterial?.diffuse.contents = SKColor.magenta
-						case .music:
-							box.firstMaterial?.diffuse.contents = SKColor.cyan
-						case .occluder:
-							box.firstMaterial?.diffuse.contents = SKColor.brown
-						case .camera:
-							box.firstMaterial?.diffuse.contents = SKColor.orange
-						case .object:
-							box.firstMaterial?.diffuse.contents = SKColor.red
-						default:
-							print("type:", type.rawValue)
-							box.firstMaterial?.diffuse.contents = SKColor.green
-						}
-
-						box.firstMaterial?.cullMode = .front
-						box.firstMaterial?.transparency = 0.2
-						objectNode.geometry = box
-					}
-				}
-
-				scene.rootNode.addChildNode(objectNode)
-
-			case .objDef:
-				var name: String = ""
-				var node: SCNNode? = nil
-				var type: ObjectDefinitionType = .empty
-
-				while stream.currentOffset < (objectStartOffset + objSize) {
-					let partSgn: UInt16 = try stream.read()
-
-					let _partSize: UInt32 = try stream.read()
-					let partSize = Int(_partSize)
-
-					switch partSgn {
-					case 0xae23: // name
-						name = try stream.read(maxLength: partSize - 6)
-						node = scene.rootNode.childNode(withName: name, recursively: true)
-						node?.type = type
-
-					case 0xae22: // type
-						type = try ObjectDefinitionType(forcedRawValue: stream.read())
-						node?.type = type
-
-					case 0xae24: // props
-
-						switch type {
-						case .ghost:
-							stream.currentOffset += partSize - 6
-
-						case .player:
-							stream.currentOffset += 1
-
-							let _: UInt32 = try stream.read()						// 1		behavior
-							let _: UInt32 = try stream.read()						// 3		voice
-							let _: Float = try stream.read()						// 0.7		strength
-							let _: Float = try stream.read()						// 200		energy
-							let _: Float = try stream.read()						// 40		energy hand r
-							let _: Float = try stream.read()						// 40		energy hand l
-							let _: Float = try stream.read()						// 40		energy leg l
-							let _: Float = try stream.read()						// 40		energy leg r
-							let _: Float = try stream.read()						// 0.7		reactions
-							let _: Float = try stream.read()						// 1		speed
-							let _: Float = try stream.read()						// 0.6		aggresivity
-							let _: Float = try stream.read()						// 0.8		intelligence
-							let _: Float = try stream.read()						// 1		shooting
-							let _: Float = try stream.read()						// 1		signt
-							let _: Float = try stream.read()						// 1		hearing
-							let _: Float = try stream.read()						// 0.8		driving
-							let _: Float = try stream.read()						// 80		mass
-							let _: Float = try stream.read()						// 0.5		behavior 2
-
-							scene.playerNode = node
-
-						case .car:
-							stream.currentOffset += partSize - 6
-
-						case .script:
-							stream.currentOffset += 10
-
-							let scriptLength: UInt32 = try stream.read()
-							let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
-							//print("[SCRIPT \(name)]:", scriptStr)
-							guard node != nil else { print("SCRIPT HAS EMPTY NODE!!!"); break }
-							let script = Script(script: scriptStr, scene: scene, node: node!)
-							scene.scripts[name] = script
-
-						case .door:
-							stream.currentOffset += 21
-
-	//						DWORD TYPE (?)
-	//						BYTE OPEN_UP
-	//						BYTE OPEN_DOWN
-	//						FLOAT MOVE_ANGLE (90°)
-	//						BYTE START_OPEN
-	//						BYTE LOCKED
-	//						FLOAT OPEN_SPEED
-	//						FLOAT CLOSE_SPEED
-
-							let _: String = try stream.read(maxLength: 16) // open
-	//						print("door open:", open)
-							let _: String = try stream.read(maxLength: 16) // close
-	//						print("door close:", close)
-							let _: String = try stream.read(maxLength: 16) // locked
-	//						print("door locked:", locked)
-
-							stream.currentOffset += 1
-
-						case .trolley:
-							stream.currentOffset += 1
-
-							let _: UInt32 = try stream.read()						// numOfLinkedWagons / 0
-							let _: Float = try stream.read()						// distanceBetweenWagons / 17
-							let _: Float = try stream.read()						// 8 (const)
-							let _: Float = try stream.read()						// maxSpeed / 9.7222
-							let _: Float = try stream.read()						// 1 (const)
-							let _: Float = try stream.read()						// 10000 (const)
+						case .rotation:
+							let rotation = try SCNQuaternion(stream: stream)
+							objectNode.orientation = rotation
+
+						case .globalPosition:
+							let globalPosition = try SCNVector3(stream: stream)
+							objectNode.position = globalPosition
+
+						case .scale:
+							let scale = try SCNVector3(stream: stream)
+							objectNode.scale = scale
+
+						case .model:
+							var str: String = try stream.read(maxLength: partSize - 6)
+							str = str.lowercased().replacingOccurrences(of: ".i3d", with: "")
+							try loadModel(named: "models/" + str, node: objectNode)
+
+						case .type:
+							type = try ObjectType(forcedRawValue: stream.read())
+
+						case .inSector:
+							stream.currentOffset += 6
+							let _: String = try stream.read(maxLength: partSize - 12)
+		//					print("--------- \(str)")
 
 						case .unknown3:
 							stream.currentOffset += partSize - 6
 
-						case .traffic:
+						case .light:
+							objectNode.light = SCNLight()
 
-							let _: UInt32 = try stream.read()						// 5 (const)
-							let _: Float = try stream.read()						// outerRadiusToHide / 180
-							let _: Float = try stream.read()						// innerRadiusForGener / 150
-							let _: Float = try stream.read()						// outerRadiusForGener / 170
-							let _: UInt32 = try stream.read()						// numOfGeneratedCars /	13
-							let numOfCarsInDatabase: UInt32 = try stream.read()
+							stream.currentOffset += 6
+							let lightTypeRaw: UInt32 = try stream.read()
+							let lightType = try LightType(forcedRawValue: lightTypeRaw)
 
-							for _ in 0 ..< numOfCarsInDatabase {
-								let _: String = try stream.read(maxLength: 20) // modelName
-	//							print("CAR modelName:", modelName)
-
-								let _: Float = try stream.read() // modelDensity
-	//							print("CAR density:", modelDensity)
-
-								let _: UInt32 = try stream.read() // colors
-	//							print("CAR colors:", colors)
-
-								let _: UInt16 = try stream.read() // isPolice
-	//							print("CAR isPolice:", isPolice)
-
-								let _: UInt16 = try stream.read() // gangsterFlags
-	//							print("CAR gangsterFlags:", gangsterFlags)
+							switch lightType {
+							case .point:
+								objectNode.light?.type = .omni
+	//							objectNode.light?.mod
+							case .cone:
+								objectNode.light?.type = .spot
+							case .ambient:
+								objectNode.light?.type = .ambient
+							case .directional:
+								objectNode.light?.type = .directional
+							case .fog, .layeredFog:
+								objectNode.light?.type = .ambient
+								objectNode.light?.intensity = 0
 							}
 
-						case .pedestrians:
-							stream.currentOffset += 5
+							stream.currentOffset += 6
+							let r: Float = try stream.read()
+							let g: Float = try stream.read()
+							let b: Float = try stream.read()
+							objectNode.light?.color = SKColor(red: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: 1)
 
-							let _: Float = try stream.read()						// genRadiusFromPoint / 100
-							let _: Float = try stream.read()						// outerRadiusToHide / 100
-							let _: Float = try stream.read()						// innerRadiusForGen / 50
-							let _: Float = try stream.read()						// outerRadiusForGener / 90
-							let _: Float = try stream.read()						// innerRadiusForGener / 50
-							let _: UInt32 = try stream.read()						// numOfGeneratedPeds / 100
-							let numOfPedsInDatabase: UInt32 = try stream.read()
-
-							for _ in 0 ..< numOfPedsInDatabase {
-								let _: String = try stream.read(maxLength: 17) // modelName
-	//							print("PED modelName:", modelName)
+							stream.currentOffset += 6
+							let power: Float = try stream.read()
+							if objectNode.light?.type == .spot {
+								objectNode.light?.intensity = CGFloat(power * 1000)
+							} else {
+								objectNode.light?.intensity = CGFloat(power * 100)
 							}
 
-							for _ in 0 ..< numOfPedsInDatabase {
-								let _: UInt32 = try stream.read() // modelDensity
-	//							print("PED density:", modelDensity)
-							}
+							stream.currentOffset += 6
+							let _: Float = try stream.read()	// cone 1 / 0.3490658402
+							let _: Float = try stream.read()	// cone 2 / 0.6981316805
 
-						case .empty:
-							break
+							stream.currentOffset += 6
+							let _: Float = try stream.read()	// range near
+							let _: Float = try stream.read()	// range far
 
-						case .dog:
+							stream.currentOffset += partSize - 72
+
+						case .music:
+							let _ = try SCNVector3(stream: stream) // min
+							let _ = try SCNVector3(stream: stream) // max
+
+						case .sound:
+							self.sounds[objectNode] = try Sound(scene: self, node: objectNode, stream: stream, partSize: partSize)
+
+						case .occluder:
 							stream.currentOffset += partSize - 6
 
-						case .plane:
+						case .lightType:
+							let _: String = try stream.read(maxLength: partSize - 6)
+		//					print("lightType: (\(str))")
+
+						case .lightMap:
+							stream.currentOffset += partSize - 6
+	//						let lightData = try stream.read(maxLength: partSize - 6)
+	//						print("lightMap:", lightData.map({ String(format: "%02x", $0) }).joined())
+
+						case .lens:
 							stream.currentOffset += partSize - 6
 
-						case .railRoute:
+						case .unknown4:
 							stream.currentOffset += partSize - 6
 
-						case .pumpar:
+						case .sector:
 							stream.currentOffset += partSize - 6
-
-						case .enemy:
-							stream.currentOffset += 79
-
-							let scriptLength: UInt32 = try stream.read()
-							let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
-							//print("ENEMY SCRIPT \(name):\n\(scriptStr)")
-
-							let script = Script(script: scriptStr, scene: scene, node: node!)
-							scene.scripts[name] = script
-
-						case .unknown2:
-							stream.currentOffset += partSize - 6
-
-						case .wagons:
-							stream.currentOffset += partSize - 6
-
-						case .clock:
-							stream.currentOffset += partSize - 6
-
-						case .physical:
-							stream.currentOffset += 2
-							let _: Float = try stream.read()	// center of mass?
-							let _: Float = try stream.read()
-							let _: Float = try stream.read()	// weight
-							let _: Float = try stream.read()	// friction
-							let _: Float = try stream.read()
-							// 0-crate,1-crate1,2-barrel,3-barrel1,4-label,5-box,6-wood,7-plate,8-no_sound
-							let _: UInt32 = try stream.read()	// sound
-							stream.currentOffset += 5
-
-							node?.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)
-
-						case .truck:
-							stream.currentOffset += partSize - 6
-
 						}
-
-					default:
-						assert(true)
 					}
+
+					if type != .model && type != .object && type != .camera && type != .light {
+		//				print("OBJECT TYPE: \(type) \(objectNode.name)")
+
+						if objectNode.name == "target" {
+							let box = SCNBox(width: 1, height: 1, length: 1, chamferRadius: 0)
+							box.firstMaterial = SCNMaterial()
+							box.firstMaterial?.diffuse.contents = SKColor.red
+							box.firstMaterial?.cullMode = .front
+							objectNode.geometry = box
+						} else {
+							let box = SCNBox(width: 0.2, height: 0.2, length: 0.2, chamferRadius: 0)
+							box.firstMaterial = SCNMaterial()
+
+							switch type {
+							case .light:
+								box.firstMaterial?.diffuse.contents = SKColor.yellow
+							case .sound:
+								box.firstMaterial?.diffuse.contents = SKColor.magenta
+							case .music:
+								box.firstMaterial?.diffuse.contents = SKColor.cyan
+							case .occluder:
+								box.firstMaterial?.diffuse.contents = SKColor.brown
+							case .camera:
+								box.firstMaterial?.diffuse.contents = SKColor.orange
+							case .object:
+								box.firstMaterial?.diffuse.contents = SKColor.red
+							default:
+								print("type:", type.rawValue)
+								box.firstMaterial?.diffuse.contents = SKColor.green
+							}
+
+							box.firstMaterial?.cullMode = .front
+							box.firstMaterial?.transparency = 0.2
+							objectNode.geometry = box
+						}
+					}
+
+					self.rootNode.addChildNode(objectNode)
+
+				case .objDef:
+					var name: String = ""
+					var node: SCNNode? = nil
+					var type: ObjectDefinitionType = .empty
+
+					while stream.currentOffset < (objectStartOffset + objSize) {
+						let partSgn: UInt16 = try stream.read()
+
+						let _partSize: UInt32 = try stream.read()
+						let partSize = Int(_partSize)
+
+						switch partSgn {
+						case 0xae23: // name
+							name = try stream.read(maxLength: partSize - 6)
+							node = self.rootNode.childNode(withName: name, recursively: true)
+							node?.type = type
+
+						case 0xae22: // type
+							type = try ObjectDefinitionType(forcedRawValue: stream.read())
+							node?.type = type
+
+						case 0xae24: // props
+
+							switch type {
+							case .ghost:
+								stream.currentOffset += partSize - 6
+
+							case .player:
+								stream.currentOffset += 1
+
+								let _: UInt32 = try stream.read()						// 1		behavior
+								let _: UInt32 = try stream.read()						// 3		voice
+								let _: Float = try stream.read()						// 0.7		strength
+								let _: Float = try stream.read()						// 200		energy
+								let _: Float = try stream.read()						// 40		energy hand r
+								let _: Float = try stream.read()						// 40		energy hand l
+								let _: Float = try stream.read()						// 40		energy leg l
+								let _: Float = try stream.read()						// 40		energy leg r
+								let _: Float = try stream.read()						// 0.7		reactions
+								let _: Float = try stream.read()						// 1		speed
+								let _: Float = try stream.read()						// 0.6		aggresivity
+								let _: Float = try stream.read()						// 0.8		intelligence
+								let _: Float = try stream.read()						// 1		shooting
+								let _: Float = try stream.read()						// 1		signt
+								let _: Float = try stream.read()						// 1		hearing
+								let _: Float = try stream.read()						// 0.8		driving
+								let _: Float = try stream.read()						// 80		mass
+								let _: Float = try stream.read()						// 0.5		behavior 2
+
+								self.playerNode = node
+
+							case .car:
+								stream.currentOffset += partSize - 6
+
+							case .script:
+								stream.currentOffset += 10
+
+								let scriptLength: UInt32 = try stream.read()
+								let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
+								//print("[SCRIPT \(name)]:", scriptStr)
+								guard node != nil else { print("SCRIPT HAS EMPTY NODE!!!"); break }
+								let script = Script(script: scriptStr, scene: self, node: node!)
+								self.scripts[name] = script
+
+							case .door:
+								stream.currentOffset += 21
+
+		//						DWORD TYPE (?)
+		//						BYTE OPEN_UP
+		//						BYTE OPEN_DOWN
+		//						FLOAT MOVE_ANGLE (90°)
+		//						BYTE START_OPEN
+		//						BYTE LOCKED
+		//						FLOAT OPEN_SPEED
+		//						FLOAT CLOSE_SPEED
+
+								let _: String = try stream.read(maxLength: 16) // open
+		//						print("door open:", open)
+								let _: String = try stream.read(maxLength: 16) // close
+		//						print("door close:", close)
+								let _: String = try stream.read(maxLength: 16) // locked
+		//						print("door locked:", locked)
+
+								stream.currentOffset += 1
+
+							case .trolley:
+								stream.currentOffset += 1
+
+								let _: UInt32 = try stream.read()						// numOfLinkedWagons / 0
+								let _: Float = try stream.read()						// distanceBetweenWagons / 17
+								let _: Float = try stream.read()						// 8 (const)
+								let _: Float = try stream.read()						// maxSpeed / 9.7222
+								let _: Float = try stream.read()						// 1 (const)
+								let _: Float = try stream.read()						// 10000 (const)
+
+							case .unknown3:
+								stream.currentOffset += partSize - 6
+
+							case .traffic:
+
+								let _: UInt32 = try stream.read()						// 5 (const)
+								let _: Float = try stream.read()						// outerRadiusToHide / 180
+								let _: Float = try stream.read()						// innerRadiusForGener / 150
+								let _: Float = try stream.read()						// outerRadiusForGener / 170
+								let _: UInt32 = try stream.read()						// numOfGeneratedCars /	13
+								let numOfCarsInDatabase: UInt32 = try stream.read()
+
+								for _ in 0 ..< numOfCarsInDatabase {
+									let _: String = try stream.read(maxLength: 20) // modelName
+		//							print("CAR modelName:", modelName)
+
+									let _: Float = try stream.read() // modelDensity
+		//							print("CAR density:", modelDensity)
+
+									let _: UInt32 = try stream.read() // colors
+		//							print("CAR colors:", colors)
+
+									let _: UInt16 = try stream.read() // isPolice
+		//							print("CAR isPolice:", isPolice)
+
+									let _: UInt16 = try stream.read() // gangsterFlags
+		//							print("CAR gangsterFlags:", gangsterFlags)
+								}
+
+							case .pedestrians:
+								stream.currentOffset += 5
+
+								let _: Float = try stream.read()						// genRadiusFromPoint / 100
+								let _: Float = try stream.read()						// outerRadiusToHide / 100
+								let _: Float = try stream.read()						// innerRadiusForGen / 50
+								let _: Float = try stream.read()						// outerRadiusForGener / 90
+								let _: Float = try stream.read()						// innerRadiusForGener / 50
+								let _: UInt32 = try stream.read()						// numOfGeneratedPeds / 100
+								let numOfPedsInDatabase: UInt32 = try stream.read()
+
+								for _ in 0 ..< numOfPedsInDatabase {
+									let _: String = try stream.read(maxLength: 17) // modelName
+		//							print("PED modelName:", modelName)
+								}
+
+								for _ in 0 ..< numOfPedsInDatabase {
+									let _: UInt32 = try stream.read() // modelDensity
+		//							print("PED density:", modelDensity)
+								}
+
+							case .empty:
+								break
+
+							case .dog:
+								stream.currentOffset += partSize - 6
+
+							case .plane:
+								stream.currentOffset += partSize - 6
+
+							case .railRoute:
+								stream.currentOffset += partSize - 6
+
+							case .pumpar:
+								stream.currentOffset += partSize - 6
+
+							case .enemy:
+								stream.currentOffset += 79
+
+								let scriptLength: UInt32 = try stream.read()
+								let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
+								//print("ENEMY SCRIPT \(name):\n\(scriptStr)")
+
+								let script = Script(script: scriptStr, scene: self, node: node!)
+								self.scripts[name] = script
+
+							case .unknown2:
+								stream.currentOffset += partSize - 6
+
+							case .wagons:
+								stream.currentOffset += partSize - 6
+
+							case .clock:
+								stream.currentOffset += partSize - 6
+
+							case .physical:
+								stream.currentOffset += 2
+								let _: Float = try stream.read()	// center of mass?
+								let _: Float = try stream.read()
+								let _: Float = try stream.read()	// weight
+								let _: Float = try stream.read()	// friction
+								let _: Float = try stream.read()
+								// 0-crate,1-crate1,2-barrel,3-barrel1,4-label,5-box,6-wood,7-plate,8-no_sound
+								let _: UInt32 = try stream.read()	// sound
+								stream.currentOffset += 5
+
+								node?.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)
+
+							case .truck:
+								stream.currentOffset += partSize - 6
+
+							}
+
+						default:
+							assert(true)
+						}
+					}
+
+				case .initDef:
+					stream.currentOffset += objSize - 6
+					print("[INIT DEF]")
+
+				case .initScript:
+					stream.currentOffset += 1
+
+					let nameLength: UInt32 = try stream.read()
+					let name: String = try stream.read(maxLength: Int(nameLength))
+
+					let scriptLength: UInt32 = try stream.read()
+					let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
+					let script = Script(script: scriptStr, scene: self, node: self.rootNode)
+					self.initScripts[name] = script
 				}
-
-			case .initDef:
-				stream.currentOffset += objSize - 6
-				print("[INIT DEF]")
-
-			case .initScript:
-				stream.currentOffset += 1
-
-				let nameLength: UInt32 = try stream.read()
-				let name: String = try stream.read(maxLength: Int(nameLength))
-
-				let scriptLength: UInt32 = try stream.read()
-				let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
-				let script = Script(script: scriptStr, scene: scene, node: scene.rootNode)
-				scene.initScripts[name] = script
 			}
 		}
+
 	}
 
-}
-
-func loadScene(named name: String) throws -> Scene {
-	let url = mainDirectory.appendingPathComponent(name + "/scene2.bin")
-
-//	let mainNode = SCNNode()
-	var scene = Scene()
-
-	guard let stream = InputStream(url: url) else { throw SceneError() }
-	stream.open()
-
-	let header: Int16 = try stream.read()
-	guard header == 0x4c53 else { throw SceneError() }
-
-	let _fileSize: Int32 = try stream.read()
-	let fileSize = Int(_fileSize)
-
-	stream.currentOffset = 160
-
-	while stream.currentOffset < fileSize {
-		try readSection(stream: stream, scene: &scene)
-//		mainNode.addChildNode(node)
-	}
-
-	stream.close()
-
-	return scene
 }

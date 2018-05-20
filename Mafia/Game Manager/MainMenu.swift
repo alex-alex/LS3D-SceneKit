@@ -23,7 +23,7 @@ class MainMenu {
 		sceneModel.name = "__model__"
 		scnScene.rootNode.addChildNode(sceneModel)
 
-		scene = try loadScene(named: "missions/00menu")
+		scene = try Scene(named: "missions/00menu")
 		scene.rootNode.name = "__scene__"
 		scnScene.rootNode.addChildNode(scene.rootNode)
 

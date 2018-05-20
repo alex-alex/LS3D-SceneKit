@@ -47,7 +47,7 @@ final class Game: NSObject {
 		scnScene.rootNode.addChildNode(sceneModel)
 		print("== Loaded Scene Model")
 
-		scene = try loadScene(named: "missions/"+missionName)
+		scene = try Scene(named: "missions/"+missionName)
 
 		super.init()
 
