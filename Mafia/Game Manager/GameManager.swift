@@ -38,6 +38,7 @@ class GameManager {
 		view.autoenablesDefaultLighting = false
 // 		view.preferredFramesPerSecond = 10
 		loadMission(textId: 4084, imageName: "tutorial.tga", folder: "tutorial")
+//		loadMission(textId: 4085, imageName: "freeride.tga", folder: "freeitaly")
 //		loadMenu()
 		view.play(nil)
 	}
