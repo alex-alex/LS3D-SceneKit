@@ -11,7 +11,7 @@ import Foundation
 struct RawRepresentableError: Error {}
 
 public extension RawRepresentable {
-	public init(forcedRawValue rawValue: RawValue) throws {
+	init(forcedRawValue rawValue: RawValue) throws {
 		guard let x = Self(rawValue: rawValue) else {
 			print("rawValue:", rawValue)
 			throw RawRepresentableError()

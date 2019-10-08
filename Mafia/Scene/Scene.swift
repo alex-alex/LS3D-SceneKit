@@ -334,7 +334,7 @@ final class Scene {
 
 				case .objDef:
 					var name: String = ""
-					var node: SCNNode? = nil
+					var node: SCNNode?
 					var type: ObjectDefinitionType = .empty
 
 					while stream.currentOffset < (objectStartOffset + objSize) {

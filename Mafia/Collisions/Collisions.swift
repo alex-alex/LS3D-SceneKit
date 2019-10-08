@@ -77,7 +77,7 @@ final class Collisions {
 			let node = parent.childNode(withName: String(comps[1]), recursively: false)
 			return node
 		} else {
-			var node: SCNNode? = nil
+			var node: SCNNode?
 			if type == 1 {
 				node = rootNode.childNodes[0].childNode(withName: String(comps[0]), recursively: false)
 			} else if type == 2 {

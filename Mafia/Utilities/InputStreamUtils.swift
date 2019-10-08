@@ -20,7 +20,7 @@ public extension InputStream {
 		}
 	}
 
-	public func read(maxLength: Int) throws -> [UInt8] {
+	func read(maxLength: Int) throws -> [UInt8] {
 		var buffer: [UInt8] = []
 		while buffer.count < maxLength {
 			let size = maxLength - buffer.count
@@ -36,7 +36,7 @@ public extension InputStream {
 		return buffer
 	}
 
-	public func read<T: BinaryInteger>() throws -> T {
+	func read<T: BinaryInteger>() throws -> T {
 		var buffer: T = 0
 
 		let n = withUnsafePointer(to: &buffer) { ptr in
@@ -53,7 +53,7 @@ public extension InputStream {
 		}
 	}
 
-	public func read<T: FloatingPoint>() throws -> T {
+	func read<T: FloatingPoint>() throws -> T {
 		var buffer: T = 0
 
 		let n = withUnsafePointer(to: &buffer) { ptr in
@@ -70,7 +70,7 @@ public extension InputStream {
 		}
 	}
 
-	public func read(maxLength: Int, encoding: String.Encoding = .utf8) throws -> String {
+	func read(maxLength: Int, encoding: String.Encoding = .utf8) throws -> String {
 		var bytes: [UInt8] = try read(maxLength: maxLength)
 		if bytes.last != 0 {
 			bytes.append(0)

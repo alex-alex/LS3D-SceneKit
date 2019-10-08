@@ -255,7 +255,7 @@ extension HudScene {
 
 		case 13: // W
 			if game.mode == .walk {
-				if let playerNode = game.scene.playerNode {
+				if game.scene.playerNode != nil {
 					game.scene.pressedJump = true
 				}
 			} else {
