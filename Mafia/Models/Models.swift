@@ -76,8 +76,11 @@ struct MaterialFlags: OptionSet {
 	static let additiveBlend				= MaterialFlags(rawValue: 1 << 31)
 }
 
+#if os(macOS)
 //var imageCache: NSCache<NSString, UIImage> = NSCache()
+#elseif os(iOS)
 var imageCache: [String: UIImage] = [:]
+#endif
 var materials: [SCNMaterial] = []
 var geometries: [Int: SCNGeometry] = [:]
 

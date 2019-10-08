@@ -24,6 +24,14 @@ final class HudScene: SKScene {
 	var carButton: SKShapeNode!
 	var objectivesLabel: SKLabelNode!
 
+	#if os(macOS)
+
+	var ride = false
+	var reverse = false
+	var vehicleSteering: CGFloat = 0
+
+	#endif
+
 	init(size: CGSize, game: Game) {
 		self.game = game
 
@@ -221,10 +229,6 @@ extension HudScene {
 	}
 
 	#elseif os(macOS)
-
-	var ride = false
-	var reverse = false
-	var vehicleSteering: CGFloat = 0
 
 	override func keyDown(with event: NSEvent) {
 		super.keyDown(with: event)
