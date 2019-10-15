@@ -28,7 +28,7 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-		gameView = view as! SCNView // swiftlint:disable:this force_cast
+		gameView = view as? SCNView
 		gameManager = GameManager(view: gameView)
 
 		// ------
