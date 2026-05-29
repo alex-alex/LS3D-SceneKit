@@ -51,11 +51,7 @@ final class Vehicle {
 		let taxiNode = node.childNode(withName: "BODY", recursively: false)!
 		self.node = taxiNode
 
-		/*let orphans = taxiNodeX.childNodes.filter({ node -> Bool in
-			guard let name = node.name else { return true }
-			return !["BODY", "DWHL0", "DWHR0", "DWHL1", "DWHR1"].contains(name)
-		})
-		print("orphans:", orphans)*/
+		Vehicle.attachChassisVisuals(from: node, to: taxiNode)
 
 		taxiNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)
 		taxiNode.physicsBody?.allowsResting = false
@@ -85,6 +81,19 @@ final class Vehicle {
 			wheel0, wheel1, wheel2, wheel3
 		])
 		scene.physicsWorld.addBehavior(physicsVehicle)
+	}
+
+	private static func attachChassisVisuals(from vehicleRoot: SCNNode, to chassisNode: SCNNode) {
+		let detachedWheelNames: Set<String> = ["WHL0", "WHR0", "WHL1", "WHR1"]
+
+		for childNode in vehicleRoot.childNodes {
+			guard childNode !== chassisNode else { continue }
+			guard !detachedWheelNames.contains(childNode.name ?? "") else { continue }
+
+			let worldTransform = childNode.worldTransform
+			chassisNode.addChildNode(childNode)
+			childNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
+		}
 	}
 
 	func applyForces() {
