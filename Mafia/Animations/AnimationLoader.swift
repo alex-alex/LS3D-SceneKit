@@ -249,11 +249,11 @@ func playAnimation(
 func stopAnimation(named name: String, in node: SCNNode, animationKey: String) throws {
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("stopAnimation") }
-//	let (animations, _) = try loadAnimation(named: name)
-//	for animation in animations {
-//		let node = node.childNode(withName: animation.name, recursively: true)
-//		if name == "anims/walk1.5ds" { print(node?.name); print("animationKeys:", node?.animationKeys) }
-//		node?.removeAnimation(forKey: animationKey)
-//	}
+	let (animations, _) = try loadAnimation(named: name)
+	for animation in animations {
+		let node = node.childNode(withName: animation.name, recursively: true)
+//		if name == "anims/walk1.5ds" { print(node?.name); print("actionKeys:", node?.actionKeys) }
+		node?.removeAction(forKey: animationKey)
+	}
 //	if name == "anims/walk1.5ds" { print("===============") }
 }

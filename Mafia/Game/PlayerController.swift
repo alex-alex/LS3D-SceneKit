@@ -23,6 +23,7 @@ final class PlayerController {
 	private var horizontalVelocity = SCNVector3Zero
 	private var verticalVelocity: SCNFloat = 0
 	private var standingY: SCNFloat
+	private var isWalkingAnimationPlaying = false
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
 	private(set) var lastDesiredVelocity = SCNVector3Zero
@@ -41,6 +42,8 @@ final class PlayerController {
 	private let stopAcceleration: SCNFloat = 24
 	private let turnSpeed: SCNFloat = 2.8
 	private let jumpSpeed: SCNFloat = 5.2
+	private let walkingAnimationName = "anims/walk1.5ds"
+	private let walkingAnimationKey = "__walking__"
 
 	init(node: SCNNode, scene: SCNScene) {
 		self.node = node
@@ -76,6 +79,7 @@ final class PlayerController {
 		turn = 0
 		horizontalVelocity = SCNVector3Zero
 		verticalVelocity = 0
+		updateWalkingAnimation(isMoving: false)
 		resetAngularVelocity()
 	}
 
@@ -109,6 +113,7 @@ final class PlayerController {
 		lastDesiredVelocity = desiredVelocity
 
 		let horizontalSpeed = sqrt(movement.x * movement.x + movement.z * movement.z)
+		updateWalkingAnimation(isMoving: horizontalSpeed > 0.01)
 		let rate = horizontalSpeed > 0 ? acceleration : stopAcceleration
 		let blend = min(1, rate * dt)
 		horizontalVelocity.x += (desiredVelocity.x - horizontalVelocity.x) * blend
@@ -125,6 +130,26 @@ final class PlayerController {
 			verticalVelocity = 0
 		}
 		body.velocity = SCNVector3Zero
+	}
+
+	private func updateWalkingAnimation(isMoving: Bool) {
+		guard isMoving != isWalkingAnimationPlaying else { return }
+
+		isWalkingAnimationPlaying = isMoving
+		if isMoving {
+			try? playAnimation(
+				named: walkingAnimationName,
+				in: node,
+				repeat: true,
+				animationKey: walkingAnimationKey
+			)
+		} else {
+			try? stopAnimation(
+				named: walkingAnimationName,
+				in: node,
+				animationKey: walkingAnimationKey
+			)
+		}
 	}
 
 	private func horizontalMovementBasis() -> (forward: SCNVector3, right: SCNVector3) {
