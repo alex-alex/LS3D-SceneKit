@@ -23,12 +23,18 @@ final class HudScene: SKScene {
 	var jumpButton: SKShapeNode!
 	var carButton: SKShapeNode!
 	var objectivesLabel: SKLabelNode!
+	var speedLabel: SKLabelNode!
 
 	#if os(macOS)
 
 	var ride = false
 	var reverse = false
 	var vehicleSteering: CGFloat = 0
+	private var accelerating = false
+	private var reversing = false
+	private var braking = false
+	private var steeringLeft = false
+	private var steeringRight = false
 
 	#endif
 
@@ -39,7 +45,6 @@ final class HudScene: SKScene {
 
 		compass = SKShapeNode(ellipseOf: CGSize(width: 100, height: 100))
 		compass.isHidden = true
-		compass.position = CGPoint(x: 70, y: size.height-70)
 		compass.fillColor = SKColor.white
 		compass.strokeColor = SKColor.clear
 		addChild(compass)
@@ -57,7 +62,6 @@ final class HudScene: SKScene {
 
 		actionButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
 		actionButton.isHidden = true
-		actionButton.position = CGPoint(x: 45, y: 45)
 		actionButton.fillColor = SKColor.blue
 		actionButton.strokeColor = SKColor.clear
 		addChild(actionButton)
@@ -69,16 +73,55 @@ final class HudScene: SKScene {
 		objectivesLabel.fontSize = 17
 		objectivesLabel.horizontalAlignmentMode = .center
 		objectivesLabel.verticalAlignmentMode = .center
-		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
 		addChild(objectivesLabel)
+
+		speedLabel = SKLabelNode()
+		speedLabel.fontName = "Arial"
+		speedLabel.fontSize = 17
+		speedLabel.fontColor = SKColor.white
+		speedLabel.horizontalAlignmentMode = .left
+		speedLabel.verticalAlignmentMode = .center
+		speedLabel.isHidden = true
+		addChild(speedLabel)
 
 		scaleMode = .resizeFill
 		isHidden = false
 		isUserInteractionEnabled = true
+
+		layoutHud()
 	}
 
 	required init?(coder aDecoder: NSCoder) {
 		fatalError()
+	}
+
+	override func didChangeSize(_ oldSize: CGSize) {
+		super.didChangeSize(oldSize)
+
+		layoutHud()
+	}
+
+	private func layoutHud() {
+		guard compass != nil, actionButton != nil, objectivesLabel != nil, speedLabel != nil else { return }
+
+		compass.position = CGPoint(x: 70, y: size.height-70)
+		actionButton.position = CGPoint(x: 45, y: 45)
+		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
+		speedLabel.position = CGPoint(x: 24, y: size.height-150)
+
+		inventoryButton?.position = CGPoint(x: size.width-45, y: size.height-45)
+		reloadButton?.position = CGPoint(x: size.width-45, y: size.height-45-60)
+		dropButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
+		jumpButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
+		carButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
+	}
+
+	func updateVehicleSpeed(_ speed: CGFloat, vehicleSpeed: CGFloat, force: CGFloat, isVisible: Bool) {
+		speedLabel.isHidden = !isVisible
+		let bodySpeed = Int(speed.rounded())
+		let wheelSpeed = Int(vehicleSpeed.rounded())
+		let engineForce = Int(force.rounded())
+		speedLabel.text = "Body \(bodySpeed)  Vehicle \(wheelSpeed)  Force \(engineForce)"
 	}
 
 }
@@ -231,10 +274,13 @@ extension HudScene {
 	#elseif os(macOS)
 
 	override func keyDown(with event: NSEvent) {
-		super.keyDown(with: event)
-
 		SCNTransaction.begin()
 		SCNTransaction.animationDuration = 0.2
+
+		if game.mode == .car && handleVehicleKeyDown(event.keyCode) {
+			SCNTransaction.commit()
+			return
+		}
 
 		switch event.keyCode {
 		case 0: // A
@@ -254,12 +300,8 @@ extension HudScene {
 			}
 
 		case 13: // W
-			if game.mode == .walk {
-				if game.scene.playerNode != nil {
-					game.scene.pressedJump = true
-				}
-			} else {
-				reverse = !reverse
+			if game.scene.playerNode != nil {
+				game.scene.pressedJump = true
 			}
 
 		case 14: // E
@@ -276,8 +318,6 @@ extension HudScene {
 				} else {
 					game.cameraNode.eulerAngles.y += 0.25
 				}
-			} else if game.mode == .car {
-				vehicleSteering -= 0.05
 			}
 
 		case 124: // right
@@ -287,8 +327,6 @@ extension HudScene {
 				} else {
 					game.cameraNode.eulerAngles.y -= 0.25
 				}
-			} else if game.mode == .car {
-				vehicleSteering += 0.05
 			}
 
 		case 125: // down
@@ -305,8 +343,6 @@ extension HudScene {
 					game.cameraNode.position.x += 0.5 * sin(angle)
 					game.cameraNode.position.z += 0.5 * cos(angle)
 				}
-			} else if game.mode == .car {
-				ride = false
 			}
 
 		case 126: // up
@@ -323,8 +359,6 @@ extension HudScene {
 					game.cameraNode.position.x -= 2 * sin(angle)
 					game.cameraNode.position.z -= 2 * cos(angle)
 				}
-			} else if game.mode == .car {
-				ride = true
 			}
 
 		default:
@@ -332,6 +366,90 @@ extension HudScene {
 		}
 
 		SCNTransaction.commit()
+	}
+
+	private func handleVehicleKeyDown(_ keyCode: UInt16) -> Bool {
+		switch keyCode {
+		case 0, 123: // A, left
+			steeringLeft = true
+		case 2, 124: // D, right
+			steeringRight = true
+		case 13, 126: // W, up
+			accelerating = true
+		case 1, 125: // S, down
+			reversing = true
+		case 49: // space
+			braking = true
+		case 15: // R
+			clearVehicleControls()
+			game.vehicle.resetUpright()
+		default:
+			return false
+		}
+
+		updateVehicleControls()
+		return true
+	}
+
+	override func keyUp(with event: NSEvent) {
+		super.keyUp(with: event)
+
+		switch event.keyCode {
+		case 0, 123: // A, left
+			steeringLeft = false
+			updateVehicleControls()
+
+		case 2, 124: // D, right
+			steeringRight = false
+			updateVehicleControls()
+
+		case 13, 126: // W, up
+			accelerating = false
+			updateVehicleControls()
+
+		case 1, 125: // S, down
+			reversing = false
+			updateVehicleControls()
+
+		case 49: // space
+			braking = false
+			updateVehicleControls()
+
+		default:
+			break
+		}
+	}
+
+	private func updateVehicleControls() {
+		let throttle: CGFloat
+		if accelerating == reversing {
+			throttle = 0
+		} else {
+			throttle = accelerating ? 1 : -0.55
+		}
+
+		let steering: CGFloat
+		if steeringLeft == steeringRight {
+			steering = 0
+		} else {
+			steering = steeringLeft ? -1 : 1
+		}
+
+		ride = throttle != 0
+		reverse = throttle < 0
+		vehicleSteering = steering
+		game.vehicle.updateControls(throttle: throttle, brake: braking, steering: steering)
+	}
+
+	private func clearVehicleControls() {
+		accelerating = false
+		reversing = false
+		braking = false
+		steeringLeft = false
+		steeringRight = false
+		ride = false
+		reverse = false
+		vehicleSteering = 0
 	}
 
 	#endif

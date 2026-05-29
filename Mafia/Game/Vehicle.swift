@@ -14,21 +14,39 @@ final class Vehicle {
 	let node: SCNNode
 	let physicsVehicle: SCNPhysicsVehicle
 
+	private let maximumSteering: CGFloat = 0.55
+	private let engineForce: CGFloat = 6500
+	private let brakeForce: CGFloat = 260
+	private let idleBrakeForce: CGFloat = 8
+	private let tractionAssistSpeedLimit: CGFloat = 0.35
+	private let tractionAssistScale: CGFloat = 0.3
+	private let resetHeight: SCNFloat = 1.2
+	private var isBraking = false
+
 	var force: CGFloat = 0
+	var speed: CGFloat {
+		return CGFloat(abs(physicsVehicle.speedInKilometersPerHour))
+	}
+	private var chassisSpeed: CGFloat {
+		guard let velocity = node.physicsBody?.velocity else { return 0 }
+		return CGFloat(sqrt(
+			velocity.x * velocity.x +
+			velocity.y * velocity.y +
+			velocity.z * velocity.z
+		))
+	}
 	var vehicleSteering: CGFloat = 0 {
 		didSet {
-			if vehicleSteering < -0.6 {
-				vehicleSteering = -0.6
+			if vehicleSteering < -maximumSteering {
+				vehicleSteering = -maximumSteering
 			}
-			if vehicleSteering > 0.6 {
-				vehicleSteering = 0.6
+			if vehicleSteering > maximumSteering {
+				vehicleSteering = maximumSteering
 			}
 		}
 	}
 
 	init(scene: SCNScene, node: SCNNode) {
-		//self.node = node
-
 		let taxiNode = node.childNode(withName: "BODY", recursively: false)!
 		self.node = taxiNode
 
@@ -55,7 +73,7 @@ final class Vehicle {
 		let wheel2 = SCNPhysicsVehicleWheel(node: whl1)
 		let wheel3 = SCNPhysicsVehicleWheel(node: whr1)
 
-		let wheelHalfWidth = 1 * (whl0.boundingBox.max.x - whl0.boundingBox.min.x)
+		let wheelHalfWidth = whl0.boundingBox.max.x - whl0.boundingBox.min.x
 
 		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 0, 0)
 		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 0, 0)
@@ -72,8 +90,52 @@ final class Vehicle {
 		physicsVehicle.setSteeringAngle(vehicleSteering, forWheelAt: 0)
 		physicsVehicle.setSteeringAngle(vehicleSteering, forWheelAt: 1)
 
-		physicsVehicle.applyEngineForce(force, forWheelAt: 2)
-		physicsVehicle.applyEngineForce(force, forWheelAt: 3)
+		let clampedForce = max(-engineForce, min(engineForce, force))
+		let brakingForce = isBraking ? brakeForce : (clampedForce == 0 ? idleBrakeForce : 0)
+
+		for wheelIndex in 0..<4 {
+			physicsVehicle.applyBrakingForce(0, forWheelAt: wheelIndex)
+			physicsVehicle.applyEngineForce(0, forWheelAt: wheelIndex)
+			physicsVehicle.applyBrakingForce(brakingForce, forWheelAt: wheelIndex)
+		}
+
+		physicsVehicle.applyEngineForce(clampedForce, forWheelAt: 2)
+		physicsVehicle.applyEngineForce(clampedForce, forWheelAt: 3)
+
+		if clampedForce != 0 && chassisSpeed < tractionAssistSpeedLimit {
+			let forward = node.presentation.worldFront
+			let assistForce = SCNFloat(clampedForce * tractionAssistScale)
+			let assist = SCNVector3(
+				x: forward.x * assistForce,
+				y: 0,
+				z: forward.z * assistForce
+			)
+			node.physicsBody?.applyForce(assist, at: node.presentation.worldPosition, asImpulse: false)
+		}
+	}
+
+	func resetUpright() {
+		let currentPosition = node.presentation.position
+		let forward = node.presentation.worldFront
+		let yaw = atan2(-forward.x, -forward.z)
+
+		node.physicsBody?.clearAllForces()
+		node.physicsBody?.velocity = SCNVector3Zero
+		node.physicsBody?.angularVelocity = SCNVector4Zero
+		node.position = SCNVector3(
+			x: currentPosition.x,
+			y: currentPosition.y + resetHeight,
+			z: currentPosition.z
+		)
+		node.eulerAngles = SCNVector3(x: 0, y: yaw, z: 0)
+		updateControls(throttle: 0, brake: false, steering: 0)
+		applyForces()
+	}
+
+	func updateControls(throttle: CGFloat, brake: Bool, steering: CGFloat) {
+		isBraking = brake
+		vehicleSteering = steering * maximumSteering
+		force = brake ? 0 : max(-1, min(1, throttle)) * engineForce
 	}
 
 }

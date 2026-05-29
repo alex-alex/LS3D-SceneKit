@@ -42,6 +42,13 @@ struct XTOBB {
 		if volume.mtlId == 41 {
 			let shape = SCNPhysicsShape(node: _node, options: [:])
 			_node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
+			_node.physicsBody?.mass = 35
+			_node.physicsBody?.friction = 0.6
+			_node.physicsBody?.rollingFriction = 0.1
+			_node.physicsBody?.restitution = 0.15
+			_node.physicsBody?.damping = 0.05
+			_node.physicsBody?.angularDamping = 0.15
+			_node.physicsBody?.allowsResting = false
 		} else {
 //			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
 //			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])

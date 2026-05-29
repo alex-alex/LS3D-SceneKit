@@ -515,14 +515,26 @@ final class Scene {
 								stream.currentOffset += 2
 								let _: Float = try stream.read()	// center of mass?
 								let _: Float = try stream.read()
-								let _: Float = try stream.read()	// weight
-								let _: Float = try stream.read()	// friction
+								let weight: Float = try stream.read()
+								let friction: Float = try stream.read()
 								let _: Float = try stream.read()
 								// 0-crate,1-crate1,2-barrel,3-barrel1,4-label,5-box,6-wood,7-plate,8-no_sound
 								let _: UInt32 = try stream.read()	// sound
 								stream.currentOffset += 5
 
-								node?.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)
+								if let node = node {
+									let shape = SCNPhysicsShape(node: node, options: [
+										.type: SCNPhysicsShape.ShapeType.convexHull.rawValue
+									])
+									node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
+									node.physicsBody?.mass = CGFloat(max(5, min(80, weight)))
+									node.physicsBody?.friction = CGFloat(max(0.2, min(1.0, friction)))
+									node.physicsBody?.rollingFriction = 0.1
+									node.physicsBody?.restitution = 0.15
+									node.physicsBody?.damping = 0.05
+									node.physicsBody?.angularDamping = 0.15
+									node.physicsBody?.allowsResting = false
+								}
 
 							case .truck:
 								stream.currentOffset += partSize - 6

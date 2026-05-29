@@ -21,4 +21,10 @@ class GameViewController: NSViewController {
 		gameManager = GameManager(view: gameView)
     }
 
+	override func viewDidLayout() {
+		super.viewDidLayout()
+
+		gameView.overlaySKScene?.size = gameView.bounds.size
+	}
+
 }

@@ -27,6 +27,8 @@ final class Game: NSObject {
 			cameraContainer.removeFromParentNode()
 			if mode == .walk {
 				scene.playerNode!.addChildNode(cameraContainer)
+				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+				vehicle?.applyForces()
 			} else {
 				vehicle.node.addChildNode(cameraContainer)
 			}
@@ -175,27 +177,7 @@ extension Game: SCNSceneRendererDelegate {
 	func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
 		#if os(macOS)
 
-		guard let vehicle = vehicle?.physicsVehicle else { return }
-
-		vehicle.setSteeringAngle(hud.vehicleSteering, forWheelAt: 0)
-		vehicle.setSteeringAngle(hud.vehicleSteering, forWheelAt: 1)
-
-		if hud.ride {
-			vehicle.applyBrakingForce(0, forWheelAt: 2)
-			vehicle.applyBrakingForce(0, forWheelAt: 3)
-			if !hud.reverse {
-				vehicle.applyEngineForce(1000, forWheelAt: 2)
-				vehicle.applyEngineForce(1000, forWheelAt: 3)
-			} else {
-				vehicle.applyEngineForce(-1000, forWheelAt: 2)
-				vehicle.applyEngineForce(-1000, forWheelAt: 3)
-			}
-		} else {
-			vehicle.applyEngineForce(0, forWheelAt: 2)
-			vehicle.applyEngineForce(0, forWheelAt: 3)
-			vehicle.applyBrakingForce(1000, forWheelAt: 2)
-			vehicle.applyBrakingForce(1000, forWheelAt: 3)
-		}
+		vehicle?.applyForces()
 
 		#elseif os(iOS)
 
@@ -224,6 +206,19 @@ extension Game: SCNSceneRendererDelegate {
 		}
 
 		#endif
+
+		let vehicleVelocity = vehicle.node.physicsBody?.velocity ?? SCNVector3Zero
+		let vehicleSpeed = sqrt(
+			vehicleVelocity.x * vehicleVelocity.x +
+			vehicleVelocity.y * vehicleVelocity.y +
+			vehicleVelocity.z * vehicleVelocity.z
+		)
+		hud.updateVehicleSpeed(
+			CGFloat(vehicleSpeed),
+			vehicleSpeed: vehicle.speed,
+			force: vehicle.force,
+			isVisible: mode == .car
+		)
 
 		if let node = scene.compassNode {
 			let p1 = node.presentation.worldPosition
