@@ -27,12 +27,15 @@ final class Game: NSObject {
 			cameraContainer.removeFromParentNode()
 			configureCamera(for: mode)
 			if mode == .walk {
+				scene.playerNode?.isHidden = false
+				teleportPlayerBesideVehicle()
 				scene.playerNode!.addChildNode(cameraContainer)
 				playerController?.stop()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 				vehicle?.applyForces()
 			} else {
 				playerController?.stop()
+				scene.playerNode?.isHidden = true
 				vehicle.node.addChildNode(cameraContainer)
 			}
 		}
@@ -46,6 +49,8 @@ final class Game: NSObject {
 	var lastControl: Control?
 	private(set) var isGamePaused = false
 	private var lastUpdateTime: TimeInterval?
+	private let playerExitDistance: SCNFloat = 1.8
+	private let playerExitHeightOffset: SCNFloat = 0.5
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -127,6 +132,7 @@ final class Game: NSObject {
 		} else {
 			vehicle.node.addChildNode(cameraContainer)
 		}
+		scene.playerNode?.isHidden = mode == .car
 	}
 
 	private func configureCamera(for mode: Mode) {
@@ -143,6 +149,49 @@ final class Game: NSObject {
 		}
 
 		cameraContainer.eulerAngles.x = elevation
+	}
+
+	private func teleportPlayerBesideVehicle() {
+		guard let playerController = playerController else { return }
+
+		let vehiclePosition = vehicle.node.presentation.worldPosition
+		let exitSide = horizontalVehicleRight()
+		let exitPosition = SCNVector3(
+			x: vehiclePosition.x + exitSide.x * playerExitDistance,
+			y: vehicleBottomWorldY() + playerExitHeightOffset,
+			z: vehiclePosition.z + exitSide.z * playerExitDistance
+		)
+		let forward = vehicle.node.presentation.worldFront
+		let yaw = atan2(-forward.x, -forward.z)
+		playerController.teleport(to: exitPosition, yaw: yaw)
+	}
+
+	private func horizontalVehicleRight() -> SCNVector3 {
+		let transform = vehicle.node.presentation.worldTransform
+		let right = SCNVector3(x: transform.m11, y: 0, z: transform.m13)
+		let length = sqrt(right.x * right.x + right.z * right.z)
+		guard length > 0.0001 else { return SCNVector3(x: 1, y: 0, z: 0) }
+
+		return SCNVector3(x: right.x / length, y: 0, z: right.z / length)
+	}
+
+	private func vehicleBottomWorldY() -> SCNFloat {
+		let bounds = vehicle.node.boundingBox
+		let xs = [bounds.min.x, bounds.max.x]
+		let ys = [bounds.min.y, bounds.max.y]
+		let zs = [bounds.min.z, bounds.max.z]
+		var bottom = SCNFloat.greatestFiniteMagnitude
+
+		for x in xs {
+			for y in ys {
+				for z in zs {
+					let point = vehicle.node.presentation.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil)
+					bottom = min(bottom, point.y)
+				}
+			}
+		}
+
+		return bottom
 	}
 
 	func setup(in view: SCNView) {

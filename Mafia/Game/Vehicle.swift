@@ -19,7 +19,8 @@ final class Vehicle {
 	private let brakeForce: CGFloat = 260
 	private let idleBrakeForce: CGFloat = 8
 	private let tractionAssistSpeedLimit: CGFloat = 0.35
-	private let tractionAssistScale: CGFloat = 0.3
+	private let tractionAssistScale: CGFloat = 0.15
+	private let wheelLateralOffsetScale: SCNFloat = 0.85
 	private let resetHeight: SCNFloat = 1.2
 	private var isBraking = false
 
@@ -73,12 +74,12 @@ final class Vehicle {
 		let wheel2 = SCNPhysicsVehicleWheel(node: whl1)
 		let wheel3 = SCNPhysicsVehicleWheel(node: whr1)
 
-		let wheelHalfWidth = whl0.boundingBox.max.x - whl0.boundingBox.min.x
+		let wheelLateralOffset = (whl0.boundingBox.max.x - whl0.boundingBox.min.x) * wheelLateralOffsetScale
 
-		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 0, 0)
-		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 0, 0)
-		wheel2.connectionPosition = whl1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelHalfWidth, 0, 0)
-		wheel3.connectionPosition = whr1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelHalfWidth, 0, 0)
+		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelLateralOffset, 0, 0)
+		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelLateralOffset, 0, 0)
+		wheel2.connectionPosition = whl1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelLateralOffset, 0, 0)
+		wheel3.connectionPosition = whr1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelLateralOffset, 0, 0)
 
 		physicsVehicle = SCNPhysicsVehicle(chassisBody: taxiNode.physicsBody!, wheels: [
 			wheel0, wheel1, wheel2, wheel3

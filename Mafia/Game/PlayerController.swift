@@ -22,7 +22,7 @@ final class PlayerController {
 	private var lookYaw: SCNFloat = 0
 	private var horizontalVelocity = SCNVector3Zero
 	private var verticalVelocity: SCNFloat = 0
-	private let standingY: SCNFloat
+	private var standingY: SCNFloat
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
 	private(set) var lastDesiredVelocity = SCNVector3Zero
@@ -77,6 +77,15 @@ final class PlayerController {
 		horizontalVelocity = SCNVector3Zero
 		verticalVelocity = 0
 		resetAngularVelocity()
+	}
+
+	func teleport(to worldPosition: SCNVector3, yaw: SCNFloat) {
+		stop()
+		node.worldPosition = worldPosition
+		node.eulerAngles.y = yaw
+		lookYaw = yaw - baseHeading
+		standingY = node.position.y
+		node.physicsBody?.velocity = SCNVector3Zero
 	}
 
 	func update(deltaTime: TimeInterval) {
