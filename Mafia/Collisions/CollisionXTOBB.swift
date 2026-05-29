@@ -48,7 +48,7 @@ struct XTOBB {
 			_node.physicsBody?.restitution = 0.15
 			_node.physicsBody?.damping = 0.05
 			_node.physicsBody?.angularDamping = 0.15
-			_node.physicsBody?.allowsResting = false
+			_node.physicsBody?.allowsResting = true
 		} else {
 //			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
 //			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])

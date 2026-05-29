@@ -27,6 +27,8 @@ final class HudScene: SKScene {
 	private var pauseOverlay: SKShapeNode!
 	private var pauseTitleLabel: SKLabelNode!
 	private var pauseHintLabel: SKLabelNode!
+	private var lastSpeedText: String?
+	private var wasSpeedVisible = false
 
 	#if os(macOS)
 
@@ -137,11 +139,20 @@ final class HudScene: SKScene {
 	}
 
 	func updateVehicleSpeed(_ speed: CGFloat, vehicleSpeed: CGFloat, force: CGFloat, isVisible: Bool) {
-		speedLabel.isHidden = !isVisible
+		if wasSpeedVisible != isVisible {
+			wasSpeedVisible = isVisible
+			speedLabel.isHidden = !isVisible
+		}
+		guard isVisible else { return }
+
 		let bodySpeed = Int(speed.rounded())
 		let wheelSpeed = Int(vehicleSpeed.rounded())
 		let engineForce = Int(force.rounded())
-		speedLabel.text = "Body \(bodySpeed)  Vehicle \(wheelSpeed)  Force \(engineForce)"
+		let speedText = "Body \(bodySpeed)  Vehicle \(wheelSpeed)  Force \(engineForce)"
+		if lastSpeedText != speedText {
+			lastSpeedText = speedText
+			speedLabel.text = speedText
+		}
 	}
 
 }

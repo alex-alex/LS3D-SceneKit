@@ -102,4 +102,12 @@ extension SCNNode {
 	func distance(to node: SCNNode) -> Float {
 		return (presentation.worldPosition - node.presentation.worldPosition).length
 	}
+
+	func squaredDistance(to position: SCNVector3) -> Float {
+		let nodePosition = presentation.worldPosition
+		let dx = Float(nodePosition.x - position.x)
+		let dy = Float(nodePosition.y - position.y)
+		let dz = Float(nodePosition.z - position.z)
+		return dx * dx + dy * dy + dz * dz
+	}
 }

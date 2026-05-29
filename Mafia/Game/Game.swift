@@ -71,6 +71,10 @@ final class Game: NSObject {
 	private var smoothedCarCameraPosition: SCNVector3?
 	private var smoothedCarCameraYaw: SCNFloat?
 	private var skyboxNodes: [(node: SCNNode, offset: SCNVector3)] = []
+	private var lastActionButtonUpdateTime: TimeInterval = 0
+	private var isActionButtonVisible = false
+	private let actionButtonUpdateInterval: TimeInterval = 0.15
+	private let actionDistanceSquared: Float = 4
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -137,7 +141,7 @@ final class Game: NSObject {
 		// -----
 
 		let camera = SCNCamera()
-		camera.zFar = 1000
+		camera.zFar = 650
 
 		cameraNode.camera = camera
 		cameraNode.scale = SCNVector3(x: 1, y: -1, z: 1)
@@ -337,6 +341,31 @@ final class Game: NSObject {
 		return bottom
 	}
 
+	private func updateActionButtonVisibility(at time: TimeInterval) {
+		guard mode == .walk,
+			  let playerNode = scene.playerNode,
+			  time - lastActionButtonUpdateTime >= actionButtonUpdateInterval else {
+			if mode != .walk {
+				setActionButtonVisible(false)
+			}
+			return
+		}
+
+		lastActionButtonUpdateTime = time
+		let playerPosition = playerNode.presentation.worldPosition
+		let hasNearbyAction = scene.actions.contains { action in
+			action.node.squaredDistance(to: playerPosition) < actionDistanceSquared
+		}
+		setActionButtonVisible(hasNearbyAction)
+	}
+
+	private func setActionButtonVisible(_ isVisible: Bool) {
+		guard isActionButtonVisible != isVisible else { return }
+
+		isActionButtonVisible = isVisible
+		hud.actionButton.isHidden = !isVisible
+	}
+
 	func setup(in view: SCNView) {
 		hud = HudScene(size: view.bounds.size, game: self)
 		view.scene = scnScene
@@ -466,13 +495,14 @@ extension Game: SCNSceneRendererDelegate {
 			isVisible: mode == .car
 		)
 
-		if let node = scene.compassNode {
+		if let node = scene.compassNode,
+		   let playerNode = scene.playerNode {
 			let p1 = node.presentation.worldPosition
-			let p2 = scene.playerNode!.presentation.worldPosition
+			let p2 = playerNode.presentation.worldPosition
 			hud.compass.isHidden = false
 			let playerAngle: SCNFloat
 			if mode == .walk {
-				playerAngle = scene.playerNode!.presentation.rotation.y * scene.playerNode!.presentation.rotation.w - .pi
+				playerAngle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
 			} else {
 				playerAngle = self.vehicle.node.presentation.rotation.y * self.vehicle.node.presentation.rotation.w - .pi/2
 			}
@@ -481,7 +511,7 @@ extension Game: SCNSceneRendererDelegate {
 			hud.compass.isHidden = true
 		}
 
-		hud.actionButton.isHidden = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 }).isEmpty
+		updateActionButtonVisibility(at: time)
 	}
 
 }

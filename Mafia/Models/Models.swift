@@ -278,6 +278,10 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		material.name = "material_\(i)"
 		var textureNames: [String] = []
 		material.cullMode = .front
+		material.lightingModel = .constant
+		material.isLitPerPixel = false
+		material.writesToDepthBuffer = true
+		material.readsFromDepthBuffer = true
 
 		if flags.contains(.doubleSided) {
 			material.isDoubleSided = true

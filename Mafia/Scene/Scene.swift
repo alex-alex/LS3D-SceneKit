@@ -537,7 +537,7 @@ final class Scene {
 									node.physicsBody?.restitution = 0.15
 									node.physicsBody?.damping = 0.05
 									node.physicsBody?.angularDamping = 0.15
-									node.physicsBody?.allowsResting = false
+									node.physicsBody?.allowsResting = true
 								}
 
 							case .truck:

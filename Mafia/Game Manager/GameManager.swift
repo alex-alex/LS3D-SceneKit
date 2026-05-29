@@ -49,7 +49,9 @@ class GameManager {
 		DispatchQueue.global().async {
 			// swiftlint:disable:next force_try
 			self.mainMenu = try! MainMenu()
-			self.mainMenu?.setup(in: self.view)
+			DispatchQueue.main.async {
+				self.mainMenu?.setup(in: self.view)
+			}
 		}
 	}
 
@@ -59,7 +61,9 @@ class GameManager {
 		DispatchQueue.global().async {
 			// swiftlint:disable:next force_try
 			self.game = try! Game(missionName: folder)
-			self.game.setup(in: self.view)
+			DispatchQueue.main.async {
+				self.game.setup(in: self.view)
+			}
 		}
 	}
 
