@@ -9,6 +9,10 @@
 import Foundation
 import SceneKit
 
+enum InputStreamReadError: Error {
+	case unexpectedEndOfFile
+}
+
 public extension InputStream {
 
 	var currentOffset: Int {
@@ -39,34 +43,36 @@ public extension InputStream {
 	func read<T: BinaryInteger>() throws -> T {
 		var buffer: T = 0
 
-		let n = withUnsafePointer(to: &buffer) { ptr in
+		let n = withUnsafeMutablePointer(to: &buffer) { ptr in
 			ptr.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { ptr in
-				self.read(UnsafeMutablePointer<UInt8>(mutating: ptr), maxLength: MemoryLayout<T>.size)
+				self.readFully(into: ptr, maxLength: MemoryLayout<T>.size)
 			})
 		}
 
-		if n > 0 {
-			assert(n == MemoryLayout<T>.size, "read length must be sizeof(T)")
+		if n == MemoryLayout<T>.size {
 			return buffer
+		} else if n < 0 {
+			throw streamError ?? NSError()
 		} else {
-			fatalError()
+			throw InputStreamReadError.unexpectedEndOfFile
 		}
 	}
 
 	func read<T: FloatingPoint>() throws -> T {
 		var buffer: T = 0
 
-		let n = withUnsafePointer(to: &buffer) { ptr in
+		let n = withUnsafeMutablePointer(to: &buffer) { ptr in
 			ptr.withMemoryRebound(to: UInt8.self, capacity: MemoryLayout<T>.size, { ptr in
-				self.read(UnsafeMutablePointer<UInt8>(mutating: ptr), maxLength: MemoryLayout<T>.size)
+				self.readFully(into: ptr, maxLength: MemoryLayout<T>.size)
 			})
 		}
 
-		if n > 0 {
-			assert(n == MemoryLayout<T>.size, "read length must be sizeof(T)")
+		if n == MemoryLayout<T>.size {
 			return buffer
+		} else if n < 0 {
+			throw streamError ?? NSError()
 		} else {
-			fatalError()
+			throw InputStreamReadError.unexpectedEndOfFile
 		}
 	}
 
@@ -81,6 +87,18 @@ public extension InputStream {
 			let data = Data(bytes: bytes)
 			return String(data: data, encoding: encoding) ?? ""
 		}
+	}
+
+	private func readFully(into buffer: UnsafeMutablePointer<UInt8>, maxLength: Int) -> Int {
+		var offset = 0
+		while offset < maxLength {
+			let ret = read(buffer.advanced(by: offset), maxLength: maxLength - offset)
+			if ret <= 0 {
+				return offset == 0 ? ret : offset
+			}
+			offset += ret
+		}
+		return offset
 	}
 }
 

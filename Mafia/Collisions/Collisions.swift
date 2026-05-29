@@ -43,6 +43,32 @@ struct Cell {
 	}
 }
 
+private final class SceneNodeLookup {
+	private var nodesByName: [String: [SCNNode]] = [:]
+
+	init(rootNode: SCNNode) {
+		index(rootNode)
+	}
+
+	func firstNode(named name: String) -> SCNNode? {
+		return nodesByName[name]?.first
+	}
+
+	func directChild(named name: String, in node: SCNNode) -> SCNNode? {
+		return node.childNodes.first { $0.name == name }
+	}
+
+	private func index(_ node: SCNNode) {
+		if let name = node.name {
+			nodesByName[name, default: []].append(node)
+		}
+
+		for child in node.childNodes {
+			index(child)
+		}
+	}
+}
+
 final class Collisions {
 
 	enum Error: Swift.Error {
@@ -51,11 +77,13 @@ final class Collisions {
 
 	let node = SCNNode()
 	let rootNode: SCNNode
+	private let nodeLookup: SceneNodeLookup
 	//var names: [(Int, String)] = []
 	var nodes: [Int: SCNNode] = [:]
 
 	init(name: String, scene: SCNScene) throws {
 		self.rootNode = scene.rootNode
+		self.nodeLookup = SceneNodeLookup(rootNode: scene.rootNode)
 
 		let url = mainDirectory.appendingPathComponent(name + "/tree.klz")
 
@@ -73,20 +101,19 @@ final class Collisions {
 		let comps = name.split(separator: ".")
 		if comps.count > 1 {
 			guard comps.count == 2 else { fatalError() }
-			guard let parent = rootNode.childNode(withName: String(comps[0]), recursively: true) else { return nil }
-			let node = parent.childNode(withName: String(comps[1]), recursively: false)
-			return node
+			guard let parent = nodeLookup.firstNode(named: String(comps[0])) else { return nil }
+			return nodeLookup.directChild(named: String(comps[1]), in: parent)
 		} else {
 			var node: SCNNode?
 			if type == 1 {
-				node = rootNode.childNodes[0].childNode(withName: String(comps[0]), recursively: false)
+				node = nodeLookup.directChild(named: String(comps[0]), in: rootNode.childNodes[0])
 			} else if type == 2 {
-				node = rootNode.childNodes[1].childNode(withName: String(comps[0]), recursively: false)
+				node = nodeLookup.directChild(named: String(comps[0]), in: rootNode.childNodes[1])
 			}
 
 			if node == nil {
 //				print("recursive")
-				node = rootNode.childNode(withName: String(comps[0]), recursively: true)
+				node = nodeLookup.firstNode(named: String(comps[0]))
 			}
 
 			if node == nil {

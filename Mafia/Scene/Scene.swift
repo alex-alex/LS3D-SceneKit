@@ -113,6 +113,7 @@ final class Scene {
 	var weapons: [SCNNode: [Weapon]] = [:]
 	var actions: [Action] = []
 	var compassNode: SCNNode?
+	private var nodesByName: [String: SCNNode] = [:]
 
 	var objectives: [Int] = [] {
 		didSet {
@@ -330,6 +331,9 @@ final class Scene {
 						}
 					}
 
+					if let name = objectNode.name, nodesByName[name] == nil {
+						nodesByName[name] = objectNode
+					}
 					self.rootNode.addChildNode(objectNode)
 
 				case .objDef:
@@ -346,7 +350,7 @@ final class Scene {
 						switch partSgn {
 						case 0xae23: // name
 							name = try stream.read(maxLength: partSize - 6)
-							node = self.rootNode.childNode(withName: name, recursively: true)
+							node = self.node(named: name)
 							node?.type = type
 
 						case 0xae22: // type
@@ -564,6 +568,10 @@ final class Scene {
 			}
 		}
 
+	}
+
+	private func node(named name: String) -> SCNNode? {
+		return nodesByName[name] ?? rootNode.childNode(withName: name, recursively: true)
 	}
 
 }
