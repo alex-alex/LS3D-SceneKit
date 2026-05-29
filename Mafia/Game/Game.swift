@@ -128,6 +128,8 @@ final class Game: NSObject {
 			scene.rootNode.name = "__scene__"
 			scnScene.rootNode.addChildNode(scene.rootNode)
 			scene.resolvePendingDoors(in: scnScene.rootNode)
+			scene.resolvePendingPhysicalObjects(in: scnScene.rootNode)
+			scene.resolvePendingScripts(in: scnScene.rootNode)
 			print("== Loaded Scene")
 
 		if let sceneCache = try SceneCache(name: "missions/"+missionName) {

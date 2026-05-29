@@ -116,6 +116,11 @@ struct EnvironmentLight {
 	let sectorName: String?
 }
 
+struct PhysicalData {
+	let weight: CGFloat
+	let friction: CGFloat
+}
+
 final class Scene {
 
 	var game: Game!
@@ -132,6 +137,8 @@ final class Scene {
 	var compassNode: SCNNode?
 	private var nodesByName: [String: SCNNode] = [:]
 	private var pendingDoorDataByName: [String: DoorData] = [:]
+	private var pendingPhysicalDataByName: [String: PhysicalData] = [:]
+	private var pendingScriptStringsByName: [String: String] = [:]
 
 	var objectives: [Int] = [] {
 		didSet {
@@ -375,9 +382,11 @@ final class Scene {
 								let scriptLength: UInt32 = try stream.read()
 								let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
 								//print("[SCRIPT \(name)]:", scriptStr)
-								guard node != nil else { print("SCRIPT HAS EMPTY NODE!!!"); break }
-								let script = Script(script: scriptStr, scene: self, node: node!)
-								self.scripts[name] = script
+								if let node = node {
+									attachScript(scriptStr, named: name, to: node)
+								} else {
+									pendingScriptStringsByName[name] = scriptStr
+								}
 
 							case .door:
 								let doorData = try readDoorData(stream: stream)
@@ -469,8 +478,11 @@ final class Scene {
 								let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
 								//print("ENEMY SCRIPT \(name):\n\(scriptStr)")
 
-								let script = Script(script: scriptStr, scene: self, node: node!)
-								self.scripts[name] = script
+								if let node = node {
+									attachScript(scriptStr, named: name, to: node)
+								} else {
+									pendingScriptStringsByName[name] = scriptStr
+								}
 
 							case .unknown2:
 								stream.currentOffset += partSize - 6
@@ -482,28 +494,11 @@ final class Scene {
 								stream.currentOffset += partSize - 6
 
 							case .physical:
-								stream.currentOffset += 2
-								let _: Float = try stream.read()	// center of mass?
-								let _: Float = try stream.read()
-								let weight: Float = try stream.read()
-								let friction: Float = try stream.read()
-								let _: Float = try stream.read()
-								// 0-crate,1-crate1,2-barrel,3-barrel1,4-label,5-box,6-wood,7-plate,8-no_sound
-								let _: UInt32 = try stream.read()	// sound
-								stream.currentOffset += 5
-
+								let physicalData = try readPhysicalData(stream: stream)
 								if let node = node {
-									let shape = SCNPhysicsShape(node: node, options: [
-										.type: SCNPhysicsShape.ShapeType.convexHull.rawValue
-									])
-									node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
-									node.physicsBody?.mass = CGFloat(max(5, min(80, weight)))
-									node.physicsBody?.friction = CGFloat(max(0.2, min(1.0, friction)))
-									node.physicsBody?.rollingFriction = 0.1
-									node.physicsBody?.restitution = 0.15
-									node.physicsBody?.damping = 0.05
-									node.physicsBody?.angularDamping = 0.15
-									node.physicsBody?.allowsResting = true
+									attachPhysical(physicalData, to: node)
+								} else {
+									pendingPhysicalDataByName[name] = physicalData
 								}
 
 							case .truck:
@@ -636,6 +631,60 @@ final class Scene {
 		actions.append(.door(node))
 	}
 
+	func resolvePendingPhysicalObjects(in rootNode: SCNNode) {
+		for (name, physicalData) in pendingPhysicalDataByName {
+			guard let node = rootNode.childNode(withName: name, recursively: true) else { continue }
+			attachPhysical(physicalData, to: node)
+		}
+		pendingPhysicalDataByName.removeAll()
+	}
+
+	func resolvePendingScripts(in rootNode: SCNNode) {
+		for (name, scriptString) in pendingScriptStringsByName {
+			guard let node = rootNode.childNode(withName: name, recursively: true) else { continue }
+			attachScript(scriptString, named: name, to: node)
+		}
+		pendingScriptStringsByName.removeAll()
+	}
+
+	private func attachScript(_ scriptString: String, named name: String, to node: SCNNode) {
+		let script = Script(script: scriptString, scene: self, node: node)
+		self.scripts[name] = script
+	}
+
+	private func readPhysicalData(stream: InputStream) throws -> PhysicalData {
+		stream.currentOffset += 2
+		let _: Float = try stream.read()	// center of mass?
+		let _: Float = try stream.read()
+		let weight: Float = try stream.read()
+		let friction: Float = try stream.read()
+		let _: Float = try stream.read()
+		// 0-crate,1-crate1,2-barrel,3-barrel1,4-label,5-box,6-wood,7-plate,8-no_sound
+		let _: UInt32 = try stream.read()	// sound
+		stream.currentOffset += 5
+
+		return PhysicalData(
+			weight: CGFloat(max(5, min(80, weight))),
+			friction: CGFloat(max(0.2, min(1.0, friction)))
+		)
+	}
+
+	private func attachPhysical(_ physicalData: PhysicalData, to node: SCNNode) {
+		guard node.hasGeometryContent else { return }
+
+		let shape = SCNPhysicsShape(node: node, options: [
+			.type: SCNPhysicsShape.ShapeType.convexHull.rawValue
+		])
+		node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
+		node.physicsBody?.mass = physicalData.weight
+		node.physicsBody?.friction = physicalData.friction
+		node.physicsBody?.rollingFriction = 0.1
+		node.physicsBody?.restitution = 0.15
+		node.physicsBody?.damping = 0.05
+		node.physicsBody?.angularDamping = 0.15
+		node.physicsBody?.allowsResting = true
+	}
+
 	private func readDoorData(stream: InputStream) throws -> DoorData {
 		stream.currentOffset += 5
 		let open1: UInt8 = try stream.read()
@@ -739,5 +788,14 @@ private extension InputStream {
 private extension String {
 	var nilIfEmpty: String? {
 		return isEmpty ? nil : self
+	}
+}
+
+private extension SCNNode {
+	var hasGeometryContent: Bool {
+		if geometry != nil {
+			return true
+		}
+		return childNodes.contains { $0.hasGeometryContent }
 	}
 }
