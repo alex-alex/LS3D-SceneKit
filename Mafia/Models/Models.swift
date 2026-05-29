@@ -276,6 +276,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 
 		let material = SCNMaterial()
 		material.name = "material_\(i)"
+		var textureNames: [String] = []
 		material.cullMode = .front
 
 		if flags.contains(.doubleSided) {
@@ -322,6 +323,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			let ratio: Float = try stream.read()
 			let textureNameLength: UInt8 = try stream.read()
 			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
+			textureNames.append(textureName)
 			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
 			#if os(macOS)
 				material.reflective.contents = NSImage(contentsOf: url)
@@ -336,6 +338,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		if flags.contains(.diffuseTexture) {
 			let textureNameLength: UInt8 = try stream.read()
 			let textureName: String = (try stream.read(maxLength: Int(textureNameLength))).lowercased()
+			textureNames.append(textureName)
 			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
 			let data = try Data(contentsOf: url)
 
@@ -381,6 +384,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		if flags.contains(.opacityTexture) {
 			let textureNameLength: UInt8 = try stream.read()
 			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
+			textureNames.append(textureName)
 			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
 			material.transparencyMode = .rgbZero
 			#if os(macOS)
@@ -403,6 +407,10 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			let _: UInt32 = try stream.read()		// delay
 			let _: UInt32 = try stream.read()		// unknown2
 			let _: UInt32 = try stream.read()		// unknown3
+		}
+
+		if !textureNames.isEmpty {
+			material.name = ([material.name ?? ""] + textureNames).joined(separator: "|")
 		}
 
 		materials.append(material)

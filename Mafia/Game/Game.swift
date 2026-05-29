@@ -70,6 +70,7 @@ final class Game: NSObject {
 	private var carCameraReverseYaw: SCNFloat = 0
 	private var smoothedCarCameraPosition: SCNVector3?
 	private var smoothedCarCameraYaw: SCNFloat?
+	private var skyboxNodes: [(node: SCNNode, offset: SCNVector3)] = []
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -93,6 +94,8 @@ final class Game: NSObject {
 			sceneCache.node.name = "__cache__"
 			print("== Loaded Scene Cache")
 		}
+
+		skyboxNodes = scnScene.rootNode.skyboxNodes()
 
 		let collisions = try Collisions(name: "missions/"+missionName, scene: scnScene)
 		collisions.node.name = "__colliions__"
@@ -153,6 +156,7 @@ final class Game: NSObject {
 			resetCarCameraFollow()
 		}
 		scene.playerNode?.isHidden = mode == .car
+		updateSkyboxPosition()
 	}
 
 	private func configureCamera(for mode: Mode) {
@@ -282,6 +286,14 @@ final class Game: NSObject {
 		return velocity.x * forward.x + velocity.z * forward.z
 	}
 
+	private func updateSkyboxPosition() {
+		let cameraPosition = cameraNode.presentation.worldPosition
+		for skyboxNode in skyboxNodes {
+			let position = cameraPosition + skyboxNode.offset
+			skyboxNode.node.position = skyboxNode.node.parent?.convertPosition(position, from: nil) ?? position
+		}
+	}
+
 	private func teleportPlayerBesideVehicle() {
 		guard let playerController = playerController else { return }
 
@@ -351,6 +363,39 @@ final class Game: NSObject {
 
 }
 
+private extension SCNNode {
+	func skyboxNodes() -> [(node: SCNNode, offset: SCNVector3)] {
+		var nodes: [(node: SCNNode, offset: SCNVector3)] = []
+		if isSkyboxNode {
+			nodes.append((self, presentation.worldPosition))
+		}
+		enumerateChildNodes { node, _ in
+			if node.isSkyboxNode {
+				nodes.append((node, node.presentation.worldPosition))
+			}
+		}
+		return nodes
+	}
+
+	var isSkyboxNode: Bool {
+		if isSkyboxResourceName(name) {
+			return true
+		}
+		return geometry?.materials.contains { material in
+			isSkyboxResourceName(material.name)
+		} ?? false
+	}
+}
+
+private func isSkyboxResourceName(_ name: String?) -> Bool {
+	guard let name = name?.lowercased() else { return false }
+	return name == "sky" ||
+		name.hasPrefix("sky ") ||
+		name.hasPrefix("sky_") ||
+		name.hasPrefix("sky.") ||
+		name.contains("|sky ")
+}
+
 // MARK: - SCNSceneRendererDelegate
 
 extension Game: SCNSceneRendererDelegate {
@@ -372,6 +417,7 @@ extension Game: SCNSceneRendererDelegate {
 			updateCarCameraLook(deltaTime: deltaTime)
 			updateCarCameraFollow(deltaTime: deltaTime)
 		}
+		updateSkyboxPosition()
 
 		#if os(macOS)
 
