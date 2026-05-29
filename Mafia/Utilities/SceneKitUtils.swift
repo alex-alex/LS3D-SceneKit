@@ -86,6 +86,57 @@ extension SKTexture {
 
 private var nodeTypeKey: UInt8 = 0
 private var followsCameraKey: UInt8 = 0
+private var doorDataKey: UInt8 = 0
+
+final class DoorData {
+	let open1: UInt8
+	let open2: UInt8
+	let moveAngle: SCNFloat
+	var isOpen: Bool
+	var isLocked: Bool
+	let closeSpeed: TimeInterval
+	let openSpeed: TimeInterval
+	let openSound: String
+	let closeSound: String
+	let lockedSound: String
+
+	var closedEulerAngles: SCNVector3?
+	var openDirection = 0
+
+	init(
+		open1: UInt8,
+		open2: UInt8,
+		moveAngle: SCNFloat,
+		isOpen: Bool,
+		isLocked: Bool,
+		closeSpeed: TimeInterval,
+		openSpeed: TimeInterval,
+		openSound: String,
+		closeSound: String,
+		lockedSound: String
+	) {
+		self.open1 = open1
+		self.open2 = open2
+		self.moveAngle = moveAngle
+		self.isOpen = isOpen
+		self.isLocked = isLocked
+		self.closeSpeed = closeSpeed
+		self.openSpeed = openSpeed
+		self.openSound = openSound
+		self.closeSound = closeSound
+		self.lockedSound = lockedSound
+	}
+
+	func initialOpenAngle(forUserSide userSide: Int) -> SCNFloat {
+		if open1 > 0 {
+			return moveAngle
+		}
+		if open2 > 0 {
+			return -moveAngle
+		}
+		return userSide == 0 ? moveAngle : -moveAngle
+	}
+}
 
 extension SCNNode {
 	var type: ObjectDefinitionType {
@@ -109,6 +160,19 @@ extension SCNNode {
 		}
 		set {
 			associateObject(self, key: &followsCameraKey, value: NSNumber(value: newValue))
+		}
+	}
+
+	var doorData: DoorData? {
+		get {
+			return objc_getAssociatedObject(self, &doorDataKey) as? DoorData
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(self, &doorDataKey, newValue, .OBJC_ASSOCIATION_RETAIN)
+			} else {
+				objc_setAssociatedObject(self, &doorDataKey, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
 		}
 	}
 

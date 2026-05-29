@@ -397,6 +397,11 @@ extension HudScene {
 				game.mode = .walk
 			}
 
+		case 3: // F
+			guard let action = game.nearestAction() else { break }
+			game.lastControl = .ACTION
+			game.performAction(action)
+
 		case 0, 123: // A, left
 			if game.mode == .walk, game.scene.playerNode != nil {
 				walkingLeft = true

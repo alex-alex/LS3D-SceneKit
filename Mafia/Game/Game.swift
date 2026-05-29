@@ -21,6 +21,7 @@ final class Game: NSObject {
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
+	private let ambientLightNode = SCNNode()
 
 	var mode: Mode = .walk {
 		didSet {
@@ -101,9 +102,18 @@ final class Game: NSObject {
 	private let freeCameraFastSpeed: SCNFloat = 45
 	private let minFreeCameraPitch: SCNFloat = -.pi / 2 + 0.01
 	private let maxFreeCameraPitch: SCNFloat = .pi / 2 - 0.01
+	private let fogBlendSpeed: CGFloat = 0.4
+	private let ambientBlendSpeed: CGFloat = 0.9
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
+		ambientLightNode.name = "__ambient_environment__"
+		ambientLightNode.light = SCNLight()
+		ambientLightNode.light?.type = .ambient
+		ambientLightNode.light?.color = SKColor.black
+		ambientLightNode.light?.intensity = 0
+		scnScene.rootNode.addChildNode(ambientLightNode)
+		scnScene.fogDensityExponent = 1
 
 		let sceneModel = try loadModel(named: "missions/\(missionName)/scene")
 		sceneModel.name = "__model__"
@@ -115,9 +125,10 @@ final class Game: NSObject {
 		super.init()
 
 		scene.game = self
-		scene.rootNode.name = "__scene__"
-		scnScene.rootNode.addChildNode(scene.rootNode)
-		print("== Loaded Scene")
+			scene.rootNode.name = "__scene__"
+			scnScene.rootNode.addChildNode(scene.rootNode)
+			scene.resolvePendingDoors(in: scnScene.rootNode)
+			print("== Loaded Scene")
 
 		if let sceneCache = try SceneCache(name: "missions/"+missionName) {
 			scnScene.rootNode.addChildNode(sceneCache.node)
@@ -429,6 +440,26 @@ final class Game: NSObject {
 		skyboxFallbackNode.position = cameraPosition
 	}
 
+	private func updateEnvironment(deltaTime: TimeInterval) {
+		let cameraPosition = cameraNode.presentation.worldPosition
+		let frameTime = CGFloat(max(0, deltaTime))
+		let ambientBlend = min(1, frameTime * ambientBlendSpeed)
+		let fogBlend = min(1, frameTime * fogBlendSpeed)
+
+		if let ambient = scene.environmentLights.bestMatch(kind: .ambient, cameraPosition: cameraPosition, rootNode: scnScene.rootNode) {
+			let targetColor = ambient.color.multiplied(by: ambient.power)
+			ambientLightNode.light?.color = (ambientLightNode.light?.color as? SKColor ?? .black).lerped(to: targetColor, amount: ambientBlend)
+			ambientLightNode.light?.intensity = 100
+		}
+
+		if let fog = scene.environmentLights.bestMatch(kind: .fog, cameraPosition: cameraPosition, rootNode: scnScene.rootNode) {
+			let targetColor = fog.color.multiplied(by: fog.power)
+			scnScene.fogColor = (scnScene.fogColor as? SKColor ?? .clear).lerped(to: targetColor, amount: fogBlend)
+			scnScene.fogStartDistance += (fog.near * 1000 - scnScene.fogStartDistance) * fogBlend
+			scnScene.fogEndDistance += (fog.far * 50 - scnScene.fogEndDistance) * fogBlend
+		}
+	}
+
 	private func configureSkyboxFallback() {
 		let textureSet = scnScene.rootNode.skyboxTextureSet() ?? "sky 7"
 		let box = SCNBox(width: 600, height: 600, length: 600, chamferRadius: 0)
@@ -529,7 +560,7 @@ final class Game: NSObject {
 		lastActionButtonUpdateTime = time
 		let playerPosition = playerNode.presentation.worldPosition
 		let hasNearbyAction = scene.actions.contains { action in
-			action.node.squaredDistance(to: playerPosition) < actionDistanceSquared
+			action.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared
 		}
 		setActionButtonVisible(hasNearbyAction)
 	}
@@ -645,6 +676,109 @@ private extension SCNNode {
 			isSkyboxResourceName(material.name)
 		} ?? false
 	}
+
+	func containsWorldPosition(_ position: SCNVector3) -> Bool {
+		let bounds = boundingBox
+		guard bounds.max.x > bounds.min.x || bounds.max.y > bounds.min.y || bounds.max.z > bounds.min.z else {
+			return false
+		}
+
+		let localPosition = presentation.convertPosition(position, from: nil)
+		return localPosition.x >= bounds.min.x && localPosition.x <= bounds.max.x &&
+			localPosition.y >= bounds.min.y && localPosition.y <= bounds.max.y &&
+			localPosition.z >= bounds.min.z && localPosition.z <= bounds.max.z
+	}
+
+	var hierarchyLevel: Int {
+		var level = 0
+		var current = parent
+		while current != nil {
+			level += 1
+			current = current?.parent
+		}
+		return level
+	}
+
+	func actionSquaredDistance(to position: SCNVector3) -> Float {
+		let bounds = boundingBox
+		guard bounds.max.x > bounds.min.x || bounds.max.y > bounds.min.y || bounds.max.z > bounds.min.z else {
+			return squaredDistance(to: position)
+		}
+
+		let localPosition = presentation.convertPosition(position, from: nil)
+		let closest = SCNVector3(
+			x: max(bounds.min.x, min(bounds.max.x, localPosition.x)),
+			y: max(bounds.min.y, min(bounds.max.y, localPosition.y)),
+			z: max(bounds.min.z, min(bounds.max.z, localPosition.z))
+		)
+		let worldClosest = presentation.convertPosition(closest, to: nil)
+		let dx = Float(worldClosest.x - position.x)
+		let dy = Float(worldClosest.y - position.y)
+		let dz = Float(worldClosest.z - position.z)
+		return dx * dx + dy * dy + dz * dz
+	}
+}
+
+private extension Array where Element == EnvironmentLight {
+	func bestMatch(kind: EnvironmentLightKind, cameraPosition: SCNVector3, rootNode: SCNNode) -> EnvironmentLight? {
+		var bestLight: EnvironmentLight?
+		var bestLevel = Int.min
+
+		for light in self where light.kind == kind {
+			let level: Int
+			if let sectorName = light.sectorName,
+			   let sectorNode = rootNode.childNode(withName: sectorName, recursively: true) {
+				guard sectorNode.containsWorldPosition(cameraPosition) else { continue }
+				level = sectorName == "Primary Sector" ? 0 : sectorNode.hierarchyLevel
+			} else {
+				level = light.node.hierarchyLevel
+			}
+
+			if level >= bestLevel {
+				bestLight = light
+				bestLevel = level
+			}
+		}
+
+		return bestLight
+	}
+}
+
+private extension SKColor {
+	func multiplied(by value: CGFloat) -> SKColor {
+		let components = rgbaComponents
+		return SKColor(
+			red: min(1, components.red * value),
+			green: min(1, components.green * value),
+			blue: min(1, components.blue * value),
+			alpha: components.alpha
+		)
+	}
+
+	func lerped(to target: SKColor, amount: CGFloat) -> SKColor {
+		let start = rgbaComponents
+		let end = target.rgbaComponents
+		return SKColor(
+			red: start.red + (end.red - start.red) * amount,
+			green: start.green + (end.green - start.green) * amount,
+			blue: start.blue + (end.blue - start.blue) * amount,
+			alpha: start.alpha + (end.alpha - start.alpha) * amount
+		)
+	}
+
+	var rgbaComponents: (red: CGFloat, green: CGFloat, blue: CGFloat, alpha: CGFloat) {
+		#if os(macOS)
+			let color = usingColorSpace(.deviceRGB) ?? self
+			return (color.redComponent, color.greenComponent, color.blueComponent, color.alphaComponent)
+		#elseif os(iOS)
+			var red: CGFloat = 0
+			var green: CGFloat = 0
+			var blue: CGFloat = 0
+			var alpha: CGFloat = 0
+			getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+			return (red, green, blue, alpha)
+		#endif
+	}
 }
 
 private func skyboxTextureSetName(from name: String?) -> String? {
@@ -690,6 +824,7 @@ extension Game: SCNSceneRendererDelegate {
 			updateFreeCamera(deltaTime: deltaTime)
 		}
 		updateSkyboxPosition()
+		updateEnvironment(deltaTime: deltaTime)
 
 		#if os(macOS)
 
@@ -803,25 +938,92 @@ extension Game {
 
 			scene.weapons[scene.playerNode!]!.append(weapon)
 			weapon.position = .hand
+
+		case .door(let node):
+			useDoor(node)
 		}
 	}
 
 	func actionButtonTapped() {
-		/*#if os(iOS)
-		let actions = scene.actions.filter({ $0.node.distance(to: scene.playerNode!) < 2 })
-		if actions.count == 1 {
-			performAction(actions[0])
-		} else if actions.count > 1 {
-			let alert = UIAlertController(title: "Sebrat / Použít", message: nil, preferredStyle: .alert)
-			for action in actions {
-				alert.addAction(UIAlertAction(title: action.title, style: .default, handler: { _ in
-					self.performAction(action)
-				}))
-			}
-			alert.addAction(UIAlertAction(title: "Zrušit", style: .cancel, handler: nil))
-			vc.present(alert, animated: true)
+		guard let action = nearestAction() else { return }
+		performAction(action)
+	}
+
+	func nearestAction() -> Action? {
+		guard mode == .walk,
+			  let playerNode = scene.playerNode else { return nil }
+
+		let playerPosition = playerNode.presentation.worldPosition
+		return scene.actions
+			.filter { $0.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared }
+			.min { $0.node.actionSquaredDistance(to: playerPosition) < $1.node.actionSquaredDistance(to: playerPosition) }
+	}
+
+	private func useDoor(_ node: SCNNode) {
+		guard let door = node.doorData else { return }
+		guard node.action(forKey: "door") == nil else { return }
+
+		if door.isLocked {
+			playDoorSound(door.lockedSound, on: node)
+			return
 		}
-		#endif*/
+
+		let currentEulerAngles = node.eulerAngles
+		if door.closedEulerAngles == nil {
+			let closedY = door.isOpen ? currentEulerAngles.y - door.initialOpenAngle(forUserSide: door.openDirection) : currentEulerAngles.y
+			door.closedEulerAngles = SCNVector3(x: currentEulerAngles.x, y: closedY, z: currentEulerAngles.z)
+		}
+
+		let closedEulerAngles = door.closedEulerAngles ?? currentEulerAngles
+		let duration: TimeInterval
+		let targetEulerAngles: SCNVector3
+
+		if door.isOpen {
+			duration = door.closeSpeed
+			targetEulerAngles = closedEulerAngles
+			playDoorSound(door.closeSound, on: node)
+		} else {
+			door.openDirection = doorOpenDirection(for: node)
+			duration = door.openSpeed
+			targetEulerAngles = SCNVector3(
+				x: closedEulerAngles.x,
+				y: closedEulerAngles.y + door.initialOpenAngle(forUserSide: door.openDirection),
+				z: closedEulerAngles.z
+			)
+			playDoorSound(door.openSound, on: node)
+		}
+
+		node.runAction(
+			SCNAction.rotateTo(
+				x: CGFloat(targetEulerAngles.x),
+				y: CGFloat(targetEulerAngles.y),
+				z: CGFloat(targetEulerAngles.z),
+				duration: duration,
+				usesShortestUnitArc: true
+			),
+			forKey: "door"
+		) {
+			door.isOpen = !door.isOpen
+		}
+	}
+
+	private func doorOpenDirection(for node: SCNNode) -> Int {
+		guard let playerNode = scene.playerNode else { return 0 }
+
+		let vectorToPlayer = playerNode.presentation.worldPosition - node.presentation.worldPosition
+		let forward = node.presentation.worldFront
+		let dot = vectorToPlayer.x * forward.x + vectorToPlayer.y * forward.y + vectorToPlayer.z * forward.z
+		return dot > 0 ? 0 : 1
+	}
+
+	private func playDoorSound(_ soundName: String, on node: SCNNode) {
+		guard !soundName.isEmpty else { return }
+
+		let normalizedName = soundName.lowercased().replacingOccurrences(of: ".wav", with: "") + ".wav"
+		let url = mainDirectory.appendingPathComponent("sounds/" + normalizedName)
+		guard let source = SCNAudioSource(url: url) else { return }
+		source.load()
+		node.runAction(SCNAction.playAudio(source, waitForCompletion: false), forKey: "doorSound")
 	}
 
 	func openInventory() {

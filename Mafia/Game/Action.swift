@@ -12,12 +12,15 @@ import SceneKit
 enum Action {
 	case action(Script, String?)
 	case weapon(SCNNode, Weapon)
+	case door(SCNNode)
 
 	var node: SCNNode {
 		switch self {
 		case .action(let script, _):
 			return script.node
 		case .weapon(let node, _):
+			return node
+		case .door(let node):
 			return node
 		}
 	}
@@ -28,6 +31,8 @@ enum Action {
 			return title ?? "Použít"
 		case .weapon(_, let weapon):
 			return "Sebrat \(weapon.name)"
+		case .door(let node):
+			return node.doorData?.isOpen == true ? "Zavřít" : "Otevřít"
 		}
 	}
 }

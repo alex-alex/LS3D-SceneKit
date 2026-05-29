@@ -91,13 +91,29 @@ enum LightType: UInt32 {
 	case point = 1
 	/// kuželové: simuluje se zastínění světla stínítkem
 	case cone
-	/// ambientní: určuje celkové osvícení scény
-	case ambient
 	/// směrové: simuluje svit vzdálelého zdroje (např. slunce), světlo tedy svítí v celé scéně stále stejným směrem
 	case directional
+	/// ambientní: určuje celkové osvícení scény
+	case ambient
 	/// mlha: vzdálené objekty plynule přechází do určené barvy
 	case fog
-	case layeredFog
+	case pointAmbient = 6
+	case layeredFog = 8
+}
+
+enum EnvironmentLightKind {
+	case ambient
+	case fog
+}
+
+struct EnvironmentLight {
+	let kind: EnvironmentLightKind
+	let node: SCNNode
+	let color: SKColor
+	let power: CGFloat
+	let near: CGFloat
+	let far: CGFloat
+	let sectorName: String?
 }
 
 final class Scene {
@@ -112,8 +128,10 @@ final class Scene {
 	var sounds: [SCNNode: Sound] = [:]
 	var weapons: [SCNNode: [Weapon]] = [:]
 	var actions: [Action] = []
+	var environmentLights: [EnvironmentLight] = []
 	var compassNode: SCNNode?
 	private var nodesByName: [String: SCNNode] = [:]
+	private var pendingDoorDataByName: [String: DoorData] = [:]
 
 	var objectives: [Int] = [] {
 		didSet {
@@ -180,6 +198,7 @@ final class Scene {
 
 						let _partSize: UInt32 = try stream.read()
 						let partSize = Int(_partSize)
+						let partEndOffset = stream.currentOffset + partSize - 6
 
 						switch partSgn {
 						case .name:
@@ -219,50 +238,7 @@ final class Scene {
 							stream.currentOffset += partSize - 6
 
 						case .light:
-							objectNode.light = SCNLight()
-
-							stream.currentOffset += 6
-							let lightTypeRaw: UInt32 = try stream.read()
-							let lightType = try LightType(forcedRawValue: lightTypeRaw)
-
-							switch lightType {
-							case .point:
-								objectNode.light?.type = .omni
-	//							objectNode.light?.mod
-							case .cone:
-								objectNode.light?.type = .spot
-							case .ambient:
-								objectNode.light?.type = .ambient
-							case .directional:
-								objectNode.light?.type = .directional
-							case .fog, .layeredFog:
-								objectNode.light?.type = .ambient
-								objectNode.light?.intensity = 0
-							}
-
-							stream.currentOffset += 6
-							let r: Float = try stream.read()
-							let g: Float = try stream.read()
-							let b: Float = try stream.read()
-							objectNode.light?.color = SKColor(red: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: 1)
-
-							stream.currentOffset += 6
-							let power: Float = try stream.read()
-							if objectNode.light?.type == .spot {
-								objectNode.light?.intensity = CGFloat(power * 1000)
-							} else {
-								objectNode.light?.intensity = CGFloat(power * 100)
-							}
-
-							stream.currentOffset += 6
-							let _: Float = try stream.read()	// cone 1 / 0.3490658402
-							let _: Float = try stream.read()	// cone 2 / 0.6981316805
-
-							stream.currentOffset += 6
-							let _: Float = try stream.read()	// range near
-							let _: Float = try stream.read()	// range far
-
-							stream.currentOffset += partSize - 72
+							try readLight(stream: stream, partSize: partSize, objectNode: objectNode)
 
 						case .music:
 							let _ = try SCNVector3(stream: stream) // min
@@ -292,6 +268,8 @@ final class Scene {
 						case .sector:
 							stream.currentOffset += partSize - 6
 						}
+
+						stream.currentOffset = partEndOffset
 					}
 
 					if type != .model && type != .object && type != .camera && type != .light {
@@ -346,6 +324,7 @@ final class Scene {
 
 						let _partSize: UInt32 = try stream.read()
 						let partSize = Int(_partSize)
+						let partEndOffset = stream.currentOffset + partSize - 6
 
 						switch partSgn {
 						case 0xae23: // name
@@ -401,25 +380,12 @@ final class Scene {
 								self.scripts[name] = script
 
 							case .door:
-								stream.currentOffset += 21
-
-		//						DWORD TYPE (?)
-		//						BYTE OPEN_UP
-		//						BYTE OPEN_DOWN
-		//						FLOAT MOVE_ANGLE (90°)
-		//						BYTE START_OPEN
-		//						BYTE LOCKED
-		//						FLOAT OPEN_SPEED
-		//						FLOAT CLOSE_SPEED
-
-								let _: String = try stream.read(maxLength: 16) // open
-		//						print("door open:", open)
-								let _: String = try stream.read(maxLength: 16) // close
-		//						print("door close:", close)
-								let _: String = try stream.read(maxLength: 16) // locked
-		//						print("door locked:", locked)
-
-								stream.currentOffset += 1
+								let doorData = try readDoorData(stream: stream)
+								if let node = node {
+									attachDoor(doorData, to: node)
+								} else {
+									pendingDoorDataByName[name] = doorData
+								}
 
 							case .trolley:
 								stream.currentOffset += 1
@@ -548,6 +514,8 @@ final class Scene {
 						default:
 							assert(true)
 						}
+
+						stream.currentOffset = partEndOffset
 					}
 
 				case .initDef:
@@ -570,8 +538,206 @@ final class Scene {
 
 	}
 
+	private func readLight(stream: InputStream, partSize: Int, objectNode: SCNNode) throws {
+		let endOffset = stream.currentOffset + partSize - 6
+		var lightType: LightType = .point
+		var color = SKColor.white
+		var power: CGFloat = 1
+		var coneAngle: CGFloat = 0
+		var near: CGFloat = 0
+		var far: CGFloat = 0
+		var sectorName: String?
+
+		while stream.currentOffset < endOffset {
+			let property = try stream.readLightPropertyHeader()
+			let propertyEndOffset = stream.currentOffset + property.payloadSize
+			guard propertyEndOffset <= endOffset else {
+				stream.currentOffset = endOffset
+				break
+			}
+
+			switch property.signature {
+			case 0x4041:
+				guard property.payloadSize >= 4 else { break }
+				let rawValue: UInt32 = try stream.read()
+				lightType = LightType(rawValue: rawValue) ?? .point
+
+			case 0x0026:
+				guard property.payloadSize >= 12 else { break }
+				let r: Float = try stream.read()
+				let g: Float = try stream.read()
+				let b: Float = try stream.read()
+				color = SKColor(red: CGFloat(r), green: CGFloat(g), blue: CGFloat(b), alpha: 1)
+
+			case 0x4042:
+				guard property.payloadSize >= 4 else { break }
+				let value: Float = try stream.read()
+				power = CGFloat(value)
+
+			case 0x4043:
+				guard property.payloadSize >= 8 else { break }
+				let _: Float = try stream.read()
+				let value: Float = try stream.read()
+				coneAngle = CGFloat(value)
+
+			case 0x4044:
+				guard property.payloadSize >= 8 else { break }
+				let nearValue: Float = try stream.read()
+				let farValue: Float = try stream.read()
+				near = CGFloat(nearValue)
+				far = CGFloat(farValue)
+
+			case 0x4045:
+				guard property.payloadSize >= 4 else { break }
+				let _: UInt32 = try stream.read()
+
+			case 0x4046:
+				sectorName = try stream.read(maxLength: property.payloadSize).nilIfEmpty
+
+			default:
+				break
+			}
+
+			stream.currentOffset = propertyEndOffset
+		}
+
+		configureLightNode(
+			objectNode,
+			type: lightType,
+			color: color,
+			power: power,
+			coneAngle: coneAngle,
+			near: near,
+			far: far,
+			sectorName: sectorName
+		)
+	}
+
+	func resolvePendingDoors(in rootNode: SCNNode) {
+		for (name, doorData) in pendingDoorDataByName {
+			guard let node = rootNode.childNode(withName: name, recursively: true) else { continue }
+			attachDoor(doorData, to: node)
+		}
+		pendingDoorDataByName.removeAll()
+	}
+
+	private func attachDoor(_ doorData: DoorData, to node: SCNNode) {
+		node.doorData = doorData
+		if doorData.isOpen {
+			node.eulerAngles.y += doorData.initialOpenAngle(forUserSide: 0)
+			doorData.openDirection = 0
+		}
+		guard !actions.contains(where: { action in
+			if case .door(let doorNode) = action {
+				return doorNode === node
+			}
+			return false
+		}) else { return }
+		actions.append(.door(node))
+	}
+
+	private func readDoorData(stream: InputStream) throws -> DoorData {
+		stream.currentOffset += 5
+		let open1: UInt8 = try stream.read()
+		let open2: UInt8 = try stream.read()
+		let moveAngle: Float = try stream.read()
+		let open: UInt8 = try stream.read()
+		let locked: UInt8 = try stream.read()
+		let closeSpeed: Float = try stream.read()
+		let openSpeed: Float = try stream.read()
+		let openSound: String = try stream.read(maxLength: 16)
+		let closeSound: String = try stream.read(maxLength: 16)
+		let lockedSound: String = try stream.read(maxLength: 16)
+		let _: UInt8 = try stream.read()
+
+		return DoorData(
+			open1: open1,
+			open2: open2,
+			moveAngle: SCNFloat(moveAngle),
+			isOpen: open > 0,
+			isLocked: locked > 0,
+			closeSpeed: TimeInterval(max(0.1, Double(closeSpeed))),
+			openSpeed: TimeInterval(max(0.1, Double(openSpeed))),
+			openSound: openSound,
+			closeSound: closeSound,
+			lockedSound: lockedSound
+		)
+	}
+
+	private func configureLightNode(
+		_ objectNode: SCNNode,
+		type: LightType,
+		color: SKColor,
+		power: CGFloat,
+		coneAngle: CGFloat,
+		near: CGFloat,
+		far: CGFloat,
+		sectorName: String?
+	) {
+		switch type {
+		case .point:
+			objectNode.light = SCNLight()
+			objectNode.light?.type = .omni
+			objectNode.light?.color = color
+			objectNode.light?.intensity = power * 100
+			objectNode.light?.attenuationStartDistance = near
+			objectNode.light?.attenuationEndDistance = far
+
+		case .cone:
+			objectNode.light = SCNLight()
+			objectNode.light?.type = .spot
+			objectNode.light?.color = color
+			objectNode.light?.intensity = power * 1000
+			objectNode.light?.spotOuterAngle = coneAngle > 0 ? coneAngle * 180 / .pi : 45
+			objectNode.light?.attenuationStartDistance = near
+			objectNode.light?.attenuationEndDistance = far
+
+		case .directional:
+			objectNode.light = SCNLight()
+			objectNode.light?.type = .directional
+			objectNode.light?.color = color
+			objectNode.light?.intensity = power * 100
+
+		case .ambient, .pointAmbient:
+			environmentLights.append(EnvironmentLight(
+				kind: .ambient,
+				node: objectNode,
+				color: color,
+				power: power,
+				near: near,
+				far: far,
+				sectorName: sectorName
+			))
+
+		case .fog, .layeredFog:
+			environmentLights.append(EnvironmentLight(
+				kind: .fog,
+				node: objectNode,
+				color: color,
+				power: power,
+				near: near,
+				far: far,
+				sectorName: sectorName
+			))
+		}
+	}
+
 	private func node(named name: String) -> SCNNode? {
 		return nodesByName[name] ?? rootNode.childNode(withName: name, recursively: true)
 	}
 
+}
+
+private extension InputStream {
+	func readLightPropertyHeader() throws -> (signature: UInt16, payloadSize: Int) {
+		let signature: UInt16 = try read()
+		let size: UInt32 = try read()
+		return (signature, max(0, Int(size) - 6))
+	}
+}
+
+private extension String {
+	var nilIfEmpty: String? {
+		return isEmpty ? nil : self
+	}
 }
