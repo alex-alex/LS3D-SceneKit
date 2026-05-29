@@ -95,7 +95,7 @@ private struct MissionEntry {
 			return [MissionEntry(folder: "freeitaly", imageName: "freeride.tga")]
 		}
 
-		let missions: [MissionEntry] = contents
+		var missions: [MissionEntry] = contents
 			.components(separatedBy: .newlines)
 			.compactMap { (line: String) -> MissionEntry? in
 				let parts = line
@@ -106,7 +106,18 @@ private struct MissionEntry {
 				let imageName = parts.count > 1 ? normalizedImageName(parts[1], fallbackFolder: folder) : fallbackImageName(for: folder)
 				return MissionEntry(folder: folder, imageName: imageName)
 			}
+		prependBuiltInMission(folder: "tutorial", imageName: "tutorial.tga", to: &missions)
 		return missions.isEmpty ? [MissionEntry(folder: "freeitaly", imageName: "freeride.tga")] : missions
+	}
+
+	private static func prependBuiltInMission(folder: String, imageName: String, to missions: inout [MissionEntry]) {
+		guard isLoadableMission(folder: folder),
+			  !missions.contains(where: { $0.folder == folder }) else { return }
+
+		missions.insert(
+			MissionEntry(folder: folder, imageName: normalizedImageName(imageName, fallbackFolder: folder)),
+			at: 0
+		)
 	}
 
 	private static func isLoadableMission(folder: String) -> Bool {
