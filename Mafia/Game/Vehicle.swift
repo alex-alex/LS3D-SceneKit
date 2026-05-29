@@ -14,7 +14,7 @@ final class Vehicle {
 	let node: SCNNode
 	let physicsVehicle: SCNPhysicsVehicle
 
-	private let maximumSteering: CGFloat = 0.55
+	private let maximumSteering: CGFloat = 0.32
 	private let engineForce: CGFloat = 6500
 	private let brakeForce: CGFloat = 260
 	private let idleBrakeForce: CGFloat = 8
@@ -29,6 +29,7 @@ final class Vehicle {
 	private let wheelSuspensionDamping: CGFloat = 24
 	private let wheelFrictionSlip: CGFloat = 6
 	private let wheelRadiusScale: CGFloat = 1.16
+	private let steeringResponse: CGFloat = 0.06
 	private let wheelSteeringAxis = SCNVector3(x: 0, y: -1, z: 0)
 	private let wheelAxle = SCNVector3(x: 1, y: 0, z: 0)
 	private let chassisPhysicsWidthScale: SCNFloat = 0.62
@@ -39,6 +40,7 @@ final class Vehicle {
 	private var isBraking = false
 
 	var force: CGFloat = 0
+	private var targetVehicleSteering: CGFloat = 0
 	var speed: CGFloat {
 		return CGFloat(abs(physicsVehicle.speedInKilometersPerHour))
 	}
@@ -179,6 +181,7 @@ final class Vehicle {
 	}
 
 	func applyForces() {
+		vehicleSteering += (targetVehicleSteering - vehicleSteering) * steeringResponse
 		physicsVehicle.setSteeringAngle(vehicleSteering, forWheelAt: 0)
 		physicsVehicle.setSteeringAngle(vehicleSteering, forWheelAt: 1)
 
@@ -220,7 +223,7 @@ final class Vehicle {
 
 	func updateControls(throttle: CGFloat, brake: Bool, steering: CGFloat) {
 		isBraking = brake
-		vehicleSteering = steering * maximumSteering
+		targetVehicleSteering = steering * maximumSteering
 		force = brake ? 0 : -max(-1, min(1, throttle)) * engineForce
 	}
 

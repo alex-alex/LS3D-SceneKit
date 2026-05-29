@@ -60,10 +60,14 @@ final class Game: NSObject {
 	private let carCameraMoveReturnThreshold: CGFloat = 2
 	private let minCarCameraPitch: SCNFloat = -0.45
 	private let maxCarCameraPitch: SCNFloat = 0.35
-	private let carCameraPosition = SCNVector3(x: 0, y: 5.25, z: -7.4)
+	private let defaultCarCameraPitch: SCNFloat = -0.35
+	private let carCameraPosition = SCNVector3(x: 0, y: 4.4, z: -4.9)
 	private let carCameraForwardPitch: SCNFloat = 0.46
+	private let carCameraReverseSpeedThreshold: SCNFloat = 0.35
+	private let carCameraReverseLookSpeed: SCNFloat = 6
 	private let carCameraFollowSpeed: SCNFloat = 12
 	private let carCameraYawFollowSpeed: SCNFloat = 10
+	private var carCameraReverseYaw: SCNFloat = 0
 	private var smoothedCarCameraPosition: SCNVector3?
 	private var smoothedCarCameraYaw: SCNFloat?
 
@@ -199,7 +203,8 @@ final class Game: NSObject {
 
 	private func resetCarCameraLook() {
 		carCameraYaw = 0
-		carCameraPitch = 0
+		carCameraPitch = defaultCarCameraPitch
+		carCameraReverseYaw = 0
 		carCameraMouseIdleTime = 0
 	}
 
@@ -214,13 +219,16 @@ final class Game: NSObject {
 
 	private func updateCarCameraLook(deltaTime: TimeInterval) {
 		carCameraMouseIdleTime += deltaTime
+		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
+		let reverseTargetYaw = vehicleLongitudinalSpeed() > carCameraReverseSpeedThreshold ? SCNFloat.pi : 0
+		let reverseBlend = min(1, carCameraReverseLookSpeed * dt)
+		carCameraReverseYaw = normalizedAngle(carCameraReverseYaw + normalizedAngle(reverseTargetYaw - carCameraReverseYaw) * reverseBlend)
 
 		if vehicle.speed > carCameraMoveReturnThreshold,
 		   carCameraMouseIdleTime >= carCameraMouseIdleDelay {
-			let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
 			let blend = min(1, carCameraReturnSpeed * dt)
 			carCameraYaw += (0 - carCameraYaw) * blend
-			carCameraPitch += (0 - carCameraPitch) * blend
+			carCameraPitch += (defaultCarCameraPitch - carCameraPitch) * blend
 		}
 
 		applyCarCameraLook()
@@ -257,7 +265,7 @@ final class Game: NSObject {
 		cameraContainer.position = position
 		cameraContainer.eulerAngles = SCNVector3(
 			x: carCameraPitch,
-			y: yaw + carCameraYaw,
+			y: yaw + carCameraYaw + carCameraReverseYaw,
 			z: 0
 		)
 	}
@@ -265,6 +273,13 @@ final class Game: NSObject {
 	private func vehicleYaw() -> SCNFloat {
 		let forward = vehicle.node.presentation.worldFront
 		return atan2(-forward.x, -forward.z)
+	}
+
+	private func vehicleLongitudinalSpeed() -> SCNFloat {
+		guard let velocity = vehicle.node.physicsBody?.velocity else { return 0 }
+
+		let forward = vehicle.node.presentation.worldFront
+		return velocity.x * forward.x + velocity.z * forward.z
 	}
 
 	private func teleportPlayerBesideVehicle() {
