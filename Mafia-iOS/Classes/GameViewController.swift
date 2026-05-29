@@ -54,14 +54,16 @@ class GameViewController: UIViewController {
 			//gameView.preferredFramesPerSecond
 			motionManager.accelerometerUpdateInterval = 1/60
 			motionManager.startAccelerometerUpdates(to: .main) { data, _ in
-				guard self.gameManager.game?.mode == .car, let data = data else { return }
+				guard self.gameManager.game?.mode == .car,
+					  let vehicle = self.gameManager.game?.vehicle,
+					  let data = data else { return }
 
 				self.accelerometer.update(with: data.acceleration)
 
 				if self.accelerometer.x > 0 {
-					self.gameManager.game.vehicle.vehicleSteering = CGFloat(self.accelerometer.y*1.3)
+					vehicle.vehicleSteering = CGFloat(self.accelerometer.y*1.3)
 				} else {
-					self.gameManager.game.vehicle.vehicleSteering = CGFloat(-self.accelerometer.y*1.3)
+					vehicle.vehicleSteering = CGFloat(-self.accelerometer.y*1.3)
 				}
 			}
 		}
@@ -119,13 +121,13 @@ extension GameViewController {
 			let inputX = max(-1, min(1, Float(translation.x) / 50))
 			let inputZ = max(-1, min(1, Float(-translation.y) / 50))
 			gameManager.game.playerController?.setMovement(x: inputX, z: inputZ)
-		} else if gameManager.game?.mode == .car {
+		} else if gameManager.game?.mode == .car, let vehicle = gameManager.game?.vehicle {
 			let impulse = SCNVector3(
 				x: max(-1, min(1, Float(translation.x) / 50)),
 				y: 0,
 				z: max(-1, min(1, Float(-translation.y) / 50))
 			)
-			gameManager.game.vehicle.force = CGFloat(impulse.z) * 3000
+			vehicle.force = CGFloat(impulse.z) * 3000
 		}
 	}
 

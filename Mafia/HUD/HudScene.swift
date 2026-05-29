@@ -142,6 +142,7 @@ final class HudScene: SKScene {
 		dropButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
 		jumpButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
 		carButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
+		carButton?.isHidden = game.vehicle == nil
 	}
 
 	func updateVehicleSpeed(_ speed: CGFloat, vehicleSpeed: CGFloat, force: CGFloat, isVisible: Bool) {
@@ -264,7 +265,7 @@ extension HudScene {
 		jumpButton.addChild(jumpButtonLabel)
 
 		carButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		carButton.isHidden = false
+		carButton.isHidden = game.vehicle == nil
 		carButton.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
 		carButton.fillColor = SKColor.white
 		carButton.strokeColor = SKColor.clear
@@ -306,14 +307,15 @@ extension HudScene {
 					} else {
 						print("pos:", game.cameraContainer.presentation.position)
 					}
-				} else {
-					print("pos:", game.vehicle.node.presentation.position)
+				} else if let vehicle = game.vehicle {
+					print("pos:", vehicle.node.presentation.position)
 				}
 			case dropButton, dropButton.children[0]:
 				game.lastControl = .WEAPONDROP
-				for (i, weapon) in (game.scene.weapons[game.scene.playerNode!] ?? []).enumerated() where weapon.position == .hand {
+				guard let playerNode = game.scene.playerNode else { break }
+				for (i, weapon) in (game.scene.weapons[playerNode] ?? []).enumerated() where weapon.position == .hand {
 					print("dropping", weapon.name)
-					game.scene.weapons[game.scene.playerNode!]!.remove(at: i)
+					game.scene.weapons[playerNode]!.remove(at: i)
 
 					let batNode = game.scene.rootNode.childNode(withName: "2bbat", recursively: true)!
 					batNode.isHidden = false
@@ -328,6 +330,7 @@ extension HudScene {
 				game.scene.pressedJump = true
 			case carButton, carButton.children[0]:
 				game.lastControl = .ACTION
+				guard game.vehicle != nil else { break }
 				if game.mode == .walk {
 					game.mode = .car
 				} else {
@@ -387,6 +390,7 @@ extension HudScene {
 
 		case 14: // E
 			clearWalkingControls()
+			guard game.vehicle != nil else { break }
 			if game.mode == .walk {
 				game.mode = .car
 			} else {
@@ -450,7 +454,7 @@ extension HudScene {
 			braking = true
 		case 15: // R
 			clearVehicleControls()
-			game.vehicle.resetUpright()
+			game.vehicle?.resetUpright()
 		default:
 			return false
 		}
@@ -554,6 +558,8 @@ extension HudScene {
 	}
 
 	private func updateVehicleControls() {
+		guard let vehicle = game.vehicle else { return }
+
 		let throttle: CGFloat
 		if accelerating == reversing {
 			throttle = 0
@@ -571,7 +577,7 @@ extension HudScene {
 		ride = throttle != 0
 		reverse = throttle < 0
 		vehicleSteering = steering
-		game.vehicle.updateControls(throttle: throttle, brake: braking, steering: steering)
+		vehicle.updateControls(throttle: throttle, brake: braking, steering: steering)
 	}
 
 	private func clearVehicleControls() {

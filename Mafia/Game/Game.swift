@@ -22,8 +22,13 @@ final class Game: NSObject {
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
 
-	var mode: Mode = .car {
+	var mode: Mode = .walk {
 		didSet {
+			if mode == .car && vehicle == nil {
+				mode = .walk
+				return
+			}
+
 			cameraContainer.removeFromParentNode()
 			configureCamera(for: mode)
 			if mode == .freeCamera {
@@ -34,9 +39,13 @@ final class Game: NSObject {
 			} else if mode == .walk {
 				scene.playerNode?.isHidden = false
 				if oldValue != .freeCamera {
-				teleportPlayerBesideVehicle()
+					teleportPlayerBesideVehicle()
 				}
-				scene.playerNode!.addChildNode(cameraContainer)
+				if let playerNode = scene.playerNode {
+					playerNode.addChildNode(cameraContainer)
+				} else {
+					scene.rootNode.addChildNode(cameraContainer)
+				}
 				playerController?.stop()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 				vehicle?.applyForces()
@@ -51,7 +60,7 @@ final class Game: NSObject {
 
 	let scene: Scene
 
-	var vehicle: Vehicle!
+	var vehicle: Vehicle?
 	var playerController: PlayerController?
 	var elevation: SCNFloat = 0
 	var lastControl: Control?
@@ -83,7 +92,7 @@ final class Game: NSObject {
 	private var isActionButtonVisible = false
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
 	private let actionDistanceSquared: Float = 4
-	private var modeBeforeFreeCamera: Mode = .car
+	private var modeBeforeFreeCamera: Mode = .walk
 	private var freeCameraPosition = SCNVector3Zero
 	private var freeCameraMovement = SCNVector3Zero
 	private var freeCameraYaw: SCNFloat = 0
@@ -131,13 +140,9 @@ final class Game: NSObject {
 
 		// -----
 
-//		if scene.playerNode == nil {
-//			//load z mise08-mesto
-//			let spawnPoint = scnScene.rootNode.childNode(withName: "emeth_1", recursively: true)!
-//			scene.playerNode = try! loadModel(named: "models/tommy")
-//			scene.playerNode!.transform = spawnPoint.worldTransform
-//			scnScene.rootNode.addChildNode(scene.playerNode!)
-//		}
+		if scene.playerNode == nil {
+			spawnPlayer()
+		}
 
 		// -----
 
@@ -148,10 +153,9 @@ final class Game: NSObject {
 
 		// -----
 
-		let carNodeName = "taxi2"
-//		let carNodeName = "cad_road"
-		let carNode = scene.rootNode.childNode(withName: carNodeName, recursively: true)!
-		vehicle = Vehicle(scene: scnScene, node: carNode)
+		if let carNode = findVehicleNode() {
+			vehicle = Vehicle(scene: scnScene, node: carNode)
+		}
 
 		// -----
 
@@ -181,8 +185,56 @@ final class Game: NSObject {
 		updateSkyboxPosition()
 	}
 
+	private func spawnPlayer() {
+		guard let playerNode = try? loadModel(named: "models/tommy") else { return }
+
+		if let spawnNode = playerSpawnNode() {
+			playerNode.transform = spawnNode.worldTransform
+		}
+		playerNode.name = "tommy"
+		scene.playerNode = playerNode
+		scnScene.rootNode.addChildNode(playerNode)
+	}
+
+	private func playerSpawnNode() -> SCNNode? {
+		let preferredNames = [
+			"emeth_1",
+			"player",
+			"tommy",
+			"start",
+			"player_start",
+			"start_point"
+		]
+		for name in preferredNames {
+			if let node = scnScene.rootNode.childNode(withName: name, recursively: true) {
+				return node
+			}
+		}
+		return scene.rootNode.childNodes.first
+	}
+
+	private func findVehicleNode() -> SCNNode? {
+		let preferredNames = [
+			"cad_road",
+			"taxi2"
+		]
+		for name in preferredNames {
+			if let node = scene.rootNode.childNode(withName: name, recursively: true),
+			   node.hasModelContent {
+				return node
+			}
+		}
+		return scene.rootNode.firstNode { node in
+			node.type == .car && node.hasModelContent
+		}
+	}
+
 	private func configureCamera(for mode: Mode) {
 		if mode == .car {
+			guard let vehicle = vehicle else {
+				configureCamera(for: .walk)
+				return
+			}
 			cameraContainer.position = vehicle.node.presentation.worldPosition
 			cameraNode.position = carCameraPosition
 			cameraNode.eulerAngles = SCNVector3(x: carCameraForwardPitch, y: .pi, z: .pi)
@@ -284,6 +336,8 @@ final class Game: NSObject {
 	}
 
 	private func resetCarCameraFollow() {
+		guard let vehicle = vehicle else { return }
+
 		let position = vehicle.node.presentation.worldPosition
 		let yaw = vehicleYaw()
 
@@ -293,6 +347,8 @@ final class Game: NSObject {
 	}
 
 	private func updateCarCameraLook(deltaTime: TimeInterval) {
+		guard let vehicle = vehicle else { return }
+
 		carCameraMouseIdleTime += deltaTime
 		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
 		let reverseTargetYaw = vehicleLongitudinalSpeed() > carCameraReverseSpeedThreshold ? SCNFloat.pi : 0
@@ -310,12 +366,16 @@ final class Game: NSObject {
 	}
 
 	private func applyCarCameraLook() {
+		guard let vehicle = vehicle else { return }
+
 		let position = smoothedCarCameraPosition ?? vehicle.node.presentation.worldPosition
 		let yaw = smoothedCarCameraYaw ?? vehicleYaw()
 		applyCarCameraTransform(position: position, yaw: yaw)
 	}
 
 	private func updateCarCameraFollow(deltaTime: TimeInterval) {
+		guard let vehicle = vehicle else { return }
+
 		let targetPosition = vehicle.node.presentation.worldPosition
 		let targetYaw = vehicleYaw()
 		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
@@ -346,11 +406,14 @@ final class Game: NSObject {
 	}
 
 	private func vehicleYaw() -> SCNFloat {
+		guard let vehicle = vehicle else { return 0 }
+
 		let forward = vehicle.node.presentation.worldFront
 		return atan2(-forward.x, -forward.z)
 	}
 
 	private func vehicleLongitudinalSpeed() -> SCNFloat {
+		guard let vehicle = vehicle else { return 0 }
 		guard let velocity = vehicle.node.physicsBody?.velocity else { return 0 }
 
 		let forward = vehicle.node.presentation.worldFront
@@ -406,7 +469,8 @@ final class Game: NSObject {
 	}
 
 	private func teleportPlayerBesideVehicle() {
-		guard let playerController = playerController else { return }
+		guard let playerController = playerController,
+			  let vehicle = vehicle else { return }
 
 		let vehiclePosition = vehicle.node.presentation.worldPosition
 		let exitSide = horizontalVehicleRight()
@@ -421,6 +485,8 @@ final class Game: NSObject {
 	}
 
 	private func horizontalVehicleRight() -> SCNVector3 {
+		guard let vehicle = vehicle else { return SCNVector3(x: 1, y: 0, z: 0) }
+
 		let transform = vehicle.node.presentation.worldTransform
 		let right = SCNVector3(x: transform.m11, y: 0, z: transform.m13)
 		let length = sqrt(right.x * right.x + right.z * right.z)
@@ -430,6 +496,8 @@ final class Game: NSObject {
 	}
 
 	private func vehicleBottomWorldY() -> SCNFloat {
+		guard let vehicle = vehicle else { return 0 }
+
 		let bounds = vehicle.node.boundingBox
 		let xs = [bounds.min.x, bounds.max.x]
 		let ys = [bounds.min.y, bounds.max.y]
@@ -500,6 +568,25 @@ final class Game: NSObject {
 }
 
 private extension SCNNode {
+	var hasModelContent: Bool {
+		if geometry != nil {
+			return true
+		}
+		return childNodes.contains { $0.hasModelContent }
+	}
+
+	func firstNode(where matches: (SCNNode) -> Bool) -> SCNNode? {
+		if matches(self) {
+			return self
+		}
+		for child in childNodes {
+			if let node = child.firstNode(where: matches) {
+				return node
+			}
+		}
+		return nil
+	}
+
 	func hideSkyboxBackdropGeometry() {
 		if isSkyboxBackdropNode {
 			isHidden = true
@@ -596,7 +683,7 @@ extension Game: SCNSceneRendererDelegate {
 				y: 0,
 				z: 0
 			)
-		} else if mode == .car {
+		} else if mode == .car && vehicle != nil {
 			updateCarCameraLook(deltaTime: deltaTime)
 			updateCarCameraFollow(deltaTime: deltaTime)
 		} else {
@@ -633,12 +720,12 @@ extension Game: SCNSceneRendererDelegate {
 				cameraContainer.position.z += impulse.x * -sin(angle) - impulse.z * cos(angle)
 			}*/
 		} else {
-			vehicle.applyForces()
+			vehicle?.applyForces()
 		}
 
 		#endif
 
-		let vehicleVelocity = vehicle.node.physicsBody?.velocity ?? SCNVector3Zero
+		let vehicleVelocity = vehicle?.node.physicsBody?.velocity ?? SCNVector3Zero
 		let vehicleSpeed = sqrt(
 			vehicleVelocity.x * vehicleVelocity.x +
 			vehicleVelocity.y * vehicleVelocity.y +
@@ -646,9 +733,9 @@ extension Game: SCNSceneRendererDelegate {
 		)
 		hud.updateVehicleSpeed(
 			CGFloat(vehicleSpeed),
-			vehicleSpeed: vehicle.speed,
-			force: vehicle.force,
-			isVisible: mode == .car
+			vehicleSpeed: vehicle?.speed ?? 0,
+			force: vehicle?.force ?? 0,
+			isVisible: mode == .car && vehicle != nil
 		)
 
 		if let node = scene.compassNode,
@@ -661,8 +748,10 @@ extension Game: SCNSceneRendererDelegate {
 				playerAngle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
 			} else if mode == .freeCamera {
 				playerAngle = cameraContainer.presentation.rotation.y * cameraContainer.presentation.rotation.w - .pi
+			} else if let vehicle = self.vehicle {
+				playerAngle = vehicle.node.presentation.rotation.y * vehicle.node.presentation.rotation.w - .pi/2
 			} else {
-				playerAngle = self.vehicle.node.presentation.rotation.y * self.vehicle.node.presentation.rotation.w - .pi/2
+				playerAngle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
 			}
 			hud.compassNeedle.zRotation = CGFloat(atan2(p2.z - p1.z, p2.x - p1.x) + playerAngle)
 		} else {

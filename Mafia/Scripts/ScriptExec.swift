@@ -253,8 +253,10 @@ extension Script {
 			vars[varId] = 2
 		} else {
 			let actor1 = actors[actor1Id]!
-			if actor1 == scene.playerNode && scene.game.mode == .car {
-				vars[varId] = scene.game.vehicle.node.distance(to: actors[actor2Id]!)
+			if actor1 == scene.playerNode,
+			   scene.game.mode == .car,
+			   let vehicle = scene.game.vehicle {
+				vars[varId] = vehicle.node.distance(to: actors[actor2Id]!)
 			} else {
 				vars[varId] = actor1.distance(to: actors[actor2Id]!)
 			}
