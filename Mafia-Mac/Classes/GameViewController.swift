@@ -86,20 +86,21 @@ class GameViewController: NSViewController {
 
 	private func handleMouseEvent(_ event: NSEvent, source: MouseSource) {
 		updateCursorCapture()
-		if source == .monitor && abs(event.deltaX) > 0 {
-			handleMouseDelta(SCNFloat(event.deltaX))
+		if source == .monitor && (abs(event.deltaX) > 0 || abs(event.deltaY) > 0) {
+			handleMouseDelta(x: SCNFloat(event.deltaX), y: SCNFloat(event.deltaY))
 		}
 	}
 
-	private func handleMouseDelta(_ deltaX: SCNFloat) {
+	private func handleMouseDelta(x deltaX: SCNFloat, y deltaY: SCNFloat) {
 		guard let game = gameManager.game,
-			  game.mode == .walk,
-			  !game.isGamePaused,
-			  game.scene.playerNode != nil else {
+			  !game.isGamePaused else {
 			return
 		}
 
-		game.playerController?.look(deltaX: -deltaX * 0.006)
+		game.look(
+			deltaX: -deltaX * 0.006,
+			deltaY: deltaY * 0.004
+		)
 	}
 
 	private func updateCursorCapture() {
@@ -107,9 +108,8 @@ class GameViewController: NSViewController {
 
 		guard let game = gameManager.game,
 			  view.window?.isKeyWindow == true,
-			  game.mode == .walk,
 			  !game.isGamePaused,
-			  game.scene.playerNode != nil else {
+			  isMouseLookMode(game.mode) else {
 			setCursorHidden(false)
 			return
 		}
@@ -141,6 +141,15 @@ class GameViewController: NSViewController {
 			y: screen.frame.maxY - screenPoint.y
 		)
 		CGWarpMouseCursorPosition(quartzPoint)
+	}
+
+	private func isMouseLookMode(_ mode: Game.Mode) -> Bool {
+		switch mode {
+		case .walk:
+			return gameManager.game?.scene.playerNode != nil
+		case .car:
+			return true
+		}
 	}
 
 }

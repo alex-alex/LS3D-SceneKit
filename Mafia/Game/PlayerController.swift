@@ -17,9 +17,11 @@ final class PlayerController {
 	private var movement = SCNVector3Zero
 	private var turn: SCNFloat = 0
 	private var pendingLook: SCNFloat = 0
+	private var pendingPitch: SCNFloat = 0
 	private var wantsJump = false
 	private let baseHeading: SCNFloat
 	private var lookYaw: SCNFloat = 0
+	private var lookPitch: SCNFloat = 0
 	private var horizontalVelocity = SCNVector3Zero
 	private var verticalVelocity: SCNFloat = 0
 	private var standingY: SCNFloat
@@ -36,12 +38,17 @@ final class PlayerController {
 	var yaw: SCNFloat {
 		return lookYaw
 	}
+	var cameraPitch: SCNFloat {
+		return lookPitch
+	}
 
 	private let walkSpeed: SCNFloat = 3.2
 	private let acceleration: SCNFloat = 14
 	private let stopAcceleration: SCNFloat = 24
 	private let turnSpeed: SCNFloat = 2.8
 	private let jumpSpeed: SCNFloat = 5.2
+	private let minLookPitch: SCNFloat = -0.65
+	private let maxLookPitch: SCNFloat = 0.45
 	private let walkingAnimationName = "anims/walk1.5ds"
 	private let walkingAnimationKey = "__walking__"
 
@@ -68,6 +75,11 @@ final class PlayerController {
 
 	func look(deltaX: SCNFloat) {
 		pendingLook += deltaX
+	}
+
+	func look(deltaX: SCNFloat, deltaY: SCNFloat) {
+		pendingLook += deltaX
+		pendingPitch += deltaY
 	}
 
 	func jump() {
@@ -98,7 +110,9 @@ final class PlayerController {
 		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
 		lastAppliedLook = pendingLook
 		lookYaw += turn * turnSpeed * dt + pendingLook
+		lookPitch = max(minLookPitch, min(maxLookPitch, lookPitch + pendingPitch))
 		pendingLook = 0
+		pendingPitch = 0
 		body.angularVelocity = SCNVector4Zero
 
 		let movementHeading = baseHeading + lookYaw

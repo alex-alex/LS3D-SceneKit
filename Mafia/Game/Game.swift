@@ -51,6 +51,15 @@ final class Game: NSObject {
 	private var lastUpdateTime: TimeInterval?
 	private let playerExitDistance: SCNFloat = 1.8
 	private let playerExitHeightOffset: SCNFloat = 0.5
+	private var carCameraYaw: SCNFloat = 0
+	private var carCameraPitch: SCNFloat = 0
+	private var carCameraMouseIdleTime: TimeInterval = 0
+	private let carCameraMouseIdleDelay: TimeInterval = 0.65
+	private let carCameraReturnSpeed: SCNFloat = 3.5
+	private let carCameraMoveReturnThreshold: CGFloat = 2
+	private let minCarCameraPitch: SCNFloat = -0.45
+	private let maxCarCameraPitch: SCNFloat = 0.35
+	private let maxCarCameraYaw: SCNFloat = .pi
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -141,6 +150,7 @@ final class Game: NSObject {
 			cameraNode.position = SCNVector3(x: 0, y: 2.2*2, z: -1.5*4)
 			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
 			elevation = 0
+			resetCarCameraLook()
 		} else {
 			cameraContainer.position = SCNVector3(x: 0, y: 1.35, z: 0)
 			cameraNode.position = SCNVector3(x: 0, y: 1.25, z: -2.8)
@@ -149,6 +159,49 @@ final class Game: NSObject {
 		}
 
 		cameraContainer.eulerAngles.x = elevation
+	}
+
+	func look(deltaX: SCNFloat, deltaY: SCNFloat) {
+		guard !isGamePaused else { return }
+
+		switch mode {
+		case .walk:
+			guard scene.playerNode != nil else { return }
+			playerController?.look(deltaX: deltaX, deltaY: deltaY)
+		case .car:
+			carCameraYaw = max(-maxCarCameraYaw, min(maxCarCameraYaw, carCameraYaw - deltaX))
+			carCameraPitch = max(minCarCameraPitch, min(maxCarCameraPitch, carCameraPitch + deltaY))
+			carCameraMouseIdleTime = 0
+			applyCarCameraLook()
+		}
+	}
+
+	private func resetCarCameraLook() {
+		carCameraYaw = 0
+		carCameraPitch = 0
+		carCameraMouseIdleTime = 0
+	}
+
+	private func updateCarCameraLook(deltaTime: TimeInterval) {
+		carCameraMouseIdleTime += deltaTime
+
+		if vehicle.speed > carCameraMoveReturnThreshold,
+		   carCameraMouseIdleTime >= carCameraMouseIdleDelay {
+			let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
+			let blend = min(1, carCameraReturnSpeed * dt)
+			carCameraYaw += (0 - carCameraYaw) * blend
+			carCameraPitch += (0 - carCameraPitch) * blend
+		}
+
+		applyCarCameraLook()
+	}
+
+	private func applyCarCameraLook() {
+		cameraContainer.eulerAngles = SCNVector3(
+			x: carCameraPitch,
+			y: carCameraYaw,
+			z: 0
+		)
 	}
 
 	private func teleportPlayerBesideVehicle() {
@@ -232,7 +285,13 @@ extension Game: SCNSceneRendererDelegate {
 
 		if mode == .walk {
 			playerController?.update(deltaTime: deltaTime)
-			cameraContainer.eulerAngles.y = 0
+			cameraContainer.eulerAngles = SCNVector3(
+				x: playerController?.cameraPitch ?? 0,
+				y: 0,
+				z: 0
+			)
+		} else {
+			updateCarCameraLook(deltaTime: deltaTime)
 		}
 
 		#if os(macOS)
