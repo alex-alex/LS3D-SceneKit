@@ -71,6 +71,7 @@ final class Game: NSObject {
 	private var smoothedCarCameraPosition: SCNVector3?
 	private var smoothedCarCameraYaw: SCNFloat?
 	private var skyboxNodes: [(node: SCNNode, offset: SCNVector3)] = []
+	private let skyboxFallbackNode = SCNNode()
 	private var lastActionButtonUpdateTime: TimeInterval = 0
 	private var isActionButtonVisible = false
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
@@ -98,8 +99,6 @@ final class Game: NSObject {
 			sceneCache.node.name = "__cache__"
 			print("== Loaded Scene Cache")
 		}
-
-		skyboxNodes = scnScene.rootNode.skyboxNodes()
 
 		let collisions = try Collisions(name: "missions/"+missionName, scene: scnScene)
 		collisions.node.name = "__colliions__"
@@ -160,6 +159,9 @@ final class Game: NSObject {
 			resetCarCameraFollow()
 		}
 		scene.playerNode?.isHidden = mode == .car
+		configureSkyboxFallback()
+		scnScene.rootNode.hideSkyboxBackdropGeometry()
+		skyboxNodes = scnScene.rootNode.skyboxNodes(relativeTo: cameraNode.presentation.worldPosition)
 		updateSkyboxPosition()
 	}
 
@@ -296,6 +298,46 @@ final class Game: NSObject {
 			let position = cameraPosition + skyboxNode.offset
 			skyboxNode.node.position = skyboxNode.node.parent?.convertPosition(position, from: nil) ?? position
 		}
+		skyboxFallbackNode.position = cameraPosition
+	}
+
+	private func configureSkyboxFallback() {
+		let textureSet = scnScene.rootNode.skyboxTextureSet() ?? "sky 7"
+		let box = SCNBox(width: 600, height: 600, length: 600, chamferRadius: 0)
+		let sideMaterials = [
+			skyboxMaterial(named: "\(textureSet) 1.bmp"),
+			skyboxMaterial(named: "\(textureSet) 2.bmp"),
+			skyboxMaterial(named: "\(textureSet) 3.bmp"),
+			skyboxMaterial(named: "\(textureSet) 4.bmp")
+		]
+		let topMaterial = skyboxMaterial(named: "\(textureSet) 5.bmp")
+		box.materials = [
+			sideMaterials[0],
+			sideMaterials[1],
+			sideMaterials[2],
+			sideMaterials[3],
+			topMaterial,
+			topMaterial
+		]
+
+		skyboxFallbackNode.name = "__skybox_fallback__"
+		skyboxFallbackNode.geometry = box
+		skyboxFallbackNode.renderingOrder = -1000
+		scnScene.rootNode.addChildNode(skyboxFallbackNode)
+	}
+
+	private func skyboxMaterial(named textureName: String) -> SCNMaterial {
+		let material = SCNMaterial()
+		material.lightingModel = .constant
+		material.diffuse.contents = loadMapImage(named: textureName)
+		material.diffuse.mipFilter = .linear
+		material.diffuse.minificationFilter = .linear
+		material.diffuse.magnificationFilter = .linear
+		material.cullMode = .back
+		material.isDoubleSided = true
+		material.readsFromDepthBuffer = false
+		material.writesToDepthBuffer = false
+		return material
 	}
 
 	private func teleportPlayerBesideVehicle() {
@@ -393,20 +435,57 @@ final class Game: NSObject {
 }
 
 private extension SCNNode {
-	func skyboxNodes() -> [(node: SCNNode, offset: SCNVector3)] {
-		var nodes: [(node: SCNNode, offset: SCNVector3)] = []
-		if isSkyboxNode {
-			nodes.append((self, presentation.worldPosition))
+	func hideSkyboxBackdropGeometry() {
+		if isSkyboxBackdropNode {
+			isHidden = true
+			return
 		}
-		enumerateChildNodes { node, _ in
-			if node.isSkyboxNode {
-				nodes.append((node, node.presentation.worldPosition))
+		for child in childNodes {
+			child.hideSkyboxBackdropGeometry()
+		}
+	}
+
+	var isSkyboxBackdropNode: Bool {
+		if isSkyboxBackdropResourceName(name) {
+			return true
+		}
+		return geometry?.materials.contains { material in
+			isSkyboxBackdropResourceName(material.name)
+		} ?? false
+	}
+
+	func skyboxTextureSet() -> String? {
+		if let textureSet = skyboxTextureSetName(from: name) {
+			return textureSet
+		}
+		if let materialTextureSet = geometry?.materials.compactMap({ skyboxTextureSetName(from: $0.name) }).first {
+			return materialTextureSet
+		}
+		for child in childNodes {
+			if let textureSet = child.skyboxTextureSet() {
+				return textureSet
 			}
+		}
+		return nil
+	}
+
+	func skyboxNodes(relativeTo cameraPosition: SCNVector3) -> [(node: SCNNode, offset: SCNVector3)] {
+		var nodes: [(node: SCNNode, offset: SCNVector3)] = []
+		guard !isHidden else { return nodes }
+		if isSkyboxNode {
+			nodes.append((self, presentation.worldPosition - cameraPosition))
+			return nodes
+		}
+		for child in childNodes {
+			nodes.append(contentsOf: child.skyboxNodes(relativeTo: cameraPosition))
 		}
 		return nodes
 	}
 
 	var isSkyboxNode: Bool {
+		if followsCamera {
+			return true
+		}
 		if isSkyboxResourceName(name) {
 			return true
 		}
@@ -416,13 +495,23 @@ private extension SCNNode {
 	}
 }
 
-private func isSkyboxResourceName(_ name: String?) -> Bool {
-	guard let name = name?.lowercased() else { return false }
-	return name == "sky" ||
-		name.hasPrefix("sky ") ||
-		name.hasPrefix("sky_") ||
-		name.hasPrefix("sky.") ||
-		name.contains("|sky ")
+private func skyboxTextureSetName(from name: String?) -> String? {
+	guard let name = name?.lowercased() else { return nil }
+	for component in name.components(separatedBy: "|") where component.hasPrefix("sky ") && component.hasSuffix(".bmp") {
+		let parts = component.components(separatedBy: " ")
+		guard parts.count >= 3 else { continue }
+		return parts.dropLast().joined(separator: " ")
+	}
+	return nil
+}
+
+private func loadMapImage(named name: String) -> Any? {
+	let url = mainDirectory.appendingPathComponent("maps/" + name)
+	#if os(macOS)
+		return NSImage(contentsOf: url)
+	#elseif os(iOS)
+		return UIImage(contentsOfFile: url.path)
+	#endif
 }
 
 // MARK: - SCNSceneRendererDelegate

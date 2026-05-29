@@ -85,6 +85,7 @@ extension SKTexture {
 }
 
 private var nodeTypeKey: UInt8 = 0
+private var followsCameraKey: UInt8 = 0
 
 extension SCNNode {
 	var type: ObjectDefinitionType {
@@ -99,6 +100,18 @@ extension SCNNode {
 		}
 	}
 
+	var followsCamera: Bool {
+		get {
+			let value: NSNumber = associatedObject(self, key: &followsCameraKey) {
+				return NSNumber(value: false)
+			}
+			return value.boolValue
+		}
+		set {
+			associateObject(self, key: &followsCameraKey, value: NSNumber(value: newValue))
+		}
+	}
+
 	func distance(to node: SCNNode) -> Float {
 		return (presentation.worldPosition - node.presentation.worldPosition).length
 	}
@@ -110,4 +123,32 @@ extension SCNNode {
 		let dz = Float(nodePosition.z - position.z)
 		return dx * dx + dy * dy + dz * dz
 	}
+}
+
+func isSkyboxResourceName(_ name: String?) -> Bool {
+	if isSkyboxBackdropResourceName(name) {
+		return true
+	}
+	guard let name = name?.lowercased() else { return false }
+	let normalized = name.replacingOccurrences(of: ".4ds", with: "")
+	return normalized.hasPrefix("mrak") ||
+		normalized.hasPrefix("0mrak") ||
+		normalized.hasPrefix("4mrak") ||
+		normalized.hasPrefix("9mrak") ||
+		normalized.contains("|mrak")
+}
+
+func isSkyboxBackdropResourceName(_ name: String?) -> Bool {
+	guard let name = name?.lowercased() else { return false }
+	let normalized = name.replacingOccurrences(of: ".4ds", with: "")
+	return normalized == "sky" ||
+		normalized.hasPrefix("sky ") ||
+		normalized.hasPrefix("sky_") ||
+		normalized.hasPrefix("sky.") ||
+		normalized.hasPrefix("sky") ||
+		normalized.hasPrefix("denjasno") ||
+		normalized.hasPrefix("denzatazeno") ||
+		normalized.hasPrefix("den2") ||
+		normalized.hasPrefix("noczatazeno") ||
+		normalized.contains("|sky ")
 }
