@@ -36,7 +36,8 @@ final class Game: NSObject {
 			} else {
 				playerController?.stop()
 				scene.playerNode?.isHidden = true
-				vehicle.node.addChildNode(cameraContainer)
+				scnScene.rootNode.addChildNode(cameraContainer)
+				resetCarCameraFollow()
 			}
 		}
 	}
@@ -61,6 +62,10 @@ final class Game: NSObject {
 	private let maxCarCameraPitch: SCNFloat = 0.35
 	private let carCameraPosition = SCNVector3(x: 0, y: 5.25, z: -7.4)
 	private let carCameraForwardPitch: SCNFloat = 0.46
+	private let carCameraFollowSpeed: SCNFloat = 12
+	private let carCameraYawFollowSpeed: SCNFloat = 10
+	private var smoothedCarCameraPosition: SCNVector3?
+	private var smoothedCarCameraYaw: SCNFloat?
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -140,14 +145,15 @@ final class Game: NSObject {
 				scene.rootNode.addChildNode(cameraContainer)
 			}
 		} else {
-			vehicle.node.addChildNode(cameraContainer)
+			scnScene.rootNode.addChildNode(cameraContainer)
+			resetCarCameraFollow()
 		}
 		scene.playerNode?.isHidden = mode == .car
 	}
 
 	private func configureCamera(for mode: Mode) {
 		if mode == .car {
-			cameraContainer.position = SCNVector3Zero
+			cameraContainer.position = vehicle.node.presentation.worldPosition
 			cameraNode.position = carCameraPosition
 			cameraNode.eulerAngles = SCNVector3(x: carCameraForwardPitch, y: .pi, z: .pi)
 			elevation = 0
@@ -197,6 +203,15 @@ final class Game: NSObject {
 		carCameraMouseIdleTime = 0
 	}
 
+	private func resetCarCameraFollow() {
+		let position = vehicle.node.presentation.worldPosition
+		let yaw = vehicleYaw()
+
+		smoothedCarCameraPosition = position
+		smoothedCarCameraYaw = yaw
+		applyCarCameraTransform(position: position, yaw: yaw)
+	}
+
 	private func updateCarCameraLook(deltaTime: TimeInterval) {
 		carCameraMouseIdleTime += deltaTime
 
@@ -212,11 +227,44 @@ final class Game: NSObject {
 	}
 
 	private func applyCarCameraLook() {
+		let position = smoothedCarCameraPosition ?? vehicle.node.presentation.worldPosition
+		let yaw = smoothedCarCameraYaw ?? vehicleYaw()
+		applyCarCameraTransform(position: position, yaw: yaw)
+	}
+
+	private func updateCarCameraFollow(deltaTime: TimeInterval) {
+		let targetPosition = vehicle.node.presentation.worldPosition
+		let targetYaw = vehicleYaw()
+		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
+		let positionBlend = min(1, carCameraFollowSpeed * dt)
+		let yawBlend = min(1, carCameraYawFollowSpeed * dt)
+
+		let currentPosition = smoothedCarCameraPosition ?? targetPosition
+		let currentYaw = smoothedCarCameraYaw ?? targetYaw
+		let smoothedPosition = SCNVector3(
+			x: currentPosition.x + (targetPosition.x - currentPosition.x) * positionBlend,
+			y: currentPosition.y + (targetPosition.y - currentPosition.y) * positionBlend,
+			z: currentPosition.z + (targetPosition.z - currentPosition.z) * positionBlend
+		)
+		let smoothedYaw = normalizedAngle(currentYaw + normalizedAngle(targetYaw - currentYaw) * yawBlend)
+
+		smoothedCarCameraPosition = smoothedPosition
+		smoothedCarCameraYaw = smoothedYaw
+		applyCarCameraTransform(position: smoothedPosition, yaw: smoothedYaw)
+	}
+
+	private func applyCarCameraTransform(position: SCNVector3, yaw: SCNFloat) {
+		cameraContainer.position = position
 		cameraContainer.eulerAngles = SCNVector3(
 			x: carCameraPitch,
-			y: carCameraYaw,
+			y: yaw + carCameraYaw,
 			z: 0
 		)
+	}
+
+	private func vehicleYaw() -> SCNFloat {
+		let forward = vehicle.node.presentation.worldFront
+		return atan2(-forward.x, -forward.z)
 	}
 
 	private func teleportPlayerBesideVehicle() {
@@ -307,6 +355,7 @@ extension Game: SCNSceneRendererDelegate {
 			)
 		} else {
 			updateCarCameraLook(deltaTime: deltaTime)
+			updateCarCameraFollow(deltaTime: deltaTime)
 		}
 
 		#if os(macOS)
