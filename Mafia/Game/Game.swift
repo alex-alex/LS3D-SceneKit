@@ -59,7 +59,8 @@ final class Game: NSObject {
 	private let carCameraMoveReturnThreshold: CGFloat = 2
 	private let minCarCameraPitch: SCNFloat = -0.45
 	private let maxCarCameraPitch: SCNFloat = 0.35
-	private let maxCarCameraYaw: SCNFloat = .pi
+	private let carCameraPosition = SCNVector3(x: 0, y: 5.25, z: -7.4)
+	private let carCameraForwardPitch: SCNFloat = 0.46
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -147,8 +148,8 @@ final class Game: NSObject {
 	private func configureCamera(for mode: Mode) {
 		if mode == .car {
 			cameraContainer.position = SCNVector3Zero
-			cameraNode.position = SCNVector3(x: 0, y: 2.2*2, z: -1.5*4)
-			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
+			cameraNode.position = carCameraPosition
+			cameraNode.eulerAngles = SCNVector3(x: carCameraForwardPitch, y: .pi, z: .pi)
 			elevation = 0
 			resetCarCameraLook()
 		} else {
@@ -169,11 +170,25 @@ final class Game: NSObject {
 			guard scene.playerNode != nil else { return }
 			playerController?.look(deltaX: deltaX, deltaY: deltaY)
 		case .car:
-			carCameraYaw = max(-maxCarCameraYaw, min(maxCarCameraYaw, carCameraYaw - deltaX))
+			carCameraYaw = normalizedAngle(carCameraYaw - deltaX)
 			carCameraPitch = max(minCarCameraPitch, min(maxCarCameraPitch, carCameraPitch + deltaY))
 			carCameraMouseIdleTime = 0
 			applyCarCameraLook()
 		}
+	}
+
+	private func normalizedAngle(_ angle: SCNFloat) -> SCNFloat {
+		var angle = angle
+		let fullTurn = SCNFloat.pi * 2
+
+		while angle > .pi {
+			angle -= fullTurn
+		}
+		while angle < -.pi {
+			angle += fullTurn
+		}
+
+		return angle
 	}
 
 	private func resetCarCameraLook() {
