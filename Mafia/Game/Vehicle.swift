@@ -20,7 +20,19 @@ final class Vehicle {
 	private let idleBrakeForce: CGFloat = 8
 	private let tractionAssistSpeedLimit: CGFloat = 0.35
 	private let tractionAssistScale: CGFloat = 0.15
-	private let wheelLateralOffsetScale: SCNFloat = 0.85
+	private let centerOfMassYOffset: SCNFloat = -0.45
+	private let wheelSuspensionRestLength: CGFloat = 0.12
+	private let wheelSuspensionTravel: CGFloat = 0.24
+	private let wheelSuspensionStiffness: CGFloat = 70
+	private let wheelSuspensionCompression: CGFloat = 5
+	private let wheelSuspensionDamping: CGFloat = 6
+	private let wheelFrictionSlip: CGFloat = 6
+	private let wheelSteeringAxis = SCNVector3(x: 0, y: -1, z: 0)
+	private let wheelAxle = SCNVector3(x: 1, y: 0, z: 0)
+	private let chassisPhysicsWidthScale: SCNFloat = 0.8
+	private let chassisPhysicsHeightScale: SCNFloat = 0.45
+	private let chassisPhysicsLengthScale: SCNFloat = 0.85
+	private let chassisPhysicsCenterHeight: SCNFloat = 0.58
 	private let resetHeight: SCNFloat = 1.2
 	private var isBraking = false
 
@@ -53,12 +65,22 @@ final class Vehicle {
 
 		Vehicle.attachChassisVisuals(from: node, to: taxiNode)
 
-		taxiNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: nil)
+		taxiNode.physicsBody = SCNPhysicsBody(
+			type: .dynamic,
+			shape: Vehicle.chassisPhysicsShape(
+				for: taxiNode,
+				widthScale: chassisPhysicsWidthScale,
+				heightScale: chassisPhysicsHeightScale,
+				lengthScale: chassisPhysicsLengthScale,
+				centerHeight: chassisPhysicsCenterHeight
+			)
+		)
 		taxiNode.physicsBody?.allowsResting = false
 		taxiNode.physicsBody?.mass = 1000
 		taxiNode.physicsBody?.restitution = 0.1
 		taxiNode.physicsBody?.friction = 0.5
 		taxiNode.physicsBody?.rollingFriction = 0
+		taxiNode.physicsBody?.centerOfMassOffset = SCNVector3(x: 0, y: centerOfMassYOffset, z: 0)
 
 		let whl0 = node.childNode(withName: "WHL0", recursively: true)!
 		let whr0 = node.childNode(withName: "WHR0", recursively: true)!
@@ -70,17 +92,73 @@ final class Vehicle {
 		let wheel2 = SCNPhysicsVehicleWheel(node: whl1)
 		let wheel3 = SCNPhysicsVehicleWheel(node: whr1)
 
-		let wheelLateralOffset = (whl0.boundingBox.max.x - whl0.boundingBox.min.x) * wheelLateralOffsetScale
+		let wheels = [wheel0, wheel1, wheel2, wheel3]
+		let wheelNodes = [whl0, whr0, whl1, whr1]
 
-		wheel0.connectionPosition = whl0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelLateralOffset, 0, 0)
-		wheel1.connectionPosition = whr0.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelLateralOffset, 0, 0)
-		wheel2.connectionPosition = whl1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3(-wheelLateralOffset, 0, 0)
-		wheel3.connectionPosition = whr1.convertPosition(SCNVector3(), to: taxiNode) + SCNVector3( wheelLateralOffset, 0, 0)
+		for (wheel, wheelNode) in zip(wheels, wheelNodes) {
+			wheel.radius = Vehicle.wheelRadius(for: wheelNode)
+		}
 
-		physicsVehicle = SCNPhysicsVehicle(chassisBody: taxiNode.physicsBody!, wheels: [
-			wheel0, wheel1, wheel2, wheel3
-		])
+		wheel0.connectionPosition = Vehicle.wheelConnectionPosition(for: whl0, wheel: wheel0, restLength: wheelSuspensionRestLength, in: taxiNode)
+		wheel1.connectionPosition = Vehicle.wheelConnectionPosition(for: whr0, wheel: wheel1, restLength: wheelSuspensionRestLength, in: taxiNode)
+		wheel2.connectionPosition = Vehicle.wheelConnectionPosition(for: whl1, wheel: wheel2, restLength: wheelSuspensionRestLength, in: taxiNode)
+		wheel3.connectionPosition = Vehicle.wheelConnectionPosition(for: whr1, wheel: wheel3, restLength: wheelSuspensionRestLength, in: taxiNode)
+
+		physicsVehicle = SCNPhysicsVehicle(chassisBody: taxiNode.physicsBody!, wheels: wheels)
+		configure(wheels: wheels)
 		scene.physicsWorld.addBehavior(physicsVehicle)
+	}
+
+	private static func chassisPhysicsShape(
+		for chassisNode: SCNNode,
+		widthScale: SCNFloat,
+		heightScale: SCNFloat,
+		lengthScale: SCNFloat,
+		centerHeight: SCNFloat
+	) -> SCNPhysicsShape {
+		let bounds = chassisNode.boundingBox
+		let width = bounds.max.x - bounds.min.x
+		let height = bounds.max.y - bounds.min.y
+		let length = bounds.max.z - bounds.min.z
+		let box = SCNBox(
+			width: CGFloat(width * widthScale),
+			height: CGFloat(height * heightScale),
+			length: CGFloat(length * lengthScale),
+			chamferRadius: 0
+		)
+		let shapeNode = SCNNode(geometry: box)
+		shapeNode.position = SCNVector3(
+			x: (bounds.min.x + bounds.max.x) / 2,
+			y: bounds.min.y + height * centerHeight,
+			z: (bounds.min.z + bounds.max.z) / 2
+		)
+		return SCNPhysicsShape(node: shapeNode, options: nil)
+	}
+
+	private static func wheelRadius(for wheelNode: SCNNode) -> CGFloat {
+		let bounds = wheelNode.boundingBox
+		let verticalDiameter = bounds.max.y - bounds.min.y
+		let longitudinalDiameter = bounds.max.z - bounds.min.z
+		let diameter = max(verticalDiameter, longitudinalDiameter)
+		return CGFloat(diameter / 2)
+	}
+
+	private static func wheelConnectionPosition(for wheelNode: SCNNode, wheel: SCNPhysicsVehicleWheel, restLength: CGFloat, in chassisNode: SCNNode) -> SCNVector3 {
+		let rideHeight = SCNFloat(wheel.radius + restLength)
+		return wheelNode.convertPosition(SCNVector3(), to: chassisNode) + SCNVector3(x: 0, y: rideHeight, z: 0)
+	}
+
+	private func configure(wheels: [SCNPhysicsVehicleWheel]) {
+		for wheel in wheels {
+			wheel.suspensionRestLength = wheelSuspensionRestLength
+			wheel.maximumSuspensionTravel = wheelSuspensionTravel
+			wheel.suspensionStiffness = wheelSuspensionStiffness
+			wheel.suspensionCompression = wheelSuspensionCompression
+			wheel.suspensionDamping = wheelSuspensionDamping
+			wheel.frictionSlip = wheelFrictionSlip
+			wheel.steeringAxis = wheelSteeringAxis
+			wheel.axle = wheelAxle
+		}
 	}
 
 	private static func attachChassisVisuals(from vehicleRoot: SCNNode, to chassisNode: SCNNode) {
@@ -145,7 +223,7 @@ final class Vehicle {
 	func updateControls(throttle: CGFloat, brake: Bool, steering: CGFloat) {
 		isBraking = brake
 		vehicleSteering = steering * maximumSteering
-		force = brake ? 0 : max(-1, min(1, throttle)) * engineForce
+		force = brake ? 0 : -max(-1, min(1, throttle)) * engineForce
 	}
 
 }
