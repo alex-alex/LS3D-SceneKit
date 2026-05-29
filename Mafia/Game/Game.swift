@@ -13,7 +13,7 @@ import SpriteKit
 final class Game: NSObject {
 
 	enum Mode {
-		case walk, car
+		case walk, car, freeCamera
 	}
 
 	var hud: HudScene!
@@ -26,9 +26,16 @@ final class Game: NSObject {
 		didSet {
 			cameraContainer.removeFromParentNode()
 			configureCamera(for: mode)
-			if mode == .walk {
+			if mode == .freeCamera {
+				scnScene.rootNode.addChildNode(cameraContainer)
+				playerController?.stop()
+				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+				vehicle?.applyForces()
+			} else if mode == .walk {
 				scene.playerNode?.isHidden = false
+				if oldValue != .freeCamera {
 				teleportPlayerBesideVehicle()
+				}
 				scene.playerNode!.addChildNode(cameraContainer)
 				playerController?.stop()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
@@ -76,6 +83,15 @@ final class Game: NSObject {
 	private var isActionButtonVisible = false
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
 	private let actionDistanceSquared: Float = 4
+	private var modeBeforeFreeCamera: Mode = .car
+	private var freeCameraPosition = SCNVector3Zero
+	private var freeCameraMovement = SCNVector3Zero
+	private var freeCameraYaw: SCNFloat = 0
+	private var freeCameraPitch: SCNFloat = 0
+	private let freeCameraSpeed: SCNFloat = 16
+	private let freeCameraFastSpeed: SCNFloat = 45
+	private let minFreeCameraPitch: SCNFloat = -.pi / 2 + 0.01
+	private let maxFreeCameraPitch: SCNFloat = .pi / 2 - 0.01
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -172,11 +188,17 @@ final class Game: NSObject {
 			cameraNode.eulerAngles = SCNVector3(x: carCameraForwardPitch, y: .pi, z: .pi)
 			elevation = 0
 			resetCarCameraLook()
-		} else {
+		} else if mode == .walk {
 			cameraContainer.position = SCNVector3(x: 0, y: 1.35, z: 0)
 			cameraNode.position = SCNVector3(x: 0, y: 1.25, z: -2.8)
 			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
 			elevation = 0
+		} else {
+			cameraContainer.position = freeCameraPosition
+			cameraContainer.eulerAngles = SCNVector3(x: freeCameraPitch, y: freeCameraYaw, z: 0)
+			cameraNode.position = SCNVector3Zero
+			cameraNode.eulerAngles = SCNVector3(x: 0, y: .pi, z: .pi)
+			elevation = freeCameraPitch
 		}
 
 		cameraContainer.eulerAngles.x = elevation
@@ -194,7 +216,50 @@ final class Game: NSObject {
 			carCameraPitch = max(minCarCameraPitch, min(maxCarCameraPitch, carCameraPitch + deltaY))
 			carCameraMouseIdleTime = 0
 			applyCarCameraLook()
+		case .freeCamera:
+			freeCameraYaw = normalizedAngle(freeCameraYaw - deltaX)
+			freeCameraPitch = max(minFreeCameraPitch, min(maxFreeCameraPitch, freeCameraPitch + deltaY))
+			cameraContainer.eulerAngles = SCNVector3(x: freeCameraPitch, y: freeCameraYaw, z: 0)
 		}
+	}
+
+	func toggleFreeCamera() {
+		if mode == .freeCamera {
+			freeCameraMovement = SCNVector3Zero
+			mode = modeBeforeFreeCamera
+			return
+		}
+
+		modeBeforeFreeCamera = mode
+		freeCameraPosition = cameraNode.presentation.worldPosition
+		let forward = cameraNode.presentation.worldFront
+		freeCameraYaw = atan2(-forward.x, -forward.z)
+		freeCameraPitch = asin(max(-1, min(1, forward.y)))
+		mode = .freeCamera
+	}
+
+	func setFreeCameraMovement(x: SCNFloat, y: SCNFloat, z: SCNFloat, isFast: Bool) {
+		let length = sqrt(x * x + y * y + z * z)
+		let speed = isFast ? freeCameraFastSpeed : freeCameraSpeed
+		if length > 1 {
+			freeCameraMovement = SCNVector3(x: x / length * speed, y: y / length * speed, z: z / length * speed)
+		} else {
+			freeCameraMovement = SCNVector3(x: x * speed, y: y * speed, z: z * speed)
+		}
+	}
+
+	private func updateFreeCamera(deltaTime: TimeInterval) {
+		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
+		guard dt > 0 else { return }
+
+		let transform = cameraContainer.presentation.worldTransform
+		let right = SCNVector3(x: transform.m11, y: transform.m12, z: transform.m13)
+		let up = SCNVector3(x: transform.m21, y: transform.m22, z: transform.m23)
+		let forward = SCNVector3(x: -transform.m31, y: -transform.m32, z: -transform.m33)
+
+		cameraContainer.position.x += (right.x * freeCameraMovement.x + up.x * freeCameraMovement.y + forward.x * freeCameraMovement.z) * dt
+		cameraContainer.position.y += (right.y * freeCameraMovement.x + up.y * freeCameraMovement.y + forward.y * freeCameraMovement.z) * dt
+		cameraContainer.position.z += (right.z * freeCameraMovement.x + up.z * freeCameraMovement.y + forward.z * freeCameraMovement.z) * dt
 	}
 
 	private func normalizedAngle(_ angle: SCNFloat) -> SCNFloat {
@@ -531,9 +596,11 @@ extension Game: SCNSceneRendererDelegate {
 				y: 0,
 				z: 0
 			)
-		} else {
+		} else if mode == .car {
 			updateCarCameraLook(deltaTime: deltaTime)
 			updateCarCameraFollow(deltaTime: deltaTime)
+		} else {
+			updateFreeCamera(deltaTime: deltaTime)
 		}
 		updateSkyboxPosition()
 
@@ -592,6 +659,8 @@ extension Game: SCNSceneRendererDelegate {
 			let playerAngle: SCNFloat
 			if mode == .walk {
 				playerAngle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
+			} else if mode == .freeCamera {
+				playerAngle = cameraContainer.presentation.rotation.y * cameraContainer.presentation.rotation.w - .pi
 			} else {
 				playerAngle = self.vehicle.node.presentation.rotation.y * self.vehicle.node.presentation.rotation.w - .pi/2
 			}

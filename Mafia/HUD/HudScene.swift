@@ -44,6 +44,12 @@ final class HudScene: SKScene {
 	private var walkingBackward = false
 	private var walkingLeft = false
 	private var walkingRight = false
+	private var freeCameraForward = false
+	private var freeCameraBackward = false
+	private var freeCameraLeft = false
+	private var freeCameraRight = false
+	private var freeCameraUp = false
+	private var freeCameraDown = false
 
 	#endif
 
@@ -339,6 +345,7 @@ extension HudScene {
 		if event.keyCode == 53 { // escape
 			clearVehicleControls()
 			clearWalkingControls()
+			clearFreeCameraControls()
 			game.setPaused(!game.isGamePaused)
 			return
 		}
@@ -347,6 +354,24 @@ extension HudScene {
 
 		SCNTransaction.begin()
 		SCNTransaction.animationDuration = 0.2
+
+		if event.keyCode == 8 { // C
+			clearVehicleControls()
+			clearWalkingControls()
+			clearFreeCameraControls()
+			game.toggleFreeCamera()
+			SCNTransaction.commit()
+			return
+		}
+
+		if game.mode == .freeCamera && handleFreeCameraKeyDown(event.keyCode) {
+			SCNTransaction.commit()
+			return
+		}
+		if game.mode == .freeCamera {
+			SCNTransaction.commit()
+			return
+		}
 
 		if game.mode == .car && handleVehicleKeyDown(event.keyCode) {
 			SCNTransaction.commit()
@@ -434,10 +459,53 @@ extension HudScene {
 		return true
 	}
 
+	private func handleFreeCameraKeyDown(_ keyCode: UInt16) -> Bool {
+		switch keyCode {
+		case 0, 123: // A, left
+			freeCameraLeft = true
+		case 2, 124: // D, right
+			freeCameraRight = true
+		case 13, 126: // W, up
+			freeCameraForward = true
+		case 1, 125: // S, down
+			freeCameraBackward = true
+		case 49: // space
+			freeCameraUp = true
+		case 56, 60: // shift
+			freeCameraDown = true
+		default:
+			return false
+		}
+
+		updateFreeCameraControls()
+		return true
+	}
+
 	override func keyUp(with event: NSEvent) {
 		super.keyUp(with: event)
 
 		guard !game.isGamePaused else { return }
+
+		if game.mode == .freeCamera {
+			switch event.keyCode {
+			case 0, 123: // A, left
+				freeCameraLeft = false
+			case 2, 124: // D, right
+				freeCameraRight = false
+			case 13, 126: // W, up
+				freeCameraForward = false
+			case 1, 125: // S, down
+				freeCameraBackward = false
+			case 49: // space
+				freeCameraUp = false
+			case 56, 60: // shift
+				freeCameraDown = false
+			default:
+				break
+			}
+			updateFreeCameraControls()
+			return
+		}
 
 		if game.mode == .walk, game.scene.playerNode != nil {
 			switch event.keyCode {
@@ -517,6 +585,16 @@ extension HudScene {
 		vehicleSteering = 0
 	}
 
+	private func clearFreeCameraControls() {
+		freeCameraForward = false
+		freeCameraBackward = false
+		freeCameraLeft = false
+		freeCameraRight = false
+		freeCameraUp = false
+		freeCameraDown = false
+		game.setFreeCameraMovement(x: 0, y: 0, z: 0, isFast: false)
+	}
+
 	private func updateWalkingControls() {
 		let forward: SCNFloat
 		if walkingForward == walkingBackward {
@@ -545,6 +623,31 @@ extension HudScene {
 		walkingLeft = false
 		walkingRight = false
 		game.playerController?.stop()
+	}
+
+	private func updateFreeCameraControls() {
+		let forward: SCNFloat
+		if freeCameraForward == freeCameraBackward {
+			forward = 0
+		} else {
+			forward = freeCameraForward ? -1 : 1
+		}
+
+		let strafe: SCNFloat
+		if freeCameraLeft == freeCameraRight {
+			strafe = 0
+		} else {
+			strafe = freeCameraLeft ? -1 : 1
+		}
+
+		let vertical: SCNFloat
+		if freeCameraUp == freeCameraDown {
+			vertical = 0
+		} else {
+			vertical = freeCameraUp ? 1 : -1
+		}
+
+		game.setFreeCameraMovement(x: strafe, y: vertical, z: forward, isFast: false)
 	}
 
 	#endif

@@ -149,6 +149,8 @@ class GameViewController: NSViewController {
 			return gameManager.game?.scene.playerNode != nil
 		case .car:
 			return true
+		case .freeCamera:
+			return true
 		}
 	}
 
