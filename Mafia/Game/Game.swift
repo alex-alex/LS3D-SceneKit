@@ -25,11 +25,14 @@ final class Game: NSObject {
 	var mode: Mode = .car {
 		didSet {
 			cameraContainer.removeFromParentNode()
+			configureCamera(for: mode)
 			if mode == .walk {
 				scene.playerNode!.addChildNode(cameraContainer)
+				playerController?.stop()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 				vehicle?.applyForces()
 			} else {
+				playerController?.stop()
 				vehicle.node.addChildNode(cameraContainer)
 			}
 		}
@@ -38,8 +41,11 @@ final class Game: NSObject {
 	let scene: Scene
 
 	var vehicle: Vehicle!
+	var playerController: PlayerController?
 	var elevation: SCNFloat = 0
 	var lastControl: Control?
+	private(set) var isGamePaused = false
+	private var lastUpdateTime: TimeInterval?
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -90,29 +96,8 @@ final class Game: NSObject {
 		// -----
 
 		if let playerNode = scene.playerNode {
-			let cylinderNode = SCNNode()
-			cylinderNode.geometry = SCNCylinder(radius: 0.25, height: 1.5)
-			cylinderNode.geometry?.firstMaterial = SCNMaterial()
-			cylinderNode.geometry?.firstMaterial?.cullMode = .front
-			cylinderNode.geometry?.firstMaterial?.diffuse.contents = SKColor.red
-			cylinderNode.position = SCNVector3(0, 1, 0)
-			playerNode.addChildNode(cylinderNode)
-
-			let cylinderShape = SCNPhysicsShape(geometry: SCNCylinder(radius: 0.25, height: 1.5), options: nil)
-			let playerPhysicsShape = SCNPhysicsShape(
-				shapes: [cylinderShape],
-				transforms: [NSValue(scnMatrix4: SCNMatrix4MakeTranslation(0, 1, 0))]
-			)
-			playerNode.physicsBody = SCNPhysicsBody(type: .dynamic, shape: playerPhysicsShape)
-			playerNode.physicsBody?.allowsResting = false
-			playerNode.physicsBody?.mass = 80
-			playerNode.physicsBody?.angularDamping = 0.9999999
-			playerNode.physicsBody?.damping = 0.9999999
-			playerNode.physicsBody?.rollingFriction = 0
-			playerNode.physicsBody?.friction = 0
-			playerNode.physicsBody?.restitution = 0
-
 			playerNode.position.y += 0.5
+			playerController = PlayerController(node: playerNode, scene: scnScene)
 		}
 
 		// -----
@@ -130,18 +115,7 @@ final class Game: NSObject {
 		cameraNode.camera = camera
 		cameraNode.scale = SCNVector3(x: 1, y: -1, z: 1)
 
-		if mode == .car {
-			cameraNode.position = SCNVector3(x: 0, y: 2.2*2, z: -1.5*4)
-			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
-			elevation = 0
-		} else {
-			cameraNode.position = SCNVector3(x: 0, y: 1, z: 0)
-			cameraNode.eulerAngles = SCNVector3(x: .pi/2, y: .pi, z: .pi)
-			cameraContainer.position = SCNVector3(x: 0, y: 2, z: 0)
-			elevation = -.pi/2.5
-		}
-
-		cameraContainer.eulerAngles.x = elevation
+		configureCamera(for: mode)
 		cameraContainer.addChildNode(cameraNode)
 
 		if mode == .walk {
@@ -153,6 +127,22 @@ final class Game: NSObject {
 		} else {
 			vehicle.node.addChildNode(cameraContainer)
 		}
+	}
+
+	private func configureCamera(for mode: Mode) {
+		if mode == .car {
+			cameraContainer.position = SCNVector3Zero
+			cameraNode.position = SCNVector3(x: 0, y: 2.2*2, z: -1.5*4)
+			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
+			elevation = 0
+		} else {
+			cameraContainer.position = SCNVector3(x: 0, y: 1.35, z: 0)
+			cameraNode.position = SCNVector3(x: 0, y: 1.25, z: -2.8)
+			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
+			elevation = 0
+		}
+
+		cameraContainer.eulerAngles.x = elevation
 	}
 
 	func setup(in view: SCNView) {
@@ -168,6 +158,17 @@ final class Game: NSObject {
 		}
 	}
 
+	func setPaused(_ isPaused: Bool) {
+		guard isGamePaused != isPaused else { return }
+
+		isGamePaused = isPaused
+		scnScene.isPaused = isPaused
+		lastUpdateTime = nil
+		hud?.setPauseScreenVisible(isPaused)
+		playerController?.stop()
+		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+	}
+
 }
 
 // MARK: - SCNSceneRendererDelegate
@@ -175,9 +176,21 @@ final class Game: NSObject {
 extension Game: SCNSceneRendererDelegate {
 
 	func renderer(_ renderer: SCNSceneRenderer, updateAtTime time: TimeInterval) {
+		guard !isGamePaused else { return }
+
+		let deltaTime = lastUpdateTime.map { time - $0 } ?? 0
+		lastUpdateTime = time
+
+		if mode == .walk {
+			playerController?.update(deltaTime: deltaTime)
+			cameraContainer.eulerAngles.y = 0
+		}
+
 		#if os(macOS)
 
-		vehicle?.applyForces()
+		if mode == .car {
+			vehicle?.applyForces()
+		}
 
 		#elseif os(iOS)
 

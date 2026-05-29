@@ -1,0 +1,62 @@
+//
+//  GameSceneView.swift
+//  Mafia
+//
+//  Created by Codex on 29/05/2026.
+//  Copyright © 2026 Alex Studnicka. All rights reserved.
+//
+
+import AppKit
+import SceneKit
+
+final class GameSceneView: SCNView {
+
+	var mouseMovedHandler: ((NSEvent) -> Void)?
+
+	private var mouseTrackingArea: NSTrackingArea?
+
+	override var acceptsFirstResponder: Bool {
+		return true
+	}
+
+	override func viewDidMoveToWindow() {
+		super.viewDidMoveToWindow()
+		window?.acceptsMouseMovedEvents = true
+		window?.makeFirstResponder(self)
+	}
+
+	override func updateTrackingAreas() {
+		super.updateTrackingAreas()
+
+		if let mouseTrackingArea = mouseTrackingArea {
+			removeTrackingArea(mouseTrackingArea)
+		}
+
+		let options: NSTrackingArea.Options = [
+			.activeAlways,
+			.enabledDuringMouseDrag,
+			.inVisibleRect,
+			.mouseMoved
+		]
+		let trackingArea = NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil)
+		addTrackingArea(trackingArea)
+		mouseTrackingArea = trackingArea
+	}
+
+	override func mouseMoved(with event: NSEvent) {
+		mouseMovedHandler?(event)
+	}
+
+	override func mouseDragged(with event: NSEvent) {
+		mouseMovedHandler?(event)
+	}
+
+	override func rightMouseDragged(with event: NSEvent) {
+		mouseMovedHandler?(event)
+	}
+
+	override func otherMouseDragged(with event: NSEvent) {
+		mouseMovedHandler?(event)
+	}
+
+}

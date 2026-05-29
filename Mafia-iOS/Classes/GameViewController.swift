@@ -88,11 +88,8 @@ extension GameViewController {
 		let vAngle = acos(Float(translation.y) / 200) - (.pi / 2)
 
 		if gameManager.game?.mode == .walk {
-			if let playerNode = gameManager.game.scene.playerNode {
-//				let hAngle = acos(Float(translation.x) / 5) - (.pi / 2)
-//				scene.playerNode!.eulerAngles.y += hAngle
-//				scene.playerNode!.position.y += vAngle
-				playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: Float(translation.x)), asImpulse: true)
+			if gameManager.game.scene.playerNode != nil {
+				gameManager.game.playerController?.look(deltaX: Float(translation.x) * 0.008)
 			} else {
 				let hAngle = acos(Float(translation.x) / 200) - (.pi / 2)
 				gameManager.game.elevation = max((-.pi/2.5), min(0, gameManager.game.elevation - vAngle))
@@ -107,6 +104,7 @@ extension GameViewController {
 	@objc func walkGestureRecognized(gesture: UIPanGestureRecognizer) {
 		if gesture.state == .ended || gesture.state == .cancelled {
 			gesture.setTranslation(.zero, in: view)
+			gameManager.game?.playerController?.setMovement(x: 0, z: 0)
 		}
 
 		let translation = gesture.translation(in: view)
@@ -117,7 +115,11 @@ extension GameViewController {
 //			try! playAnimation(named: "anims/walk1.5ds", in: scene.playerNode!, repeat: true, animationKey: "__walking__")
 		}*/
 
-		if gameManager.game?.mode == .car {
+		if gameManager.game?.mode == .walk {
+			let inputX = max(-1, min(1, Float(translation.x) / 50))
+			let inputZ = max(-1, min(1, Float(-translation.y) / 50))
+			gameManager.game.playerController?.setMovement(x: inputX, z: inputZ)
+		} else if gameManager.game?.mode == .car {
 			let impulse = SCNVector3(
 				x: max(-1, min(1, Float(translation.x) / 50)),
 				y: 0,

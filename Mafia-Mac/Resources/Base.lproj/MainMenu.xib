@@ -670,7 +670,7 @@
                 <rect key="frame" x="0.0" y="0.0" width="640" height="480"/>
                 <autoresizingMask key="autoresizingMask"/>
                 <subviews>
-                    <sceneView translatesAutoresizingMaskIntoConstraints="NO" id="536">
+                    <sceneView translatesAutoresizingMaskIntoConstraints="NO" id="536" customClass="GameSceneView" customModule="Mafia" customModuleProvider="target">
                         <rect key="frame" x="0.0" y="0.0" width="640" height="480"/>
                         <color key="backgroundColor" white="1" alpha="1" colorSpace="calibratedWhite"/>
                     </sceneView>

@@ -23,6 +23,7 @@
 		FA355C48200923E600512DC0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3F200923E600512DC0 /* LaunchScreen.storyboard */; };
 		FA355C49200923E600512DC0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C41200923E600512DC0 /* Main.storyboard */; };
 		FA355C532009241000512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C4C2009241000512DC0 /* GameViewController.swift */; };
+		FA355C572009241100512DC0 /* GameSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C572009241000512DC0 /* GameSceneView.swift */; };
 		FA355C542009241000512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C4D2009241000512DC0 /* AppDelegate.swift */; };
 		FA355C552009241000512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C4F2009241000512DC0 /* Assets.xcassets */; };
 		FA355C562009241000512DC0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = FA355C502009241000512DC0 /* MainMenu.xib */; };
@@ -58,6 +59,8 @@
 		FA4B74162006428200E0A66F /* Record.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B74142006427E00E0A66F /* Record.swift */; };
 		FA4B7418200812D100E0A66F /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B7417200812D100E0A66F /* Vehicle.swift */; };
 		FA4B7419200812D200E0A66F /* Vehicle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B7417200812D100E0A66F /* Vehicle.swift */; };
+		FA4B741A200812D200E0A66F /* PlayerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B741B200812D200E0A66F /* PlayerController.swift */; };
+		FA4B741C200812D200E0A66F /* PlayerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B741B200812D200E0A66F /* PlayerController.swift */; };
 		FA50107D20018F2D00B24CE6 /* Collisions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */; };
 		FA50107E20018F2D00B24CE6 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
 		FA518F2A200F6467004069D4 /* AnimationFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA518F29200F6467004069D4 /* AnimationFace.swift */; };
@@ -123,6 +126,7 @@
 		FA355C42200923E600512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		FA355C43200923E600512DC0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FA355C4C2009241000512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
+		FA355C572009241000512DC0 /* GameSceneView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameSceneView.swift; sourceTree = "<group>"; };
 		FA355C4D2009241000512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FA355C4F2009241000512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FA355C512009241000512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
@@ -143,6 +147,7 @@
 		FA37F0C4204C93BA001FF8A7 /* CollisionVolume.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollisionVolume.swift; sourceTree = "<group>"; };
 		FA4B74142006427E00E0A66F /* Record.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Record.swift; sourceTree = "<group>"; };
 		FA4B7417200812D100E0A66F /* Vehicle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Vehicle.swift; sourceTree = "<group>"; };
+		FA4B741B200812D200E0A66F /* PlayerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerController.swift; sourceTree = "<group>"; };
 		FA518F29200F6467004069D4 /* AnimationFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationFace.swift; sourceTree = "<group>"; };
 		FA518F2C200F64E0004069D4 /* AnimationPosition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimationPosition.swift; sourceTree = "<group>"; };
 		FA518F33200FCB17004069D4 /* LoadingScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingScene.swift; sourceTree = "<group>"; };
@@ -266,6 +271,7 @@
 			children = (
 				FA355C4D2009241000512DC0 /* AppDelegate.swift */,
 				FA355C4C2009241000512DC0 /* GameViewController.swift */,
+				FA355C572009241000512DC0 /* GameSceneView.swift */,
 			);
 			path = Classes;
 			sourceTree = "<group>";
@@ -324,6 +330,7 @@
 				FA6ABE9820081A7A00BB3BBD /* Action.swift */,
 				FA9C95F82002A544005FBB66 /* Weapon.swift */,
 				FA4B7417200812D100E0A66F /* Vehicle.swift */,
+				FA4B741B200812D200E0A66F /* PlayerController.swift */,
 			);
 			path = Game;
 			sourceTree = "<group>";
@@ -523,6 +530,7 @@
 			files = (
 				FA37F0BC204C92E2001FF8A7 /* CollisionCylinder.swift in Sources */,
 				FA4B7418200812D100E0A66F /* Vehicle.swift in Sources */,
+				FA4B741A200812D200E0A66F /* PlayerController.swift in Sources */,
 				FA518F34200FCB17004069D4 /* LoadingScene.swift in Sources */,
 				FA6ABE92200818B100BB3BBD /* HudScene.swift in Sources */,
 				FA6ABE9920081A7A00BB3BBD /* Action.swift in Sources */,
@@ -541,6 +549,7 @@
 				FA355C542009241000512DC0 /* AppDelegate.swift in Sources */,
 				FA2FE8C0200FEA2A0057A80E /* MainMenu.swift in Sources */,
 				FA355C532009241000512DC0 /* GameViewController.swift in Sources */,
+				FA355C572009241100512DC0 /* GameSceneView.swift in Sources */,
 				FA0A0D771D5FB07A00878046 /* ImageUtils.swift in Sources */,
 				FA6ABE95200819FE00BB3BBD /* Game.swift in Sources */,
 				FA37F0A2204C8B08001FF8A7 /* ModelMorph.swift in Sources */,
@@ -569,6 +578,7 @@
 			files = (
 				FA37F0BD204C92E2001FF8A7 /* CollisionCylinder.swift in Sources */,
 				FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */,
+				FA4B741C200812D200E0A66F /* PlayerController.swift in Sources */,
 				FA518F35200FCB17004069D4 /* LoadingScene.swift in Sources */,
 				FA4B7419200812D200E0A66F /* Vehicle.swift in Sources */,
 				FA6ABE93200818B100BB3BBD /* HudScene.swift in Sources */,

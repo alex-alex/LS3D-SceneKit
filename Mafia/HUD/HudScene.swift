@@ -24,6 +24,9 @@ final class HudScene: SKScene {
 	var carButton: SKShapeNode!
 	var objectivesLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
+	private var pauseOverlay: SKShapeNode!
+	private var pauseTitleLabel: SKLabelNode!
+	private var pauseHintLabel: SKLabelNode!
 
 	#if os(macOS)
 
@@ -35,6 +38,10 @@ final class HudScene: SKScene {
 	private var braking = false
 	private var steeringLeft = false
 	private var steeringRight = false
+	private var walkingForward = false
+	private var walkingBackward = false
+	private var walkingLeft = false
+	private var walkingRight = false
 
 	#endif
 
@@ -84,6 +91,8 @@ final class HudScene: SKScene {
 		speedLabel.isHidden = true
 		addChild(speedLabel)
 
+		renderPauseScreen()
+
 		scaleMode = .resizeFill
 		isHidden = false
 		isUserInteractionEnabled = true
@@ -102,12 +111,23 @@ final class HudScene: SKScene {
 	}
 
 	private func layoutHud() {
-		guard compass != nil, actionButton != nil, objectivesLabel != nil, speedLabel != nil else { return }
+		guard compass != nil,
+				  actionButton != nil,
+				  objectivesLabel != nil,
+				  speedLabel != nil,
+				  pauseOverlay != nil else { return }
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 45)
 		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
+		pauseOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
+		pauseOverlay.path = CGPath(
+			rect: CGRect(x: -size.width/2, y: -size.height/2, width: size.width, height: size.height),
+			transform: nil
+		)
+		pauseTitleLabel.position = CGPoint(x: 0, y: 20)
+		pauseHintLabel.position = CGPoint(x: 0, y: -24)
 
 		inventoryButton?.position = CGPoint(x: size.width-45, y: size.height-45)
 		reloadButton?.position = CGPoint(x: size.width-45, y: size.height-45-60)
@@ -122,6 +142,41 @@ final class HudScene: SKScene {
 		let wheelSpeed = Int(vehicleSpeed.rounded())
 		let engineForce = Int(force.rounded())
 		speedLabel.text = "Body \(bodySpeed)  Vehicle \(wheelSpeed)  Force \(engineForce)"
+	}
+
+}
+
+// MARK: - Pause Screen
+
+extension HudScene {
+
+	private func renderPauseScreen() {
+		pauseOverlay = SKShapeNode(rectOf: size)
+		pauseOverlay.fillColor = SKColor.black.withAlphaComponent(0.68)
+		pauseOverlay.strokeColor = SKColor.clear
+		pauseOverlay.zPosition = 1000
+		pauseOverlay.isHidden = true
+		addChild(pauseOverlay)
+
+		pauseTitleLabel = SKLabelNode()
+		pauseTitleLabel.fontName = "Arial-BoldMT"
+		pauseTitleLabel.fontSize = 38
+		pauseTitleLabel.fontColor = SKColor.white
+		pauseTitleLabel.text = "Paused"
+		pauseTitleLabel.verticalAlignmentMode = .center
+		pauseOverlay.addChild(pauseTitleLabel)
+
+		pauseHintLabel = SKLabelNode()
+		pauseHintLabel.fontName = "Arial"
+		pauseHintLabel.fontSize = 17
+		pauseHintLabel.fontColor = SKColor.white
+		pauseHintLabel.text = "Press Esc to resume"
+		pauseHintLabel.verticalAlignmentMode = .center
+		pauseOverlay.addChild(pauseHintLabel)
+	}
+
+	func setPauseScreenVisible(_ isVisible: Bool) {
+		pauseOverlay.isHidden = !isVisible
 	}
 
 }
@@ -252,11 +307,7 @@ extension HudScene {
 				}
 			case jumpButton, jumpButton.children[0]:
 				game.lastControl = .JUMP
-				game.scene.playerNode?.physicsBody?.applyForce(SCNVector3(
-					x: 0,
-					y: 1000,
-					z: 0
-				), asImpulse: true)
+				game.playerController?.jump()
 				game.scene.pressedJump = true
 			case carButton, carButton.children[0]:
 				game.lastControl = .ACTION
@@ -274,6 +325,15 @@ extension HudScene {
 	#elseif os(macOS)
 
 	override func keyDown(with event: NSEvent) {
+		if event.keyCode == 53 { // escape
+			clearVehicleControls()
+			clearWalkingControls()
+			game.setPaused(!game.isGamePaused)
+			return
+		}
+
+		guard !game.isGamePaused else { return }
+
 		SCNTransaction.begin()
 		SCNTransaction.animationDuration = 0.2
 
@@ -283,82 +343,54 @@ extension HudScene {
 		}
 
 		switch event.keyCode {
-		case 0: // A
-			if let playerNode = game.scene.playerNode {
-				playerNode.physicsBody?.applyForce(SCNVector3(
-					x: 0,
-					y: 4*80,
-					z: 0
-				), asImpulse: true)
-			} else {
-				game.cameraNode.position.y += 0.25
-			}
-
-		case 6: // Z
-			if game.scene.playerNode == nil {
-				game.cameraNode.position.y -= 0.25
-			}
-
-		case 13: // W
-			if game.scene.playerNode != nil {
+		case 49: // space
+			if game.mode == .walk, game.scene.playerNode != nil {
+				game.playerController?.jump()
 				game.scene.pressedJump = true
 			}
 
 		case 14: // E
+			clearWalkingControls()
 			if game.mode == .walk {
 				game.mode = .car
 			} else {
 				game.mode = .walk
 			}
 
-		case 123: // left
-			if game.mode == .walk {
-				if let playerNode = game.scene.playerNode {
-					playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: -10), asImpulse: true)
-				} else {
-					game.cameraNode.eulerAngles.y += 0.25
-				}
+		case 0, 123: // A, left
+			if game.mode == .walk, game.scene.playerNode != nil {
+				walkingLeft = true
+				updateWalkingControls()
+			} else if game.mode == .walk {
+				game.cameraNode.eulerAngles.y += 0.25
 			}
 
-		case 124: // right
-			if game.mode == .walk {
-				if let playerNode = game.scene.playerNode {
-					playerNode.physicsBody?.applyTorque(SCNVector4(x: 0, y: 1, z: 0, w: 10), asImpulse: true)
-				} else {
-					game.cameraNode.eulerAngles.y -= 0.25
-				}
+		case 2, 124: // D, right
+			if game.mode == .walk, game.scene.playerNode != nil {
+				walkingRight = true
+				updateWalkingControls()
+			} else if game.mode == .walk {
+				game.cameraNode.eulerAngles.y -= 0.25
 			}
 
-		case 125: // down
-			if game.mode == .walk {
-				if let playerNode = game.scene.playerNode {
-					let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
-					playerNode.physicsBody?.applyForce(SCNVector3(
-						x: 4*80 * sin(angle),
-						y: 0,
-						z: 4*80 * cos(angle)
-					), asImpulse: true)
-				} else {
-					let angle = game.cameraNode.presentation.rotation.y * game.cameraNode.presentation.rotation.w - .pi
-					game.cameraNode.position.x += 0.5 * sin(angle)
-					game.cameraNode.position.z += 0.5 * cos(angle)
-				}
+		case 1, 125: // S, down
+			if game.mode == .walk, game.scene.playerNode != nil {
+				walkingBackward = true
+				updateWalkingControls()
+			} else if game.mode == .walk {
+				let angle = game.cameraNode.presentation.rotation.y * game.cameraNode.presentation.rotation.w - .pi
+				game.cameraNode.position.x += 0.5 * sin(angle)
+				game.cameraNode.position.z += 0.5 * cos(angle)
 			}
 
-		case 126: // up
-			if game.mode == .walk {
-				if let playerNode = game.scene.playerNode {
-					let angle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
-					playerNode.physicsBody?.applyForce(SCNVector3(
-						x: 4*80 * -sin(angle),
-						y: 0,
-						z: 4*80 * -cos(angle)
-					), asImpulse: true)
-				} else {
-					let angle = game.cameraNode.presentation.rotation.y * game.cameraNode.presentation.rotation.w - .pi
-					game.cameraNode.position.x -= 2 * sin(angle)
-					game.cameraNode.position.z -= 2 * cos(angle)
-				}
+		case 13, 126: // W, up
+			if game.mode == .walk, game.scene.playerNode != nil {
+				walkingForward = true
+				updateWalkingControls()
+			} else if game.mode == .walk {
+				let angle = game.cameraNode.presentation.rotation.y * game.cameraNode.presentation.rotation.w - .pi
+				game.cameraNode.position.x -= 2 * sin(angle)
+				game.cameraNode.position.z -= 2 * cos(angle)
 			}
 
 		default:
@@ -393,6 +425,28 @@ extension HudScene {
 
 	override func keyUp(with event: NSEvent) {
 		super.keyUp(with: event)
+
+		guard !game.isGamePaused else { return }
+
+		if game.mode == .walk, game.scene.playerNode != nil {
+			switch event.keyCode {
+			case 0, 123: // A, left
+				walkingLeft = false
+				updateWalkingControls()
+			case 2, 124: // D, right
+				walkingRight = false
+				updateWalkingControls()
+			case 13, 126: // W, up
+				walkingForward = false
+				updateWalkingControls()
+			case 1, 125: // S, down
+				walkingBackward = false
+				updateWalkingControls()
+			default:
+				break
+			}
+			return
+		}
 
 		switch event.keyCode {
 		case 0, 123: // A, left
@@ -450,6 +504,36 @@ extension HudScene {
 		ride = false
 		reverse = false
 		vehicleSteering = 0
+	}
+
+	private func updateWalkingControls() {
+		let forward: SCNFloat
+		if walkingForward == walkingBackward {
+			forward = 0
+		} else {
+			forward = walkingForward ? 1 : -1
+		}
+
+		let turning: SCNFloat
+		turning = 0
+
+		let strafe: SCNFloat
+		if walkingLeft == walkingRight {
+			strafe = 0
+		} else {
+			strafe = walkingLeft ? -1 : 1
+		}
+
+		game.playerController?.setMovement(x: strafe, z: forward)
+		game.playerController?.setTurn(turning)
+	}
+
+	private func clearWalkingControls() {
+		walkingForward = false
+		walkingBackward = false
+		walkingLeft = false
+		walkingRight = false
+		game.playerController?.stop()
 	}
 
 	#endif
