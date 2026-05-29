@@ -18,21 +18,23 @@ final class Vehicle {
 	private let engineForce: CGFloat = 6500
 	private let brakeForce: CGFloat = 260
 	private let idleBrakeForce: CGFloat = 8
-	private let tractionAssistSpeedLimit: CGFloat = 0.35
-	private let tractionAssistScale: CGFloat = 0.15
+	private let tractionAssistSpeedLimit: CGFloat = 2
+	private let launchMinimumWheelForceScale: CGFloat = 0.35
+	private let reverseLaunchMinimumWheelForceScale: CGFloat = 0.7
 	private let centerOfMassYOffset: SCNFloat = -0.45
-	private let wheelSuspensionRestLength: CGFloat = 0.12
-	private let wheelSuspensionTravel: CGFloat = 0.24
-	private let wheelSuspensionStiffness: CGFloat = 70
-	private let wheelSuspensionCompression: CGFloat = 5
-	private let wheelSuspensionDamping: CGFloat = 6
+	private let wheelSuspensionRestLength: CGFloat = 0.18
+	private let wheelSuspensionTravel: CGFloat = 0.36
+	private let wheelSuspensionStiffness: CGFloat = 32
+	private let wheelSuspensionCompression: CGFloat = 16
+	private let wheelSuspensionDamping: CGFloat = 24
 	private let wheelFrictionSlip: CGFloat = 6
+	private let wheelRadiusScale: CGFloat = 1.16
 	private let wheelSteeringAxis = SCNVector3(x: 0, y: -1, z: 0)
 	private let wheelAxle = SCNVector3(x: 1, y: 0, z: 0)
-	private let chassisPhysicsWidthScale: SCNFloat = 0.8
-	private let chassisPhysicsHeightScale: SCNFloat = 0.45
-	private let chassisPhysicsLengthScale: SCNFloat = 0.85
-	private let chassisPhysicsCenterHeight: SCNFloat = 0.58
+	private let chassisPhysicsWidthScale: SCNFloat = 0.62
+	private let chassisPhysicsHeightScale: SCNFloat = 0.28
+	private let chassisPhysicsLengthScale: SCNFloat = 0.58
+	private let chassisPhysicsCenterHeight: SCNFloat = 0.72
 	private let resetHeight: SCNFloat = 1.2
 	private var isBraking = false
 
@@ -77,9 +79,11 @@ final class Vehicle {
 		)
 		taxiNode.physicsBody?.allowsResting = false
 		taxiNode.physicsBody?.mass = 1000
-		taxiNode.physicsBody?.restitution = 0.1
+		taxiNode.physicsBody?.restitution = 0
 		taxiNode.physicsBody?.friction = 0.5
 		taxiNode.physicsBody?.rollingFriction = 0
+		taxiNode.physicsBody?.damping = 0.12
+		taxiNode.physicsBody?.angularDamping = 0.8
 		taxiNode.physicsBody?.centerOfMassOffset = SCNVector3(x: 0, y: centerOfMassYOffset, z: 0)
 
 		let whl0 = node.childNode(withName: "WHL0", recursively: true)!
@@ -96,7 +100,7 @@ final class Vehicle {
 		let wheelNodes = [whl0, whr0, whl1, whr1]
 
 		for (wheel, wheelNode) in zip(wheels, wheelNodes) {
-			wheel.radius = Vehicle.wheelRadius(for: wheelNode)
+			wheel.radius = Vehicle.wheelRadius(for: wheelNode) * wheelRadiusScale
 		}
 
 		wheel0.connectionPosition = Vehicle.wheelConnectionPosition(for: whl0, wheel: wheel0, restLength: wheelSuspensionRestLength, in: taxiNode)
@@ -124,7 +128,7 @@ final class Vehicle {
 			width: CGFloat(width * widthScale),
 			height: CGFloat(height * heightScale),
 			length: CGFloat(length * lengthScale),
-			chamferRadius: 0
+			chamferRadius: CGFloat(height * heightScale * 0.18)
 		)
 		let shapeNode = SCNNode(geometry: box)
 		shapeNode.position = SCNVector3(
@@ -187,19 +191,13 @@ final class Vehicle {
 			physicsVehicle.applyBrakingForce(brakingForce, forWheelAt: wheelIndex)
 		}
 
-		physicsVehicle.applyEngineForce(clampedForce, forWheelAt: 2)
-		physicsVehicle.applyEngineForce(clampedForce, forWheelAt: 3)
+		let launchProgress = min(1, chassisSpeed / tractionAssistSpeedLimit)
+		let minimumWheelForceScale = clampedForce > 0 ? reverseLaunchMinimumWheelForceScale : launchMinimumWheelForceScale
+		let launchWheelForceScale = minimumWheelForceScale + (1 - minimumWheelForceScale) * launchProgress
+		let wheelForce = clampedForce * launchWheelForceScale
 
-		if clampedForce != 0 && chassisSpeed < tractionAssistSpeedLimit {
-			let forward = node.presentation.worldFront
-			let assistForce = SCNFloat(clampedForce * tractionAssistScale)
-			let assist = SCNVector3(
-				x: forward.x * assistForce,
-				y: 0,
-				z: forward.z * assistForce
-			)
-			node.physicsBody?.applyForce(assist, at: node.presentation.worldPosition, asImpulse: false)
-		}
+		physicsVehicle.applyEngineForce(wheelForce, forWheelAt: 2)
+		physicsVehicle.applyEngineForce(wheelForce, forWheelAt: 3)
 	}
 
 	func resetUpright() {
