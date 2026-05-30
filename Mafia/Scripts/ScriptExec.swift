@@ -344,13 +344,10 @@ extension Script {
 
 	private func enemy_playanim(_ args: [Argument]) {
 		let animName = args[0].getString()
-		do {
-			try playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: node) {
-				self.next()
-			}
-		} catch {
-			self.next()
+		DispatchQueue.main.async {
+			try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: self.node)
 		}
+		next()
 	}
 
 	private func event(_ args: [Argument]) {
@@ -515,13 +512,10 @@ extension Script {
 		   let source = SCNAudioSource(url: url) {
 			source.load()
 			DispatchQueue.main.async {
-				targetNode.runAction(SCNAction.playAudio(source, waitForCompletion: true)) {
-					self.next()
-				}
+				targetNode.runAction(SCNAction.playAudio(source, waitForCompletion: false))
 			}
-		} else {
-			next()
 		}
+		next()
 	}
 
 	private func `if`(_ args: [Argument]) {
@@ -639,13 +633,10 @@ extension Script {
 			return
 		}
 		let animName = args[1].getString()
-		do {
-			try playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: actor) {
-				self.next()
-			}
-		} catch {
-			next()
+		DispatchQueue.main.async {
+			try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: actor)
 		}
+		next()
 	}
 
 	private func person_stopanim(_ args: [Argument]) {
