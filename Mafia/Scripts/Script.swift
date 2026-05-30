@@ -31,6 +31,10 @@ enum Argument {
 			return num
 		} else if case .variable(let varId) = self {
 			return vars[Int(varId)] ?? 0
+		} else if case .label(let str) = self, let num = Float(str) {
+			return num
+		} else if case .string(let str) = self, let num = Float(str) {
+			return num
 		} else {
 			fatalError()
 		}

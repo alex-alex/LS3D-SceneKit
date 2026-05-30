@@ -202,8 +202,8 @@ extension Script {
 	}
 
 	private func getArgs_detector_waitforuse(_ scanner: Scanner) -> [Argument] {
-		if let txtId = scanParamOptional(scanner) {
-			return [.label(txtId)]
+		if let txtId = scanVarOrValueOptional(scanner) {
+			return [txtId]
 		} else {
 			return []
 		}
@@ -373,7 +373,7 @@ extension Script {
 	}
 
 	private func getArgs_mission_objectives(_ scanner: Scanner) -> [Argument] {
-		return [.label(scanParam(scanner))]
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_person_playanim(_ scanner: Scanner) -> [Argument] {
