@@ -23,45 +23,17 @@ final class Weapon {
 		let impulse: SCNFloat
 		let pelletCount: Int
 		let spread: SCNFloat
+		let fireSoundName: String?
+		let reloadSoundName: String?
 	}
 
-	private static var names: [Int: String] = [
-		0: "Empty hands",
-		1: "Special Action",
-		2: "Knuckleduster",
-		3: "Knife",
-		4: "Baseball Bat",
-		5: "Molotov cocktail",
-		6: "Colt Detective Special",
-		7: "S&W model 27 Magnum",
-		8: "S&W model 10 M&P",
-		9: "Colt 1911",
-		10: "Thompson 1928",
-		11: "Pump shotgun",
-		12: "Saw off shotgun",
-		13: "US Rifle M1903 Springfield",
-		14: "Mosin:Nagant 1891/30",
-		15: "Grenade",
-		16: "Key",
-		17: "Bucket",
-		18: "Flashlight",
-		19: "Documents",
-		20: "Bar",
-		21: "Papers",
-		22: "Bomb",
-		23: "Door keys",
-		24: "Safe key",
-		25: "Crowbar",
-		26: "Plane ticket",
-		27: "Package",
-		28: "Wooden plank",
-		29: "Bottle",
-		30: "Small Key",
-		31: "Sword",
-		32: "Dog's Head",
-		33: "Thompson 1928 no sound",
-		34: "Pump shotgun no sound"
-	]
+	struct Definition {
+		let name: String
+		let modelName: String
+		let profile: Profile?
+	}
+
+	private static let recordSize = 188
 
 	let uuid = NSUUID()
 	let id: Int
@@ -70,11 +42,11 @@ final class Weapon {
 	var position: Position = .inventory
 
 	var name: String {
-		return Weapon.names[id]!
+		return definition.name
 	}
 
 	var profile: Profile? {
-		return Weapon.profiles[id]
+		return definition.profile
 	}
 
 	var isFirearm: Bool {
@@ -90,24 +62,185 @@ final class Weapon {
 		return clipAmmo < profile.clipSize
 	}
 
-	private static let profiles: [Int: Profile] = [
-		6: Profile(clipSize: 6, shotInterval: 0.35, range: 90, impulse: 18, pelletCount: 1, spread: 0.006),
-		7: Profile(clipSize: 6, shotInterval: 0.45, range: 100, impulse: 26, pelletCount: 1, spread: 0.005),
-		8: Profile(clipSize: 6, shotInterval: 0.38, range: 90, impulse: 20, pelletCount: 1, spread: 0.006),
-		9: Profile(clipSize: 7, shotInterval: 0.25, range: 95, impulse: 20, pelletCount: 1, spread: 0.006),
-		10: Profile(clipSize: 50, shotInterval: 0.09, range: 85, impulse: 14, pelletCount: 1, spread: 0.012),
-		11: Profile(clipSize: 8, shotInterval: 0.85, range: 55, impulse: 10, pelletCount: 8, spread: 0.045),
-		12: Profile(clipSize: 2, shotInterval: 0.55, range: 35, impulse: 9, pelletCount: 10, spread: 0.075),
-		13: Profile(clipSize: 5, shotInterval: 0.9, range: 140, impulse: 34, pelletCount: 1, spread: 0.003),
-		14: Profile(clipSize: 5, shotInterval: 0.9, range: 140, impulse: 34, pelletCount: 1, spread: 0.003),
-		33: Profile(clipSize: 50, shotInterval: 0.09, range: 85, impulse: 14, pelletCount: 1, spread: 0.012),
-		34: Profile(clipSize: 8, shotInterval: 0.85, range: 55, impulse: 10, pelletCount: 8, spread: 0.045)
-	]
+	private var definition: Definition {
+		guard let definition = Weapon.definitions[id] else {
+			fatalError("Missing weapon definition for id \(id)")
+		}
+		return definition
+	}
+
+	private static let definitions: [Int: Definition] = loadDefinitions()
 
 	init(id: Int, clipAmmo: Int = 0, restAmmo: Int = 0) {
 		self.id = id
 		self.clipAmmo = clipAmmo
 		self.restAmmo = restAmmo
+	}
+
+}
+
+private extension Weapon {
+
+	static func loadDefinitions() -> [Int: Definition] {
+		let itemURL = mainDirectory.appendingPathComponent("tables/predmety.def")
+		guard let data = try? Data(contentsOf: itemURL), data.count >= recordSize else {
+			fatalError("Unable to load tables/predmety.def")
+		}
+
+		let soundNames = loadSoundNames()
+		var definitions: [Int: Definition] = [:]
+		for id in 0..<(data.count / recordSize) {
+			let offset = id * recordSize
+			let name = data.zeroTerminatedString(at: offset, maxLength: 32)
+			let modelName = data.zeroTerminatedString(at: offset + 36, maxLength: 32)
+			let fireSoundId = data.int32(at: offset + 84)
+			let reloadSoundId = data.int32(at: offset + 88)
+			let weaponClass = data.int32(at: offset + 92)
+			let clipSize = data.int32(at: offset + 96)
+			let range = data.float32(at: offset + 116)
+			let impulse = data.float32(at: offset + 112)
+			let spread = data.float32(at: offset + 132)
+			let intervalMs = data.int32(at: offset + 144) > 0 ? data.int32(at: offset + 144) : data.int32(at: offset + 152)
+
+			let profile: Profile?
+			if weaponClass > 0, clipSize > 0 {
+				let fireSoundName: String?
+				if fireSoundId > 0 {
+					guard let soundName = soundNames[fireSoundId] else {
+						fatalError("Missing sound definition for weapon \(id), sound id \(fireSoundId)")
+					}
+					fireSoundName = soundName
+				} else {
+					fireSoundName = nil
+				}
+				let reloadSoundName: String?
+				if reloadSoundId > 0 {
+					guard let soundName = soundNames[reloadSoundId] else {
+						fatalError("Missing reload sound definition for weapon \(id), sound id \(reloadSoundId)")
+					}
+					reloadSoundName = soundName
+				} else {
+					reloadSoundName = nil
+				}
+
+				let pelletCount = weaponClass == 3 && clipSize <= 8 && id != 10 && id != 33 ? 8 : 1
+				profile = Profile(
+					clipSize: clipSize,
+					shotInterval: TimeInterval(max(60, intervalMs)) / 1000,
+					range: max(30, min(SCNFloat(range), 180)),
+					impulse: max(8, min(SCNFloat(impulse), 36)),
+					pelletCount: pelletCount,
+					spread: spreadForWeapon(id: id, weaponClass: weaponClass, tableSpread: spread),
+					fireSoundName: fireSoundName,
+					reloadSoundName: reloadSoundName
+				)
+			} else {
+				profile = nil
+			}
+
+			definitions[id] = Definition(name: name, modelName: modelName, profile: profile)
+		}
+		return definitions
+	}
+
+	static func loadSoundNames() -> [Int: String] {
+		let soundURL = mainDirectory.appendingPathComponent("tables/sounds.dat")
+		guard let data = try? Data(contentsOf: soundURL) else {
+			fatalError("Unable to load tables/sounds.dat")
+		}
+
+		var sounds: [Int: String] = [:]
+		var offset = 0
+		while offset + 18 < data.count {
+			defer { offset += 1 }
+
+			let titleLength = data.int32(at: offset)
+			guard titleLength > 0, titleLength <= 64 else { continue }
+
+			let titleOffset = offset + 4
+			let soundIdOffset = titleOffset + titleLength
+			let categoryOffset = soundIdOffset + 4
+			let fileLengthOffset = categoryOffset + 6
+			guard fileLengthOffset + 4 < data.count else { continue }
+			guard data.isPrintableString(at: titleOffset, length: titleLength) else { continue }
+
+			let soundId = data.int32(at: soundIdOffset)
+			let categoryId = data.int32(at: categoryOffset)
+			let fileLength = data.int32(at: fileLengthOffset)
+			let fileOffset = fileLengthOffset + 4
+			guard soundId > 0, categoryId >= 0, categoryId < 64, fileLength > 0, fileLength <= 64 else { continue }
+			guard fileOffset + fileLength <= data.count else { continue }
+			guard data.isPrintableString(at: fileOffset, length: fileLength) else { continue }
+
+			let fileName = data.string(at: fileOffset, length: fileLength)
+			guard fileName.lowercased().hasSuffix(".wav") else { continue }
+			sounds[soundId] = fileName
+		}
+		return sounds
+	}
+
+	static func spreadForWeapon(id: Int, weaponClass: Int, tableSpread: Float) -> SCNFloat {
+		if weaponClass == 3 && id != 10 && id != 33 {
+			return id == 12 ? 0.075 : 0.045
+		}
+		if weaponClass == 2 {
+			return 0.003
+		}
+		if id == 10 || id == 33 {
+			return 0.012
+		}
+		return max(0.004, min(SCNFloat(tableSpread) * 0.015, 0.014))
+	}
+
+}
+
+private extension Data {
+
+	func int32(at offset: Int) -> Int {
+		guard offset + 4 <= count else { return 0 }
+		let value = UInt32(self[offset]) |
+			(UInt32(self[offset + 1]) << 8) |
+			(UInt32(self[offset + 2]) << 16) |
+			(UInt32(self[offset + 3]) << 24)
+		return Int(Int32(bitPattern: value))
+	}
+
+	func float32(at offset: Int) -> Float {
+		guard offset + 4 <= count else { return 0 }
+		let bits = UInt32(self[offset]) |
+			(UInt32(self[offset + 1]) << 8) |
+			(UInt32(self[offset + 2]) << 16) |
+			(UInt32(self[offset + 3]) << 24)
+		return Float(bitPattern: bits)
+	}
+
+	func zeroTerminatedString(at offset: Int, maxLength: Int) -> String {
+		guard offset < count else { return "" }
+		let end = Swift.min(offset + maxLength, count)
+		var bytes: [UInt8] = []
+		for index in offset..<end {
+			let byte = self[index]
+			guard byte != 0 else { break }
+			bytes.append(byte)
+		}
+		return String(bytes: bytes, encoding: .windowsCP1250) ?? String(bytes: bytes, encoding: .isoLatin1) ?? ""
+	}
+
+	func string(at offset: Int, length: Int) -> String {
+		let end = Swift.min(offset + length, count)
+		let bytes = Array(self[offset..<end])
+		return String(bytes: bytes, encoding: .windowsCP1250) ?? String(bytes: bytes, encoding: .isoLatin1) ?? ""
+	}
+
+	func isPrintableString(at offset: Int, length: Int) -> Bool {
+		guard offset >= 0, length > 0, offset + length <= count else { return false }
+		for index in offset..<(offset + length) {
+			let byte = self[index]
+			if byte < 32 || byte == 127 || byte == 0xcc {
+				return false
+			}
+		}
+		return true
 	}
 
 }

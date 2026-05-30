@@ -101,6 +101,7 @@ final class Game: NSObject {
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
 	private let actionDistanceSquared: Float = 4
 	private var lastWeaponShotTime: TimeInterval = 0
+	private var weaponAudioSources: [String: SCNAudioSource] = [:]
 	private var modeBeforeFreeCamera: Mode = .walk
 	private var freeCameraPosition = SCNVector3Zero
 	private var freeCameraMovement = SCNVector3Zero
@@ -1196,6 +1197,7 @@ extension Game {
 		let loadedAmmo = min(neededAmmo, weapon.restAmmo)
 		weapon.clipAmmo += loadedAmmo
 		weapon.restAmmo -= loadedAmmo
+		playWeaponSound(profile.reloadSoundName)
 		hud?.showConsoleText("\(weapon.name): \(weapon.clipAmmo)/\(weapon.restAmmo)")
 		refreshPlayerStatusHud()
 	}
@@ -1253,6 +1255,7 @@ extension Game {
 		for _ in 0..<profile.pelletCount {
 			shootFromCamera(profile: profile)
 		}
+		playWeaponSound(profile.fireSoundName)
 		showMuzzleFlash()
 	}
 
@@ -1294,7 +1297,7 @@ extension Game {
 					hitNode.position += SCNVector3(x: direction.x * 1.2, y: 0.2, z: direction.z * 1.2)
 				}
 			}
-			showImpact(at: hit.worldCoordinates)
+			showImpact(at: hit.worldCoordinates, normal: hit.worldNormal)
 			showTracer(from: origin, to: tracerEnd)
 			return
 		}
@@ -1336,6 +1339,18 @@ extension Game {
 		return SCNVector3(x: vector.x / length, y: vector.y / length, z: vector.z / length)
 	}
 
+	private func dot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
+		return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
+	}
+
+	private func cross(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNVector3 {
+		return SCNVector3(
+			x: lhs.y * rhs.z - lhs.z * rhs.y,
+			y: lhs.z * rhs.x - lhs.x * rhs.z,
+			z: lhs.x * rhs.y - lhs.y * rhs.x
+		)
+	}
+
 	private func normalizedHorizontalVector(_ vector: SCNVector3, fallback: SCNVector3) -> SCNVector3 {
 		let length = sqrt(vector.x * vector.x + vector.z * vector.z)
 		guard length > 0.0001 else { return fallback }
@@ -1343,45 +1358,178 @@ extension Game {
 	}
 
 	private func showMuzzleFlash() {
-		let flash = SCNNode(geometry: SCNSphere(radius: 0.045))
+		let flash = SCNNode()
 		flash.name = "__muzzle_flash__"
-		flash.geometry?.firstMaterial?.diffuse.contents = SKColor.orange
-		flash.geometry?.firstMaterial?.emission.contents = SKColor.yellow
-		flash.position = SCNVector3(x: 0, y: -0.08, z: -0.45)
+		flash.position = SCNVector3(x: 0, y: -0.09, z: -0.55)
 		cameraNode.addChildNode(flash)
+
+		let core = SCNNode(geometry: SCNSphere(radius: 0.055))
+		core.geometry?.firstMaterial = emissiveMaterial(color: SKColor.yellow)
+		flash.addChildNode(core)
+
+		let flare = SCNNode(geometry: SCNCone(topRadius: 0, bottomRadius: 0.12, height: 0.32))
+		flare.geometry?.firstMaterial = emissiveMaterial(color: SKColor.orange.withAlphaComponent(0.86))
+		flare.eulerAngles.x = .pi / 2
+		flare.position.z = -0.16
+		flash.addChildNode(flare)
+
+		let light = SCNNode()
+		light.light = SCNLight()
+		light.light?.type = .omni
+		light.light?.color = SKColor.orange
+		light.light?.intensity = 850
+		light.light?.attenuationEndDistance = 6
+		flash.addChildNode(light)
+
+		for index in 0..<3 {
+			let smoke = SCNNode(geometry: SCNSphere(radius: 0.035 + CGFloat(index) * 0.012))
+			smoke.name = "__muzzle_smoke__"
+			smoke.geometry?.firstMaterial = transparentMaterial(color: SKColor.lightGray.withAlphaComponent(0.28))
+			smoke.position = SCNVector3(
+				x: randomSpread() * 0.03,
+				y: randomSpread() * 0.025,
+				z: -0.12 - SCNFloat(index) * 0.05
+			)
+			flash.addChildNode(smoke)
+			smoke.runAction(SCNAction.group([
+				SCNAction.moveBy(x: CGFloat(randomSpread() * 0.04), y: CGFloat(0.04 + randomSpread() * 0.02), z: -0.08, duration: 0.18),
+				SCNAction.scale(to: 2.2, duration: 0.18),
+				SCNAction.fadeOut(duration: 0.18)
+			]))
+		}
+
 		flash.runAction(SCNAction.sequence([
-			SCNAction.fadeOut(duration: 0.05),
-			SCNAction.removeFromParentNode()
-		]))
-	}
-
-	private func showTracer(from origin: SCNVector3, to target: SCNVector3) {
-		let source = SCNGeometrySource(vertices: [origin, target])
-		let element = SCNGeometryElement(indices: [Int32(0), Int32(1)], primitiveType: .line)
-		let geometry = SCNGeometry(sources: [source], elements: [element])
-		geometry.firstMaterial?.diffuse.contents = SKColor.yellow.withAlphaComponent(0.65)
-		geometry.firstMaterial?.emission.contents = SKColor.yellow
-
-		let tracer = SCNNode(geometry: geometry)
-		tracer.name = "__bullet_tracer__"
-		scnScene.rootNode.addChildNode(tracer)
-		tracer.runAction(SCNAction.sequence([
+			SCNAction.wait(duration: 0.035),
 			SCNAction.fadeOut(duration: 0.04),
 			SCNAction.removeFromParentNode()
 		]))
 	}
 
-	private func showImpact(at position: SCNVector3) {
-		let impact = SCNNode(geometry: SCNSphere(radius: 0.035))
-		impact.name = "__bullet_impact__"
-		impact.position = position
-		impact.geometry?.firstMaterial?.diffuse.contents = SKColor.lightGray
-		impact.geometry?.firstMaterial?.emission.contents = SKColor.white
-		scnScene.rootNode.addChildNode(impact)
-		impact.runAction(SCNAction.sequence([
-			SCNAction.scale(to: 0.2, duration: 0.12),
+	private func playWeaponSound(_ soundName: String?) {
+		guard let soundName = soundName, !soundName.isEmpty else { return }
+
+		let normalizedName = soundName.lowercased()
+		let source: SCNAudioSource
+		if let cachedSource = weaponAudioSources[normalizedName] {
+			source = cachedSource
+		} else {
+			guard let url = mafiaResourceURL(directory: "sounds", name: normalizedName),
+				  let loadedSource = SCNAudioSource(url: url) else { return }
+			loadedSource.load()
+			weaponAudioSources[normalizedName] = loadedSource
+			source = loadedSource
+		}
+		cameraNode.runAction(SCNAction.playAudio(source, waitForCompletion: false), forKey: "__weapon_fire_sound__")
+	}
+
+	private func showTracer(from origin: SCNVector3, to target: SCNVector3) {
+		let direction = normalized(target - origin)
+		let start = origin + SCNVector3(x: direction.x * 0.75, y: direction.y * 0.75, z: direction.z * 0.75)
+		let end = target
+		guard (end - start).length > 0.2 else { return }
+
+		let tracer = cylinderNode(
+			from: start,
+			to: end,
+			radius: 0.006,
+			material: emissiveMaterial(color: SKColor.yellow.withAlphaComponent(0.72))
+		)
+		tracer.name = "__bullet_tracer__"
+		scnScene.rootNode.addChildNode(tracer)
+		tracer.runAction(SCNAction.sequence([
+			SCNAction.fadeOut(duration: 0.055),
 			SCNAction.removeFromParentNode()
 		]))
+	}
+
+	private func showImpact(at position: SCNVector3, normal: SCNVector3) {
+		let surfaceNormal = normalized(normal)
+		let liftedPosition = position + SCNVector3(
+			x: surfaceNormal.x * 0.012,
+			y: surfaceNormal.y * 0.012,
+			z: surfaceNormal.z * 0.012
+		)
+
+		let impact = SCNNode(geometry: SCNPlane(width: 0.12, height: 0.12))
+		impact.name = "__bullet_impact__"
+		impact.position = liftedPosition
+		impact.geometry?.firstMaterial = transparentMaterial(color: SKColor.black.withAlphaComponent(0.55))
+		impact.look(at: liftedPosition + surfaceNormal)
+		scnScene.rootNode.addChildNode(impact)
+		impact.runAction(SCNAction.sequence([
+			SCNAction.wait(duration: 5),
+			SCNAction.fadeOut(duration: 0.6),
+			SCNAction.removeFromParentNode()
+		]))
+
+		let sparkMaterial = emissiveMaterial(color: SKColor.orange)
+		for _ in 0..<5 {
+			let tangent = normalized(cross(surfaceNormal, abs(surfaceNormal.y) < 0.8 ? SCNVector3(x: 0, y: 1, z: 0) : SCNVector3(x: 1, y: 0, z: 0)))
+			let bitangent = normalized(cross(surfaceNormal, tangent))
+			let sparkDirection = normalized(SCNVector3(
+				x: surfaceNormal.x * 0.7 + tangent.x * randomSpread() + bitangent.x * randomSpread(),
+				y: surfaceNormal.y * 0.7 + tangent.y * randomSpread() + bitangent.y * randomSpread(),
+				z: surfaceNormal.z * 0.7 + tangent.z * randomSpread() + bitangent.z * randomSpread()
+			))
+			let sparkEnd = liftedPosition + SCNVector3(
+				x: sparkDirection.x * SCNFloat(0.18 + abs(randomSpread()) * 0.22),
+				y: sparkDirection.y * SCNFloat(0.18 + abs(randomSpread()) * 0.22),
+				z: sparkDirection.z * SCNFloat(0.18 + abs(randomSpread()) * 0.22)
+			)
+			let spark = cylinderNode(from: liftedPosition, to: sparkEnd, radius: 0.004, material: sparkMaterial)
+			spark.name = "__bullet_spark__"
+			scnScene.rootNode.addChildNode(spark)
+			spark.runAction(SCNAction.sequence([
+				SCNAction.group([
+					SCNAction.moveBy(x: CGFloat(sparkDirection.x * 0.06), y: CGFloat(sparkDirection.y * 0.06), z: CGFloat(sparkDirection.z * 0.06), duration: 0.12),
+					SCNAction.fadeOut(duration: 0.12)
+				]),
+				SCNAction.removeFromParentNode()
+			]))
+		}
+	}
+
+	private func cylinderNode(from start: SCNVector3, to end: SCNVector3, radius: CGFloat, material: SCNMaterial) -> SCNNode {
+		let vector = end - start
+		let length = CGFloat(vector.length)
+		let node = SCNNode(geometry: SCNCylinder(radius: radius, height: length))
+		node.geometry?.firstMaterial = material
+		node.position = SCNVector3(
+			x: (start.x + end.x) / 2,
+			y: (start.y + end.y) / 2,
+			z: (start.z + end.z) / 2
+		)
+		alignYAxis(of: node, to: normalized(vector))
+		return node
+	}
+
+	private func alignYAxis(of node: SCNNode, to direction: SCNVector3) {
+		let yAxis = SCNVector3(x: 0, y: 1, z: 0)
+		let axis = cross(yAxis, direction)
+		let axisLength = axis.length
+		let clampedDot = max(SCNFloat(-1), min(SCNFloat(1), dot(yAxis, direction)))
+		if axisLength < 0.0001 {
+			node.rotation = clampedDot < 0 ? SCNVector4(x: 1, y: 0, z: 0, w: .pi) : SCNVector4Zero
+			return
+		}
+		node.rotation = SCNVector4(x: axis.x / SCNFloat(axisLength), y: axis.y / SCNFloat(axisLength), z: axis.z / SCNFloat(axisLength), w: acos(clampedDot))
+	}
+
+	private func emissiveMaterial(color: SKColor) -> SCNMaterial {
+		let material = SCNMaterial()
+		material.diffuse.contents = color
+		material.emission.contents = color
+		material.lightingModel = .constant
+		material.isDoubleSided = true
+		return material
+	}
+
+	private func transparentMaterial(color: SKColor) -> SCNMaterial {
+		let material = emissiveMaterial(color: color)
+		material.transparency = color.rgbaComponents.alpha
+		material.blendMode = .alpha
+		material.writesToDepthBuffer = false
+		return material
 	}
 
 	private func shootableNode(from node: SCNNode) -> SCNNode? {
