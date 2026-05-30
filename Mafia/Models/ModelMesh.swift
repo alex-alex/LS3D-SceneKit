@@ -10,7 +10,7 @@ import Foundation
 import SceneKit
 
 struct SingleMesh {
-	let boneIds: [Int]
+	let boneCount: Int
 	let transforms: [SCNMatrix4]
 	let boneWeights: SCNGeometrySource
 	let boneIndices: SCNGeometrySource
@@ -44,7 +44,7 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 //		}
 
 		let numBones: UInt8 = try stream.read()
-		let _: UInt32 = try stream.read() // y
+		let nonWeightedVertCount: UInt32 = try stream.read()
 
 		let _ = try SCNVector3(stream: stream) // min
 		let _ = try SCNVector3(stream: stream) // max
@@ -57,23 +57,30 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 //			$0.z > SCNFloat(minZ) && $0.z < SCNFloat(maxZ)
 //		}
 
-		var boneIds: [Int] = []
 		var transforms: [SCNMatrix4] = []
 
 		var boneWeights: [Float] = []
 		var boneIndices: [UInt8] = []
 
+		func appendBoneWeight(primaryBone: Int) {
+			boneWeights.append(1)
+			boneIndices.append(UInt8(primaryBone))
+		}
+
+		for _ in 0 ..< nonWeightedVertCount {
+			appendBoneWeight(primaryBone: 0)
+		}
+
 		for bone in 0 ..< numBones {
 			try transforms.append(SCNMatrix4(stream: stream))
 
-			let x: UInt32 = try stream.read()
+			let oneWeightedVertCount: UInt32 = try stream.read()
 			if lod == 0 {
-				//				print("X:", x)
+				//				print("oneWeightedVertCount:", oneWeightedVertCount)
 			}
 
-			let additionalValuesCount: UInt32 = try stream.read()
-			let boneId: UInt32 = try stream.read()
-			boneIds.append(Int(boneId))
+			let weightsCount: UInt32 = try stream.read()
+			let _: UInt32 = try stream.read() // paired bone ID for blended vertices
 
 			let _ = try SCNVector3(stream: stream) // bMin
 			let _ = try SCNVector3(stream: stream) // bMax
@@ -86,24 +93,24 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 //			print("bone minmax:", bMinX, bMinY, bMinZ, bMaxX, bMaxY, bMaxZ)
 //			print("filtered:", filtered.count)
 
-//			boneWeights += Array(repeating: 0, count: Int(x))
-
-			var data: [Float] = []
-			for _ in 0 ..< additionalValuesCount {
-				try data.append(stream.read())
+			for _ in 0 ..< oneWeightedVertCount {
+				appendBoneWeight(primaryBone: Int(bone))
 			}
 
-			boneWeights += Array(repeating: 1, count: Int(x + additionalValuesCount))
-			boneIndices += Array(repeating: bone, count: Int(x + additionalValuesCount))
+			for _ in 0 ..< weightsCount {
+				let _: Float = try stream.read()
+				appendBoneWeight(primaryBone: Int(bone))
+			}
 		}
 
-		let remaining = vertexSource.vectorCount - boneIndices.count
+		let remaining = vertexSource.vectorCount - boneWeights.count
 		if lod == 0 {
 //			print("remaining:", remaining)
 		}
 
-		boneWeights += Array(repeating: 1, count: Swift.max(remaining, 0))
-		boneIndices += Array(repeating: 0, count: Swift.max(remaining, 0))
+		for _ in 0 ..< Swift.max(remaining, 0) {
+			appendBoneWeight(primaryBone: 0)
+		}
 
 		let boneWeightsData = Data(bytes: boneWeights, count: boneWeights.count * MemoryLayout<Float>.size)
 		let boneWeightsSource = SCNGeometrySource(
@@ -130,7 +137,7 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 		)
 
 		let mesh = SingleMesh(
-			boneIds: boneIds,
+			boneCount: Int(numBones),
 			transforms: transforms,
 			boneWeights: boneWeightsSource,
 			boneIndices: boneIndicesSource
