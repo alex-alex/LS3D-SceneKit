@@ -512,10 +512,13 @@ extension Script {
 		   let source = SCNAudioSource(url: url) {
 			source.load()
 			DispatchQueue.main.async {
-				targetNode.runAction(SCNAction.playAudio(source, waitForCompletion: false))
+				targetNode.runAction(SCNAction.playAudio(source, waitForCompletion: true)) {
+					self.next()
+				}
 			}
+		} else {
+			next()
 		}
-		next()
 	}
 
 	private func `if`(_ args: [Argument]) {
