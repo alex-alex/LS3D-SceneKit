@@ -671,15 +671,20 @@ final class Game: NSObject {
 		scene.startScripts()
 	}
 
-	func setPaused(_ isPaused: Bool) {
-		guard isGamePaused != isPaused else { return }
+	func setPaused(_ isPaused: Bool, showsPauseScreen: Bool = true) {
+		let pauseStateChanged = isGamePaused != isPaused
+		if pauseStateChanged {
+			isGamePaused = isPaused
+			scnScene.isPaused = isPaused
+			lastUpdateTime = nil
+		}
 
-		isGamePaused = isPaused
-		scnScene.isPaused = isPaused
-		lastUpdateTime = nil
-		hud?.setPauseScreenVisible(isPaused)
-		playerController?.stop()
-		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+		hud?.setPauseScreenVisible(isPaused && showsPauseScreen)
+
+		if pauseStateChanged {
+			playerController?.stop()
+			vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+		}
 	}
 
 }

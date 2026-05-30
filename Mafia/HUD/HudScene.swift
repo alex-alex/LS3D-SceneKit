@@ -32,6 +32,7 @@ final class HudScene: SKScene {
 	private var inventoryTitleLabel: SKLabelNode!
 	private var inventoryHintLabel: SKLabelNode!
 	private var inventoryRows: [(node: SKShapeNode, weapon: Weapon?)] = []
+	private var inventoryPausedGame = false
 	private var lastSpeedText: String?
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
@@ -256,9 +257,19 @@ extension HudScene {
 	func setInventoryVisible(_ isVisible: Bool) {
 		guard inventoryOverlay.isHidden == isVisible else { return }
 
-		inventoryOverlay.isHidden = !isVisible
 		if isVisible {
+			guard !game.isGamePaused else { return }
+
+			inventoryOverlay.isHidden = false
 			rebuildInventoryRows()
+			inventoryPausedGame = true
+			game.setPaused(true, showsPauseScreen: false)
+		} else {
+			inventoryOverlay.isHidden = true
+			if inventoryPausedGame {
+				inventoryPausedGame = false
+				game.setPaused(false)
+			}
 		}
 	}
 
