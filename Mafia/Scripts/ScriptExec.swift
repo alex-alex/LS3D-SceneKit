@@ -208,6 +208,9 @@ extension Script {
 		let restAmmo = args.count > 3 ? args[3].getValueOrVarValue(vars: vars) : 0
 		if let frame = frames[frmId] {
 			let weapon = Weapon(id: weaponId, clipAmmo: clipAmmo, restAmmo: restAmmo)
+			if args.count <= 2, let profile = weapon.profile {
+				weapon.clipAmmo = profile.clipSize
+			}
 			scene.actions.append(.weapon(frame, weapon))
 		}
 		next()

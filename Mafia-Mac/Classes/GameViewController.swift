@@ -32,8 +32,15 @@ class GameViewController: NSViewController {
 		gameView.mouseMovedHandler = { [weak self] event in
 			self?.handleMouseEvent(event, source: .view)
 		}
-		gameView.mouseDownHandler = { [weak self] _ in
-			self?.gameManager.game?.playerDidFire()
+		gameView.mouseDownHandler = { [weak self] event in
+			guard let self = self else { return }
+			if let hud = self.gameManager.game?.hud {
+				let point = self.gameView.convert(event.locationInWindow, from: nil)
+				if hud.handleInventorySelection(at: point) {
+					return
+				}
+			}
+			self.gameManager.game?.playerDidFire()
 		}
 		startMouseEventMonitor()
 		startCursorCaptureTimer()
@@ -112,6 +119,7 @@ class GameViewController: NSViewController {
 		guard let game = gameManager.game,
 			  view.window?.isKeyWindow == true,
 			  !game.isGamePaused,
+			  game.hud?.isInventoryVisible != true,
 			  isMouseLookMode(game.mode) else {
 			setCursorHidden(false)
 			return

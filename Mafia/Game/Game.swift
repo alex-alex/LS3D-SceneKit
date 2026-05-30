@@ -99,6 +99,7 @@ final class Game: NSObject {
 	private var isActionButtonVisible = false
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
 	private let actionDistanceSquared: Float = 4
+	private var lastWeaponShotTime: TimeInterval = 0
 	private var modeBeforeFreeCamera: Mode = .walk
 	private var freeCameraPosition = SCNVector3Zero
 	private var freeCameraMovement = SCNVector3Zero
@@ -967,7 +968,7 @@ extension Game {
 
 	func playerDidFire() {
 		lastControl = .FIRE
-		shootFromCamera()
+		firePlayerWeapon()
 		scene.triggerPlayerFireEvent()
 	}
 
@@ -1006,6 +1007,52 @@ extension Game {
 		}
 	}
 
+	func dropPlayerWeapon() {
+		guard let playerNode = scene.playerNode,
+			  var weapons = scene.weapons[playerNode],
+			  let index = weapons.firstIndex(where: { $0.position == .hand }) else { return }
+
+		let weapon = weapons.remove(at: index)
+		weapon.position = .inventory
+		scene.weapons[playerNode] = weapons
+
+		if let dropNode = scene.rootNode.childNode(withName: "2bbat", recursively: true) {
+			dropNode.isHidden = false
+			scene.actions.append(.weapon(dropNode, weapon))
+		}
+		hud?.showConsoleText("Dropped \(weapon.name)")
+	}
+
+	func playerInventoryWeapons() -> [Weapon] {
+		guard let playerNode = scene.playerNode else { return [] }
+		return scene.weapons[playerNode] ?? []
+	}
+
+	func equipPlayerWeapon(_ selectedWeapon: Weapon?) {
+		guard let playerNode = scene.playerNode,
+			  let weapons = scene.weapons[playerNode] else { return }
+
+		for weapon in weapons {
+			weapon.position = selectedWeapon.map { weapon === $0 } == true ? .hand : .inventory
+		}
+
+		if let selectedWeapon = selectedWeapon {
+			hud?.showConsoleText("Equipped \(selectedWeapon.name)")
+		} else {
+			hud?.showConsoleText("Empty hands")
+		}
+	}
+
+	func reloadPlayerWeapon() {
+		guard let weapon = playerWeaponInHand(), weapon.canReload, let profile = weapon.profile else { return }
+
+		let neededAmmo = profile.clipSize - weapon.clipAmmo
+		let loadedAmmo = min(neededAmmo, weapon.restAmmo)
+		weapon.clipAmmo += loadedAmmo
+		weapon.restAmmo -= loadedAmmo
+		hud?.showConsoleText("\(weapon.name): \(weapon.clipAmmo)/\(weapon.restAmmo)")
+	}
+
 	func playDodgeAnimation(direction: DodgeDirection) {
 		guard mode == .walk,
 			  let playerNode = scene.playerNode else { return }
@@ -1025,13 +1072,37 @@ extension Game {
 		try? playAnimation(named: animationName, in: playerNode, animationKey: "__dodge__")
 	}
 
-	private func shootFromCamera() {
+	private func firePlayerWeapon() {
+		guard mode == .walk,
+			  let weapon = playerWeaponInHand(),
+			  let profile = weapon.profile else { return }
+
+		let now = Date.timeIntervalSinceReferenceDate
+		guard now - lastWeaponShotTime >= profile.shotInterval else { return }
+
+		guard weapon.hasAmmoLoaded else {
+			hud?.showConsoleText("\(weapon.name): empty")
+			return
+		}
+
+		lastWeaponShotTime = now
+		if weapon.clipAmmo > 0 {
+			weapon.clipAmmo -= 1
+		}
+
+		for _ in 0..<profile.pelletCount {
+			shootFromCamera(profile: profile)
+		}
+		showMuzzleFlash()
+	}
+
+	private func shootFromCamera(profile: Weapon.Profile) {
 		let origin = cameraNode.presentation.worldPosition
-		let direction = cameraNode.presentation.worldFront
+		let direction = spreadDirection(from: cameraNode.presentation.worldFront, spread: profile.spread)
 		let target = SCNVector3(
-			x: origin.x + direction.x * 120,
-			y: origin.y + direction.y * 120,
-			z: origin.z + direction.z * 120
+			x: origin.x + direction.x * profile.range,
+			y: origin.y + direction.y * profile.range,
+			z: origin.z + direction.z * profile.range
 		)
 		let hits = scnScene.rootNode.hitTestWithSegment(
 			from: origin,
@@ -1042,23 +1113,105 @@ extension Game {
 			]
 		)
 
+		var tracerEnd = target
 		for hit in hits {
-			guard let hitNode = shootableNode(from: hit.node) else { continue }
-			if isNode(hitNode, inside: scene.playerNode) || isNode(hitNode, inside: vehicle?.node) {
+			if isShotEffectNode(hit.node) ||
+			   isNode(hit.node, inside: scene.playerNode) ||
+			   isNode(hit.node, inside: vehicle?.node) {
 				continue
 			}
-			let impulse = SCNVector3(
-				x: direction.x * 22,
-				y: direction.y * 22 + 1.5,
-				z: direction.z * 22
-			)
-			if hitNode.physicsBody != nil {
-				hitNode.physicsBody?.applyForce(impulse, at: hit.worldCoordinates, asImpulse: true)
-			} else {
-				hitNode.position += SCNVector3(x: direction.x * 1.2, y: 0.2, z: direction.z * 1.2)
+
+			tracerEnd = hit.worldCoordinates
+			if let hitNode = shootableNode(from: hit.node) {
+				let impulse = SCNVector3(
+					x: direction.x * profile.impulse,
+					y: direction.y * profile.impulse + 1.5,
+					z: direction.z * profile.impulse
+				)
+				if hitNode.physicsBody != nil {
+					hitNode.physicsBody?.applyForce(impulse, at: hit.worldCoordinates, asImpulse: true)
+				} else {
+					hitNode.position += SCNVector3(x: direction.x * 1.2, y: 0.2, z: direction.z * 1.2)
+				}
 			}
+			showImpact(at: hit.worldCoordinates)
+			showTracer(from: origin, to: tracerEnd)
 			return
 		}
+		showTracer(from: origin, to: tracerEnd)
+	}
+
+	private func playerWeaponInHand() -> Weapon? {
+		guard let playerNode = scene.playerNode,
+			  let weapons = scene.weapons[playerNode] else { return nil }
+		return weapons.first { $0.position == .hand && $0.isFirearm }
+	}
+
+	private func spreadDirection(from direction: SCNVector3, spread: SCNFloat) -> SCNVector3 {
+		guard spread > 0 else { return normalized(direction) }
+
+		let cameraTransform = cameraNode.presentation.worldTransform
+		let right = normalized(SCNVector3(x: cameraTransform.m11, y: cameraTransform.m12, z: cameraTransform.m13))
+		let up = normalized(SCNVector3(x: cameraTransform.m21, y: cameraTransform.m22, z: cameraTransform.m23))
+		let xSpread = randomSpread() * spread
+		let ySpread = randomSpread() * spread
+		return normalized(SCNVector3(
+			x: direction.x + right.x * xSpread + up.x * ySpread,
+			y: direction.y + right.y * xSpread + up.y * ySpread,
+			z: direction.z + right.z * xSpread + up.z * ySpread
+		))
+	}
+
+	private func randomSpread() -> SCNFloat {
+		return SCNFloat(arc4random_uniform(2001)) / 1000 - 1
+	}
+
+	private func normalized(_ vector: SCNVector3) -> SCNVector3 {
+		let length = sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z)
+		guard length > 0.0001 else { return SCNVector3(x: 0, y: 0, z: -1) }
+		return SCNVector3(x: vector.x / length, y: vector.y / length, z: vector.z / length)
+	}
+
+	private func showMuzzleFlash() {
+		let flash = SCNNode(geometry: SCNSphere(radius: 0.045))
+		flash.name = "__muzzle_flash__"
+		flash.geometry?.firstMaterial?.diffuse.contents = SKColor.orange
+		flash.geometry?.firstMaterial?.emission.contents = SKColor.yellow
+		flash.position = SCNVector3(x: 0, y: -0.08, z: -0.45)
+		cameraNode.addChildNode(flash)
+		flash.runAction(SCNAction.sequence([
+			SCNAction.fadeOut(duration: 0.05),
+			SCNAction.removeFromParentNode()
+		]))
+	}
+
+	private func showTracer(from origin: SCNVector3, to target: SCNVector3) {
+		let source = SCNGeometrySource(vertices: [origin, target])
+		let element = SCNGeometryElement(indices: [Int32(0), Int32(1)], primitiveType: .line)
+		let geometry = SCNGeometry(sources: [source], elements: [element])
+		geometry.firstMaterial?.diffuse.contents = SKColor.yellow.withAlphaComponent(0.65)
+		geometry.firstMaterial?.emission.contents = SKColor.yellow
+
+		let tracer = SCNNode(geometry: geometry)
+		tracer.name = "__bullet_tracer__"
+		scnScene.rootNode.addChildNode(tracer)
+		tracer.runAction(SCNAction.sequence([
+			SCNAction.fadeOut(duration: 0.04),
+			SCNAction.removeFromParentNode()
+		]))
+	}
+
+	private func showImpact(at position: SCNVector3) {
+		let impact = SCNNode(geometry: SCNSphere(radius: 0.035))
+		impact.name = "__bullet_impact__"
+		impact.position = position
+		impact.geometry?.firstMaterial?.diffuse.contents = SKColor.lightGray
+		impact.geometry?.firstMaterial?.emission.contents = SKColor.white
+		scnScene.rootNode.addChildNode(impact)
+		impact.runAction(SCNAction.sequence([
+			SCNAction.scale(to: 0.2, duration: 0.12),
+			SCNAction.removeFromParentNode()
+		]))
 	}
 
 	private func shootableNode(from node: SCNNode) -> SCNNode? {
@@ -1074,6 +1227,17 @@ extension Game {
 			current = candidate.parent
 		}
 		return nil
+	}
+
+	private func isShotEffectNode(_ node: SCNNode) -> Bool {
+		var current: SCNNode? = node
+		while let candidate = current {
+			if let name = candidate.name, name.hasPrefix("__bullet_") || name.hasPrefix("__muzzle_") {
+				return true
+			}
+			current = candidate.parent
+		}
+		return false
 	}
 
 	private func isNode(_ node: SCNNode, inside root: SCNNode?) -> Bool {
@@ -1166,23 +1330,7 @@ extension Game {
 	}
 
 	func openInventory() {
-		/*#if os(iOS)
-		let alert = UIAlertController(title: "Inventář", message: nil, preferredStyle: .alert)
-		for weapon in scene.weapons[scene.playerNode!] ?? [] {
-			alert.addAction(UIAlertAction(title: weapon.name + (weapon.position == .hand ? " (v ruce)" : ""), style: .default, handler: { _ in
-				for weapon in self.scene.weapons[self.scene.playerNode!] ?? [] {
-					weapon.position = .inventory
-				}
-				weapon.position = .hand
-			}))
-		}
-		alert.addAction(UIAlertAction(title: "Prázdné ruce", style: .cancel, handler: { _ in
-			for weapon in self.scene.weapons[self.scene.playerNode!] ?? [] {
-				weapon.position = .inventory
-			}
-		}))
-		vc.present(alert, animated: true)
-		#endif*/
+		hud?.toggleInventory()
 	}
 
 }

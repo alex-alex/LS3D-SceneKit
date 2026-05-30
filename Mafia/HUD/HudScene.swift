@@ -28,9 +28,16 @@ final class HudScene: SKScene {
 	private var pauseOverlay: SKShapeNode!
 	private var pauseTitleLabel: SKLabelNode!
 	private var pauseHintLabel: SKLabelNode!
+	private var inventoryOverlay: SKShapeNode!
+	private var inventoryTitleLabel: SKLabelNode!
+	private var inventoryHintLabel: SKLabelNode!
+	private var inventoryRows: [(node: SKShapeNode, weapon: Weapon?)] = []
 	private var lastSpeedText: String?
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
+	var isInventoryVisible: Bool {
+		return inventoryOverlay?.isHidden == false
+	}
 
 	#if os(macOS)
 
@@ -117,6 +124,7 @@ final class HudScene: SKScene {
 		addChild(speedLabel)
 
 		renderPauseScreen()
+		renderInventoryOverlay()
 
 		scaleMode = .resizeFill
 		isHidden = false
@@ -141,7 +149,8 @@ final class HudScene: SKScene {
 				  objectivesLabel != nil,
 				  consoleLabel != nil,
 				  speedLabel != nil,
-				  pauseOverlay != nil else { return }
+				  pauseOverlay != nil,
+				  inventoryOverlay != nil else { return }
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 45)
@@ -157,6 +166,7 @@ final class HudScene: SKScene {
 		)
 		pauseTitleLabel.position = CGPoint(x: 0, y: 20)
 		pauseHintLabel.position = CGPoint(x: 0, y: -24)
+		layoutInventoryOverlay()
 
 		inventoryButton?.position = CGPoint(x: size.width-45, y: size.height-45)
 		reloadButton?.position = CGPoint(x: size.width-45, y: size.height-45-60)
@@ -199,6 +209,162 @@ final class HudScene: SKScene {
 	func updateObjectives(_ objectives: [Int]) {
 		objectivesLabel.text = objectives.compactMap { TextDb.get($0) }.joined(separator: "\n")
 		objectivesLabel.isHidden = objectives.isEmpty
+	}
+
+}
+
+// MARK: - Inventory
+
+extension HudScene {
+
+	private func renderInventoryOverlay() {
+		inventoryOverlay = SKShapeNode(rectOf: size)
+		inventoryOverlay.fillColor = SKColor.black.withAlphaComponent(0.72)
+		inventoryOverlay.strokeColor = SKColor.clear
+		inventoryOverlay.zPosition = 900
+		inventoryOverlay.isHidden = true
+		addChild(inventoryOverlay)
+
+		inventoryTitleLabel = SKLabelNode()
+		inventoryTitleLabel.fontName = "Arial-BoldMT"
+		inventoryTitleLabel.fontSize = 24
+		inventoryTitleLabel.fontColor = SKColor.white
+		inventoryTitleLabel.text = "Inventory"
+		inventoryTitleLabel.verticalAlignmentMode = .center
+		inventoryOverlay.addChild(inventoryTitleLabel)
+
+		inventoryHintLabel = SKLabelNode()
+		inventoryHintLabel.fontName = "Arial"
+		inventoryHintLabel.fontSize = 14
+		inventoryHintLabel.fontColor = SKColor.white.withAlphaComponent(0.72)
+		inventoryHintLabel.text = "Select a weapon"
+		inventoryHintLabel.verticalAlignmentMode = .center
+		inventoryOverlay.addChild(inventoryHintLabel)
+	}
+
+	private func layoutInventoryOverlay() {
+		inventoryOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
+		inventoryOverlay.path = CGPath(
+			rect: CGRect(x: -size.width/2, y: -size.height/2, width: size.width, height: size.height),
+			transform: nil
+		)
+		inventoryTitleLabel.position = CGPoint(x: 0, y: min(190, size.height/2 - 70))
+		inventoryHintLabel.position = CGPoint(x: 0, y: inventoryTitleLabel.position.y - 32)
+		layoutInventoryRows()
+	}
+
+	func setInventoryVisible(_ isVisible: Bool) {
+		guard inventoryOverlay.isHidden == isVisible else { return }
+
+		inventoryOverlay.isHidden = !isVisible
+		if isVisible {
+			rebuildInventoryRows()
+		}
+	}
+
+	func toggleInventory() {
+		setInventoryVisible(inventoryOverlay.isHidden)
+	}
+
+	func handleInventorySelection(at point: CGPoint) -> Bool {
+		guard inventoryOverlay.isHidden == false else { return false }
+
+		let overlayPoint = convert(point, to: inventoryOverlay)
+		for row in inventoryRows where row.node.frame.contains(overlayPoint) {
+			game.equipPlayerWeapon(row.weapon)
+			setInventoryVisible(false)
+			return true
+		}
+
+		setInventoryVisible(false)
+		return true
+	}
+
+	private func rebuildInventoryRows() {
+		for row in inventoryRows {
+			row.node.removeFromParent()
+		}
+		inventoryRows.removeAll()
+
+		let weapons = game.playerInventoryWeapons()
+		if weapons.isEmpty {
+			inventoryHintLabel.text = "No weapons"
+			return
+		}
+		inventoryHintLabel.text = "Select a weapon"
+
+		addInventoryRow(title: "Empty hands", subtitle: nil, weapon: nil, isSelected: !weapons.contains(where: { $0.position == .hand }))
+		for weapon in weapons {
+			let ammoText: String?
+			if weapon.isFirearm {
+				ammoText = weapon.clipAmmo == -1 ? "unlimited" : "\(weapon.clipAmmo)/\(weapon.restAmmo)"
+			} else {
+				ammoText = nil
+			}
+			addInventoryRow(
+				title: weapon.name,
+				subtitle: ammoText,
+				weapon: weapon,
+				isSelected: weapon.position == .hand
+			)
+		}
+
+		layoutInventoryRows()
+	}
+
+	private func addInventoryRow(title: String, subtitle: String?, weapon: Weapon?, isSelected: Bool) {
+		let row = SKShapeNode(rectOf: CGSize(width: 360, height: 42), cornerRadius: 6)
+		row.fillColor = isSelected ? SKColor.white.withAlphaComponent(0.24) : SKColor.white.withAlphaComponent(0.12)
+		row.strokeColor = isSelected ? SKColor.white : SKColor.white.withAlphaComponent(0.28)
+		row.lineWidth = 1
+		inventoryOverlay.addChild(row)
+
+		let titleLabel = SKLabelNode()
+		titleLabel.fontName = "Arial"
+		titleLabel.fontSize = 16
+		titleLabel.fontColor = SKColor.white
+		titleLabel.horizontalAlignmentMode = .left
+		titleLabel.verticalAlignmentMode = .center
+		titleLabel.text = title
+		titleLabel.position = CGPoint(x: -166, y: 0)
+		row.addChild(titleLabel)
+
+		if let subtitle = subtitle {
+			let subtitleLabel = SKLabelNode()
+			subtitleLabel.fontName = "Arial"
+			subtitleLabel.fontSize = 14
+			subtitleLabel.fontColor = SKColor.white.withAlphaComponent(0.72)
+			subtitleLabel.horizontalAlignmentMode = .right
+			subtitleLabel.verticalAlignmentMode = .center
+			subtitleLabel.text = subtitle
+			subtitleLabel.position = CGPoint(x: 166, y: 0)
+			row.addChild(subtitleLabel)
+		}
+
+		inventoryRows.append((node: row, weapon: weapon))
+	}
+
+	private func layoutInventoryRows() {
+		guard inventoryRows.isEmpty == false else { return }
+
+		let rowWidth = min(360, max(240, size.width - 48))
+		let startY = inventoryHintLabel.position.y - 46
+		for (index, row) in inventoryRows.enumerated() {
+			row.node.path = CGPath(
+				roundedRect: CGRect(x: -rowWidth/2, y: -21, width: rowWidth, height: 42),
+				cornerWidth: 6,
+				cornerHeight: 6,
+				transform: nil
+			)
+			row.node.position = CGPoint(x: 0, y: startY - CGFloat(index) * 50)
+			for case let label as SKLabelNode in row.node.children {
+				if label.horizontalAlignmentMode == .left {
+					label.position.x = -rowWidth/2 + 14
+				} else if label.horizontalAlignmentMode == .right {
+					label.position.x = rowWidth/2 - 14
+				}
+			}
+		}
 	}
 
 }
@@ -330,7 +496,13 @@ extension HudScene {
 	override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 		super.touchesBegan(touches, with: event)
 
-		if let touch = touches.first, let node = nodes(at: touch.location(in: self)).first {
+		guard let touch = touches.first else { return }
+		let location = touch.location(in: self)
+		if handleInventorySelection(at: location) {
+			return
+		}
+
+		if let node = nodes(at: location).first {
 			switch node {
 			case actionButton:
 				game.lastControl = .ACTION
@@ -340,6 +512,7 @@ extension HudScene {
 				game.openInventory()
 			case reloadButton, reloadButton.children[0]:
 				game.lastControl = .RELOAD
+				game.reloadPlayerWeapon()
 				if game.mode == .walk {
 					if let playerNode = game.scene.playerNode {
 						print("pos:", playerNode.presentation.position)
@@ -351,18 +524,7 @@ extension HudScene {
 				}
 			case dropButton, dropButton.children[0]:
 				game.lastControl = .WEAPONDROP
-				guard let playerNode = game.scene.playerNode else { break }
-				for (i, weapon) in (game.scene.weapons[playerNode] ?? []).enumerated() where weapon.position == .hand {
-					print("dropping", weapon.name)
-					game.scene.weapons[playerNode]!.remove(at: i)
-
-					let batNode = game.scene.rootNode.childNode(withName: "2bbat", recursively: true)!
-					batNode.isHidden = false
-//					let weapon = Weapon(id: 4, clipAmmo: -1, restAmmo: -1)
-					game.scene.actions.append(.weapon(batNode, weapon))
-
-					break
-				}
+				game.dropPlayerWeapon()
 			case jumpButton, jumpButton.children[0]:
 				game.lastControl = .JUMP
 				game.playerController?.jump()
@@ -383,8 +545,19 @@ extension HudScene {
 
 	#elseif os(macOS)
 
+	override func mouseDown(with event: NSEvent) {
+		if handleInventorySelection(at: event.location(in: self)) {
+			return
+		}
+		super.mouseDown(with: event)
+	}
+
 	override func keyDown(with event: NSEvent) {
 		if event.keyCode == 53 { // escape
+			if inventoryOverlay.isHidden == false {
+				setInventoryVisible(false)
+				return
+			}
 			clearVehicleControls()
 			clearWalkingControls()
 			clearFreeCameraControls()
@@ -427,8 +600,13 @@ extension HudScene {
 		case 7: // X
 			game.holsterPlayerWeapons()
 
-		case 15: // R
+		case 51: // backspace
+			game.lastControl = .WEAPONDROP
+			game.dropPlayerWeapon()
+
+		case 15, 37: // R, L
 			game.pressControl(.RELOAD)
+			game.reloadPlayerWeapon()
 
 		case 34: // I
 			game.pressControl(.INVENTORY)
@@ -593,7 +771,7 @@ extension HudScene {
 				updateWalkingControls()
 			case 59, 62: // control
 				setCrouching(false)
-			case 15: // R
+			case 15, 37: // R, L
 				game.releaseControl(.RELOAD)
 			case 34: // I
 				game.releaseControl(.INVENTORY)
