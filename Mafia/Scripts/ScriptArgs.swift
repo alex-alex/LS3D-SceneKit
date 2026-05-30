@@ -92,6 +92,7 @@ extension Script {
 		case "act_setstate":			return getArgs_act_setstate(scanner)
 		case "actor_setplacement":		return getArgs_actor_setplacement(scanner)
 		case "car_getspeed":			return getArgs_car_getspeed(scanner)
+		case "car_muststeal":			return getArgs_car_muststeal(scanner)
 		case "car_repair":				return getArgs_car_repair(scanner)
 		case "car_setspeed":			return getArgs_car_setspeed(scanner)
 		case "compareownerwithex":		return getArgs_compareownerwithex(scanner)
@@ -110,6 +111,7 @@ extension Script {
 		case "findactor":				return getArgs_findactor(scanner)
 		case "findframe":				return getArgs_findframe(scanner)
 		case "frm_seton":				return getArgs_frm_seton(scanner)
+		case "garage_enablesteal":		return getArgs_garage_enablesteal(scanner)
 		case "getactorsdist":			return getArgs_getactorsdist(scanner)
 		case "getenemyaistate":			return getArgs_getenemyaistate(scanner)
 		case "goto":					return getArgs_goto(scanner)
@@ -150,6 +152,10 @@ extension Script {
 
 	private func getArgs_car_getspeed(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_car_muststeal(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .number(1)]
 	}
 
 	private func getArgs_car_repair(_ scanner: Scanner) -> [Argument] {
@@ -320,6 +326,13 @@ extension Script {
 
 	private func getArgs_iffltinrange(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner), .label(scanParam(scanner))]
+	}
+
+	private func getArgs_garage_enablesteal(_ scanner: Scanner) -> [Argument] {
+		if let param = scanParamOptional(scanner) {
+			return [.label(param)]
+		}
+		return []
 	}
 
 	private func getArgs_ifplayerstealcar(_ scanner: Scanner) -> [Argument] {

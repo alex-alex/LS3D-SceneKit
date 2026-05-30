@@ -13,6 +13,8 @@ enum Action {
 	case action(Script, String?)
 	case weapon(SCNNode, Weapon)
 	case door(SCNNode)
+	case vehicleSteal(Vehicle)
+	case vehicleEnter(Vehicle)
 
 	var node: SCNNode {
 		switch self {
@@ -22,6 +24,10 @@ enum Action {
 			return node
 		case .door(let node):
 			return node
+		case .vehicleSteal(let vehicle):
+			return vehicle.node
+		case .vehicleEnter(let vehicle):
+			return vehicle.node
 		}
 	}
 
@@ -33,6 +39,10 @@ enum Action {
 			return "Sebrat \(weapon.name)"
 		case .door(let node):
 			return node.doorData?.isOpen == true ? "Zavřít" : "Otevřít"
+		case .vehicleSteal:
+			return "Steal car"
+		case .vehicleEnter:
+			return "Enter car"
 		}
 	}
 }

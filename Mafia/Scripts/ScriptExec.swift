@@ -19,7 +19,7 @@ extension Script {
 //		"autosavegame"
 		case "actor_setplacement":		actor_setplacement(command.1)
 		case "car_getspeed":			car_getspeed(command.1)
-		case "car_muststeal":			noop()
+		case "car_muststeal":			car_muststeal(command.1)
 		case "car_repair":				car_repair(command.1)
 		case "car_setspeed":			car_setspeed(command.1)
 //		"commandblock"
@@ -46,7 +46,7 @@ extension Script {
 		case "findactor":				findactor(command.1)
 		case "findframe":				findframe(command.1)
 		case "frm_seton":				frm_seton(command.1)
-//		"garage_enablesteal"
+		case "garage_enablesteal":		garage_enablesteal(command.1)
 		case "getactorsdist":			getactorsdist(command.1)
 		case "getenemyaistate":			getenemyaistate(command.1)
 		case "goto":					goto(command.1)
@@ -157,6 +157,13 @@ extension Script {
 		} else {
 			vars[varId] = 0
 		}
+		next()
+	}
+
+	private func car_muststeal(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let enabled = args.count < 2 || args[1].getValueOrVarValue(vars: vars) != 0
+		scene.game.setVehicleStealEnabled(carId: carId, node: node(forScriptId: carId), enabled: enabled)
 		next()
 	}
 
@@ -545,18 +552,20 @@ extension Script {
 		}
 	}
 
+	private func garage_enablesteal(_ args: [Argument]) {
+		let enabled = args.first?.getString().uppercased() != "F"
+		if enabled {
+			for (carId, actor) in actors where actor.type == .car || actor.name?.lowercased() == "taxi2" {
+				scene.game.setVehicleStealEnabled(carId: carId, node: actor, enabled: true)
+			}
+		}
+		next()
+	}
+
 	private func ifplayerstealcar(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-
-		if let actor = actors[actorId],
-		   scene.game.mode == .car,
-		   let vehicleNode = scene.game.vehicle?.node,
-		   (vehicleNode === actor || vehicleNode.name == actor.name) {
-			vars[varId] = 1
-		} else {
-			vars[varId] = 0
-		}
+		vars[varId] = scene.game.didPlayerStealVehicle(carId: actorId) ? 1 : 0
 		next()
 	}
 
@@ -748,15 +757,7 @@ extension Script {
 	}
 
 	private func playerOwnerMatches(carId: Int) -> Bool {
-		let ownerNode: SCNNode? = scene.game.mode == .car ? scene.game.vehicle?.node : nil
-		let expectedNode = node(forScriptId: carId)
-
-		if expectedNode == nil {
-			return ownerNode == nil
-		}
-		guard let ownerNode = ownerNode,
-			  let expectedNode = expectedNode else { return false }
-		return ownerNode === expectedNode || ownerNode.name == expectedNode.name
+		scene.game.playerOwnerMatches(carNode: node(forScriptId: carId))
 	}
 
 	private func isPlayerActor(_ actorId: Int) -> Bool {

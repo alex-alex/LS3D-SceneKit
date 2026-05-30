@@ -111,6 +111,11 @@ final class Game: NSObject {
 	private let maxFreeCameraPitch: SCNFloat = .pi / 2 - 0.01
 	private let fogBlendSpeed: CGFloat = 0.4
 	private let ambientBlendSpeed: CGFloat = 0.9
+	private var stealEnabledVehicleIds: Set<Int> = []
+	private var stealVehicleNodes: [Int: SCNNode] = [:]
+	private var stolenVehicleIds: Set<Int> = []
+	private var activeSteal: (vehicle: Vehicle, startedAt: TimeInterval)?
+	private let vehicleStealDuration: TimeInterval = 1.6
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -570,7 +575,13 @@ final class Game: NSObject {
 
 		lastActionButtonUpdateTime = time
 		let playerPosition = playerNode.presentation.worldPosition
-		let hasNearbyAction = scene.actions.contains { action in
+		var actions = scene.actions
+		if let stealAction = stealableVehicleAction() {
+			actions.append(stealAction)
+		} else if let enterAction = enterableVehicleAction() {
+			actions.append(enterAction)
+		}
+		let hasNearbyAction = actions.contains { action in
 			action.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared
 		}
 		setActionButtonVisible(hasNearbyAction)
@@ -581,6 +592,69 @@ final class Game: NSObject {
 
 		isActionButtonVisible = isVisible
 		hud.actionButton.isHidden = !isVisible
+	}
+
+	private func beginVehicleSteal(_ vehicle: Vehicle) {
+		guard mode == .walk,
+			  activeSteal == nil,
+			  vehicleStealId(for: vehicle) != nil else { return }
+
+		activeSteal = (vehicle, Date.timeIntervalSinceReferenceDate)
+		hud?.showConsoleText("Stealing car...")
+	}
+
+	private func updateVehicleStealing() {
+		guard let steal = activeSteal else { return }
+		guard isControlPressed(.ACTION),
+			  mode == .walk,
+			  let playerNode = scene.playerNode,
+			  steal.vehicle.node.actionSquaredDistance(to: playerNode.presentation.worldPosition) < actionDistanceSquared else {
+			activeSteal = nil
+			return
+		}
+
+		guard Date.timeIntervalSinceReferenceDate - steal.startedAt >= vehicleStealDuration,
+			  let carId = vehicleStealId(for: steal.vehicle) else { return }
+
+		stolenVehicleIds.insert(carId)
+		activeSteal = nil
+		vehicle = steal.vehicle
+		mode = .car
+		hud?.showConsoleText("Car stolen")
+	}
+
+	private func vehicleStealId(for vehicle: Vehicle) -> Int? {
+		for carId in stealEnabledVehicleIds {
+			if let carNode = stealVehicleNodes[carId],
+			   isVehicle(vehicle, matching: carNode),
+			   !stolenVehicleIds.contains(carId) {
+				return carId
+			}
+		}
+		return nil
+	}
+
+	private func stealableVehicleAction() -> Action? {
+		guard let vehicle = vehicle,
+			  vehicleStealId(for: vehicle) != nil else { return nil }
+
+		return .vehicleSteal(vehicle)
+	}
+
+	private func enterableVehicleAction() -> Action? {
+		guard let vehicle = vehicle,
+			  canEnterCurrentVehicle() else { return nil }
+
+		return .vehicleEnter(vehicle)
+	}
+
+	private func isVehicle(_ vehicle: Vehicle, matching node: SCNNode) -> Bool {
+		return vehicle.node === node ||
+			vehicle.scriptNode === node ||
+			vehicle.node.name == node.name ||
+			vehicle.scriptNode.name == node.name ||
+			isNode(vehicle.node, inside: node) ||
+			isNode(node, inside: vehicle.scriptNode)
 	}
 
 	func setup(in view: SCNView) {
@@ -896,6 +970,7 @@ extension Game: SCNSceneRendererDelegate {
 			force: vehicle?.force ?? 0,
 			isVisible: mode == .car && vehicle != nil
 		)
+		updateVehicleStealing()
 
 		if let node = scene.compassNode,
 		   let playerNode = scene.playerNode {
@@ -958,6 +1033,12 @@ extension Game {
 
 		case .door(let node):
 			useDoor(node)
+
+		case .vehicleSteal(let vehicle):
+			beginVehicleSteal(vehicle)
+
+		case .vehicleEnter:
+			mode = .car
 		}
 	}
 
@@ -975,6 +1056,42 @@ extension Game {
 	func playerDidHorn() {
 		lastControl = .HORN
 		scene.triggerPlayerHornEvent()
+	}
+
+	func setVehicleStealEnabled(carId: Int, node: SCNNode?, enabled: Bool) {
+		if enabled {
+			stealEnabledVehicleIds.insert(carId)
+			if let node = node {
+				stealVehicleNodes[carId] = node
+			}
+		} else {
+			stealEnabledVehicleIds.remove(carId)
+			stealVehicleNodes[carId] = nil
+			activeSteal = nil
+		}
+	}
+
+	func markVehicleMustSteal(carId: Int, node: SCNNode?) {
+		setVehicleStealEnabled(carId: carId, node: node, enabled: true)
+	}
+
+	func didPlayerStealVehicle(carId: Int) -> Bool {
+		return stolenVehicleIds.contains(carId)
+	}
+
+	func playerOwnerMatches(carNode: SCNNode?) -> Bool {
+		guard let carNode = carNode else {
+			return mode != .car
+		}
+		guard mode == .car,
+			  let vehicle = vehicle else { return false }
+
+		return isVehicle(vehicle, matching: carNode)
+	}
+
+	func canEnterCurrentVehicle() -> Bool {
+		guard let vehicle = vehicle else { return false }
+		return vehicleStealId(for: vehicle) == nil
 	}
 
 	func pressControl(_ control: Control) {
@@ -1257,7 +1374,13 @@ extension Game {
 			  let playerNode = scene.playerNode else { return nil }
 
 		let playerPosition = playerNode.presentation.worldPosition
-		return scene.actions
+		var actions = scene.actions
+		if let stealAction = stealableVehicleAction() {
+			actions.append(stealAction)
+		} else if let enterAction = enterableVehicleAction() {
+			actions.append(enterAction)
+		}
+		return actions
 			.filter { $0.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared }
 			.min { $0.node.actionSquaredDistance(to: playerPosition) < $1.node.actionSquaredDistance(to: playerPosition) }
 	}

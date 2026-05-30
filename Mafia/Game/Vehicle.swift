@@ -11,6 +11,7 @@ import SceneKit
 
 final class Vehicle {
 
+	let scriptNode: SCNNode
 	let node: SCNNode
 	let physicsVehicle: SCNPhysicsVehicle
 
@@ -77,6 +78,7 @@ final class Vehicle {
 			return nil
 		}
 
+		scriptNode = node
 		self.node = taxiNode
 
 		Vehicle.attachChassisVisuals(from: node, to: taxiNode)

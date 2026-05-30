@@ -533,7 +533,9 @@ extension HudScene {
 				game.lastControl = .ACTION
 				guard game.vehicle != nil else { break }
 				if game.mode == .walk {
-					game.mode = .car
+					if game.canEnterCurrentVehicle() {
+						game.mode = .car
+					}
 				} else {
 					game.mode = .walk
 				}
@@ -625,14 +627,16 @@ extension HudScene {
 			clearWalkingControls()
 			guard game.vehicle != nil else { break }
 			if game.mode == .walk {
-				game.mode = .car
+				if game.canEnterCurrentVehicle() {
+					game.mode = .car
+				}
 			} else {
 				game.mode = .walk
 			}
 
 		case 3: // F
 			guard let action = game.nearestAction() else { break }
-			game.lastControl = .ACTION
+			game.pressControl(.ACTION)
 			game.performAction(action)
 
 		case 0, 123: // A, left
@@ -775,6 +779,8 @@ extension HudScene {
 				game.releaseControl(.RELOAD)
 			case 34: // I
 				game.releaseControl(.INVENTORY)
+			case 3: // F
+				game.releaseControl(.ACTION)
 			default:
 				break
 			}
@@ -807,6 +813,9 @@ extension HudScene {
 
 		case 34: // I
 			game.releaseControl(.INVENTORY)
+
+		case 3: // F
+			game.releaseControl(.ACTION)
 
 		default:
 			break
