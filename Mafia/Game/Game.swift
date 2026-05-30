@@ -70,6 +70,7 @@ final class Game: NSObject {
 	var playerController: PlayerController?
 	var elevation: SCNFloat = 0
 	var lastControl: Control?
+	var playerHealth = 100
 	private var activeControls: Set<Control> = []
 	private(set) var isGamePaused = false
 	private var lastUpdateTime: TimeInterval?
@@ -668,6 +669,7 @@ final class Game: NSObject {
 		} else {
 			view.audioListener = cameraContainer
 		}
+		refreshPlayerStatusHud()
 		scene.startScripts()
 	}
 
@@ -976,6 +978,7 @@ extension Game: SCNSceneRendererDelegate {
 			force: vehicle?.force ?? 0,
 			isVisible: mode == .car && vehicle != nil
 		)
+		refreshPlayerStatusHud()
 		updateVehicleStealing()
 
 		if let node = scene.compassNode,
@@ -1145,6 +1148,7 @@ extension Game {
 		for weapon in weapons {
 			weapon.position = .inventory
 		}
+		refreshPlayerStatusHud()
 	}
 
 	func dropPlayerWeapon() {
@@ -1161,6 +1165,7 @@ extension Game {
 			scene.actions.append(.weapon(dropNode, weapon))
 		}
 		hud?.showConsoleText("Dropped \(weapon.name)")
+		refreshPlayerStatusHud()
 	}
 
 	func playerInventoryWeapons() -> [Weapon] {
@@ -1181,16 +1186,29 @@ extension Game {
 		} else {
 			hud?.showConsoleText("Empty hands")
 		}
+		refreshPlayerStatusHud()
 	}
 
 	func reloadPlayerWeapon() {
-		guard let weapon = playerWeaponInHand(), weapon.canReload, let profile = weapon.profile else { return }
+		guard let weapon = equippedPlayerWeapon(), weapon.canReload, let profile = weapon.profile else { return }
 
 		let neededAmmo = profile.clipSize - weapon.clipAmmo
 		let loadedAmmo = min(neededAmmo, weapon.restAmmo)
 		weapon.clipAmmo += loadedAmmo
 		weapon.restAmmo -= loadedAmmo
 		hud?.showConsoleText("\(weapon.name): \(weapon.clipAmmo)/\(weapon.restAmmo)")
+		refreshPlayerStatusHud()
+	}
+
+	func setPlayerHealth(_ health: Int) {
+		playerHealth = max(0, health)
+		if Thread.isMainThread {
+			refreshPlayerStatusHud()
+		} else {
+			DispatchQueue.main.async {
+				self.refreshPlayerStatusHud()
+			}
+		}
 	}
 
 	func playDodgeAnimation(direction: DodgeDirection) {
@@ -1214,7 +1232,8 @@ extension Game {
 
 	private func firePlayerWeapon() {
 		guard mode == .walk,
-			  let weapon = playerWeaponInHand(),
+			  let weapon = equippedPlayerWeapon(),
+			  weapon.isFirearm,
 			  let profile = weapon.profile else { return }
 
 		let now = Date.timeIntervalSinceReferenceDate
@@ -1229,6 +1248,7 @@ extension Game {
 		if weapon.clipAmmo > 0 {
 			weapon.clipAmmo -= 1
 		}
+		refreshPlayerStatusHud()
 
 		for _ in 0..<profile.pelletCount {
 			shootFromCamera(profile: profile)
@@ -1281,10 +1301,14 @@ extension Game {
 		showTracer(from: origin, to: tracerEnd)
 	}
 
-	private func playerWeaponInHand() -> Weapon? {
+	func equippedPlayerWeapon() -> Weapon? {
 		guard let playerNode = scene.playerNode,
 			  let weapons = scene.weapons[playerNode] else { return nil }
-		return weapons.first { $0.position == .hand && $0.isFirearm }
+		return weapons.first { $0.position == .hand }
+	}
+
+	func refreshPlayerStatusHud() {
+		hud?.updatePlayerStatus(health: playerHealth, weapon: equippedPlayerWeapon())
 	}
 
 	private func spreadDirection(from direction: SCNVector3, spread: SCNFloat) -> SCNVector3 {

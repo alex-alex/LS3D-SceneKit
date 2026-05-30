@@ -25,6 +25,7 @@ final class HudScene: SKScene {
 	var objectivesLabel: SKLabelNode!
 	var consoleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
+	var playerStatusLabel: SKLabelNode!
 	private var pauseOverlay: SKShapeNode!
 	private var pauseTitleLabel: SKLabelNode!
 	private var pauseHintLabel: SKLabelNode!
@@ -34,6 +35,7 @@ final class HudScene: SKScene {
 	private var inventoryRows: [(node: SKShapeNode, weapon: Weapon?)] = []
 	private var inventoryPausedGame = false
 	private var lastSpeedText: String?
+	private var lastPlayerStatusText: String?
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
 	var isInventoryVisible: Bool {
@@ -124,6 +126,16 @@ final class HudScene: SKScene {
 		speedLabel.isHidden = true
 		addChild(speedLabel)
 
+		playerStatusLabel = SKLabelNode()
+		playerStatusLabel.fontName = "Arial"
+		playerStatusLabel.fontSize = 16
+		playerStatusLabel.fontColor = SKColor.white
+		playerStatusLabel.horizontalAlignmentMode = .left
+		playerStatusLabel.verticalAlignmentMode = .bottom
+		playerStatusLabel.numberOfLines = 0
+		playerStatusLabel.zPosition = 1100
+		addChild(playerStatusLabel)
+
 		renderPauseScreen()
 		renderInventoryOverlay()
 
@@ -150,6 +162,7 @@ final class HudScene: SKScene {
 				  objectivesLabel != nil,
 				  consoleLabel != nil,
 				  speedLabel != nil,
+				  playerStatusLabel != nil,
 				  pauseOverlay != nil,
 				  inventoryOverlay != nil else { return }
 
@@ -160,6 +173,8 @@ final class HudScene: SKScene {
 		consoleLabel.position = CGPoint(x: 24, y: size.height-24)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
+		playerStatusLabel.position = CGPoint(x: 24, y: 20)
+		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
 		pauseOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
 		pauseOverlay.path = CGPath(
 			rect: CGRect(x: -size.width/2, y: -size.height/2, width: size.width, height: size.height),
@@ -191,6 +206,26 @@ final class HudScene: SKScene {
 		if lastSpeedText != speedText {
 			lastSpeedText = speedText
 			speedLabel.text = speedText
+		}
+	}
+
+	func updatePlayerStatus(health: Int, weapon: Weapon?) {
+		let weaponText: String
+		if let weapon = weapon {
+			if weapon.isFirearm {
+				let ammoText = weapon.clipAmmo == -1 ? "unlimited" : "\(weapon.clipAmmo)/\(weapon.restAmmo)"
+				weaponText = "\(weapon.name)  \(ammoText)"
+			} else {
+				weaponText = weapon.name
+			}
+		} else {
+			weaponText = "Empty hands"
+		}
+
+		let statusText = "Weapon: \(weaponText)\nHealth: \(health)"
+		if lastPlayerStatusText != statusText {
+			lastPlayerStatusText = statusText
+			playerStatusLabel.text = statusText
 		}
 	}
 

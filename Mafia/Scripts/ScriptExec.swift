@@ -464,7 +464,7 @@ extension Script {
 		let property = args[2].getString().lowercased()
 		if property == "energy" {
 			if isPlayerActor(actorId) {
-				vars[varId] = 100
+				vars[varId] = Float(scene.game.playerHealth)
 			} else {
 				vars[varId] = 0
 			}
@@ -497,6 +497,12 @@ extension Script {
 	}
 
 	private func human_setproperty(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let value = args[1].getValueOrVarValue(vars: vars)
+		let property = args[2].getString().lowercased()
+		if property == "energy", isPlayerActor(actorId) {
+			scene.game.setPlayerHealth(value)
+		}
 		next()
 	}
 
