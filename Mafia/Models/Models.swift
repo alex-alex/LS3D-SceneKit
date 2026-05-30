@@ -335,87 +335,87 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			material.transparencyMode = .aOne
 		}
 
-		if flags.contains(.reflectionTexture) {
-			let ratio: Float = try stream.read()
-			let textureNameLength: UInt8 = try stream.read()
-			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
-			textureNames.append(textureName)
-			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
-			#if os(macOS)
-				material.reflective.contents = NSImage(contentsOf: url)
-			#elseif os(iOS)
-				material.reflective.contents = UIImage(contentsOfFile: url.path)
-			#endif
-			material.reflective.intensity = CGFloat(ratio)
-			material.reflective.wrapS = .repeat
-			material.reflective.wrapT = .repeat
-		}
+			if flags.contains(.reflectionTexture) {
+				let ratio: Float = try stream.read()
+				let textureNameLength: UInt8 = try stream.read()
+				let textureName: String = try stream.read(maxLength: Int(textureNameLength))
+				textureNames.append(textureName)
+				let url = mafiaMapURL(named: textureName)
+				#if os(macOS)
+					material.reflective.contents = url.flatMap { NSImage(contentsOf: $0) }
+				#elseif os(iOS)
+					material.reflective.contents = url.flatMap { UIImage(contentsOfFile: $0.path) }
+				#endif
+				material.reflective.intensity = CGFloat(ratio)
+				material.reflective.wrapS = .repeat
+				material.reflective.wrapT = .repeat
+			}
 
-		if flags.contains(.diffuseTexture) {
-			let textureNameLength: UInt8 = try stream.read()
-			let textureName: String = (try stream.read(maxLength: Int(textureNameLength))).lowercased()
-			textureNames.append(textureName)
-			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
-			let data = try Data(contentsOf: url)
-
-			#if os(macOS)
-			if flags.contains(.colorKey) {
-				let b = CGFloat(data[54])/255
-				let g = CGFloat(data[55])/255
-				let r = CGFloat(data[56])/255
-				let color = NSColor(red: r, green: g, blue: b, alpha: 1)
-				if let source = CGImageSourceCreateWithData(data as CFData, nil),
-				   let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
-				   let masked = cgImage.removeColor(color.cgColor) {
-					material.diffuse.contents = masked.caLayer()
-				} else {
-					material.diffuse.contents = NSImage(data: data)
+			if flags.contains(.diffuseTexture) {
+				let textureNameLength: UInt8 = try stream.read()
+				let textureName: String = (try stream.read(maxLength: Int(textureNameLength))).lowercased()
+				textureNames.append(textureName)
+				if let url = mafiaMapURL(named: textureName),
+				   let data = try? Data(contentsOf: url) {
+					#if os(macOS)
+					if flags.contains(.colorKey), data.count > 56 {
+						let b = CGFloat(data[54])/255
+						let g = CGFloat(data[55])/255
+						let r = CGFloat(data[56])/255
+						let color = NSColor(red: r, green: g, blue: b, alpha: 1)
+						if let source = CGImageSourceCreateWithData(data as CFData, nil),
+						   let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
+						   let masked = cgImage.removeColor(color.cgColor) {
+							material.diffuse.contents = masked.caLayer()
+						} else {
+							material.diffuse.contents = NSImage(data: data)
+						}
+					} else {
+						material.diffuse.contents = NSImage(data: data)
+					}
+					#elseif os(iOS)
+					if let image = imageCache[textureName] {
+						material.diffuse.contents = image
+					} else {
+						if flags.contains(.colorKey), data.count > 56 {
+							let b = CGFloat(data[54])/255
+							let g = CGFloat(data[55])/255
+							let r = CGFloat(data[56])/255
+							let color = UIColor(red: r, green: g, blue: b, alpha: 1)
+							let image = UIImage(data: data)?.removeColor(color)
+							imageCache[textureName] = image
+							material.diffuse.contents = image?.cgImage?.caLayer()
+						} else {
+							let image = UIImage(data: data)
+							imageCache[textureName] = image
+							material.diffuse.contents = image
+						}
+					}
+					#endif
 				}
-			} else {
-				material.diffuse.contents = NSImage(data: data)
-			}
-			#elseif os(iOS)
-			if let image = imageCache[textureName] {
-				material.diffuse.contents = image
-			} else {
-				if flags.contains(.colorKey) {
-					let b = CGFloat(data[54])/255
-					let g = CGFloat(data[55])/255
-					let r = CGFloat(data[56])/255
-					let color = UIColor(red: r, green: g, blue: b, alpha: 1)
-					let image = UIImage(data: data)?.removeColor(color)
-					imageCache[textureName] = image
-					material.diffuse.contents = image?.cgImage?.caLayer()
-				} else {
-					let image = UIImage(data: data)
-					imageCache[textureName] = image
-					material.diffuse.contents = image
+					material.diffuse.wrapS = .repeat
+					material.diffuse.wrapT = .repeat
+					if flags.contains(.colorKey) {
+						material.blendMode = .alpha
+						material.transparencyMode = .aOne
+					}
 				}
-			}
-			#endif
-			material.diffuse.wrapS = .repeat
-			material.diffuse.wrapT = .repeat
-			if flags.contains(.colorKey) {
-				material.blendMode = .alpha
-				material.transparencyMode = .aOne
-			}
-		}
 
-		if flags.contains(.opacityTexture) {
-			let textureNameLength: UInt8 = try stream.read()
-			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
-			textureNames.append(textureName)
-			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
-			material.transparencyMode = .rgbZero
-			material.blendMode = flags.contains(.additiveBlend) ? .add : .alpha
-			#if os(macOS)
-				material.transparent.contents = NSImage(contentsOf: url)?.inversed
-			#elseif os(iOS)
-				material.transparent.contents = UIImage(contentsOfFile: url.path)
-			#endif
-			material.transparent.wrapS = .repeat
-			material.transparent.wrapT = .repeat
-		}
+			if flags.contains(.opacityTexture) {
+				let textureNameLength: UInt8 = try stream.read()
+				let textureName: String = try stream.read(maxLength: Int(textureNameLength))
+				textureNames.append(textureName)
+				let url = mafiaMapURL(named: textureName)
+				material.transparencyMode = .rgbZero
+				material.blendMode = flags.contains(.additiveBlend) ? .add : .alpha
+				#if os(macOS)
+					material.transparent.contents = url.flatMap { NSImage(contentsOf: $0)?.inversed }
+				#elseif os(iOS)
+					material.transparent.contents = url.flatMap { UIImage(contentsOfFile: $0.path) }
+				#endif
+				material.transparent.wrapS = .repeat
+				material.transparent.wrapT = .repeat
+			}
 
 		if !flags.contains(.diffuseTexture) && !flags.contains(.opacityTexture) {
 			let _: UInt8 = try stream.read()

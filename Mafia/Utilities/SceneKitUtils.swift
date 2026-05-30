@@ -84,6 +84,32 @@ extension SKTexture {
 	}
 }
 
+func mafiaResourceURL(directory: String, name: String) -> URL? {
+	let directoryURL = mainDirectory.appendingPathComponent(directory)
+	let directURL = directoryURL.appendingPathComponent(name)
+	if FileManager.default.fileExists(atPath: directURL.path) {
+		return directURL
+	}
+
+	let normalizedName = name.lowercased()
+	guard let enumerator = FileManager.default.enumerator(
+		at: directoryURL,
+		includingPropertiesForKeys: nil,
+		options: [.skipsHiddenFiles]
+	) else {
+		return nil
+	}
+
+	for case let url as URL in enumerator where url.lastPathComponent.lowercased() == normalizedName {
+		return url
+	}
+	return nil
+}
+
+func mafiaMapURL(named name: String) -> URL? {
+	return mafiaResourceURL(directory: "maps", name: name)
+}
+
 private var nodeTypeKey: UInt8 = 0
 private var followsCameraKey: UInt8 = 0
 private var doorDataKey: UInt8 = 0

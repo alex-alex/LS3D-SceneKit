@@ -808,7 +808,7 @@ private func skyboxTextureSetName(from name: String?) -> String? {
 }
 
 private func loadMapImage(named name: String) -> Any? {
-	let url = mainDirectory.appendingPathComponent("maps/" + name)
+	guard let url = mafiaMapURL(named: name) else { return nil }
 	#if os(macOS)
 		return NSImage(contentsOf: url)
 	#elseif os(iOS)
