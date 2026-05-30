@@ -42,6 +42,9 @@ final class PlayerController {
 	var cameraPitch: SCNFloat {
 		return lookPitch
 	}
+	var isPlayerCrouching: Bool {
+		return isCrouching
+	}
 
 	private let walkSpeed: SCNFloat = 3.2
 	private let crouchSpeed: SCNFloat = 1.45

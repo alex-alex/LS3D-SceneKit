@@ -23,6 +23,7 @@ final class Weapon {
 		let impulse: SCNFloat
 		let pelletCount: Int
 		let spread: SCNFloat
+		let animationSetId: Int
 		let fireSoundName: String?
 		let reloadSoundName: String?
 	}
@@ -93,6 +94,7 @@ private extension Weapon {
 			let offset = id * recordSize
 			let name = data.zeroTerminatedString(at: offset, maxLength: 32)
 			let modelName = data.zeroTerminatedString(at: offset + 36, maxLength: 32)
+			let animationSetId = data.int32(at: offset + 68)
 			let fireSoundId = data.int32(at: offset + 84)
 			let reloadSoundId = data.int32(at: offset + 88)
 			let weaponClass = data.int32(at: offset + 92)
@@ -131,6 +133,7 @@ private extension Weapon {
 					impulse: max(8, min(SCNFloat(impulse), 36)),
 					pelletCount: pelletCount,
 					spread: spreadForWeapon(id: id, weaponClass: weaponClass, tableSpread: spread),
+					animationSetId: animationSetId,
 					fireSoundName: fireSoundName,
 					reloadSoundName: reloadSoundName
 				)

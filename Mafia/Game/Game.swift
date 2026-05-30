@@ -1202,6 +1202,7 @@ extension Game {
 		let loadedAmmo = min(neededAmmo, weapon.restAmmo)
 		weapon.clipAmmo += loadedAmmo
 		weapon.restAmmo -= loadedAmmo
+		playWeaponAnimation(profile: profile, action: "reload")
 		playWeaponSound(profile.reloadSoundName)
 		hud?.showConsoleText("\(weapon.name): \(weapon.clipAmmo)/\(weapon.restAmmo)")
 		refreshPlayerStatusHud()
@@ -1260,6 +1261,7 @@ extension Game {
 		for _ in 0..<profile.pelletCount {
 			shootFromCamera(profile: profile)
 		}
+		playWeaponAnimation(profile: profile, action: "fire")
 		playWeaponSound(profile.fireSoundName)
 		showMuzzleFlash()
 	}
@@ -1425,6 +1427,33 @@ extension Game {
 			source = loadedSource
 		}
 		cameraNode.runAction(SCNAction.playAudio(source, waitForCompletion: false), forKey: "__weapon_fire_sound__")
+	}
+
+	private func playWeaponAnimation(profile: Weapon.Profile, action: String) {
+		guard profile.animationSetId > 0,
+			  let playerNode = scene.playerNode else { return }
+
+		let stance = playerController?.isPlayerCrouching == true ? "drep" : "stoj"
+		guard let animationName = weaponAnimationName(animationSetId: profile.animationSetId, stance: stance, action: action) else { return }
+		try? playAnimation(
+			named: animationName,
+			in: playerNode,
+			animationKey: "__weapon_\(action)__"
+		)
+	}
+
+	private func weaponAnimationName(animationSetId: Int, stance: String, action: String) -> String? {
+		let animationPrefix = "gun" + String(format: "%02d", animationSetId)
+		let candidates = [
+			"anims/\(animationPrefix) \(stance) \(action).5ds",
+			"anims/\(animationPrefix) stoj \(action).5ds"
+		]
+		return candidates.first { animationExists(named: $0) }
+	}
+
+	private func animationExists(named animationName: String) -> Bool {
+		let url = mainDirectory.appendingPathComponent(animationName.lowercased())
+		return FileManager.default.fileExists(atPath: url.path)
 	}
 
 	private func showTracer(from origin: SCNVector3, to target: SCNVector3) {
