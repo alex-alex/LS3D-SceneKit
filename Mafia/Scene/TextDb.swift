@@ -50,6 +50,7 @@ final class TextDb {
 	}
 
 	static func get(_ val: Int) -> String? {
+		guard val >= 0 else { return nil }
 		return data[UInt32(val)]
 	}
 
