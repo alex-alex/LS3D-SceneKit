@@ -1470,7 +1470,7 @@ extension Game {
 			weaponAudioSources[normalizedName] = loadedSource
 			source = loadedSource
 		}
-		cameraNode.runAction(SCNAction.playAudio(source, waitForCompletion: false), forKey: "__weapon_fire_sound__")
+		cameraNode.runAction(SCNAction.playAudio(source, waitForCompletion: false))
 	}
 
 	private func playWeaponAnimation(profile: Weapon.Profile, action: String) {
@@ -1728,7 +1728,7 @@ extension Game {
 		let url = mainDirectory.appendingPathComponent("sounds/" + normalizedName)
 		guard let source = SCNAudioSource(url: url) else { return }
 		source.load()
-		node.runAction(SCNAction.playAudio(source, waitForCompletion: false), forKey: "doorSound")
+		node.runAction(SCNAction.playAudio(source, waitForCompletion: false))
 	}
 
 	func openInventory() {

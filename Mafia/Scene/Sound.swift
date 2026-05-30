@@ -80,9 +80,9 @@ final class Sound {
 
 	func play() {
 		if sourceType == .global {
-			scene.playerNode!.runAction(SCNAction.playAudio(audioSource, waitForCompletion: true), forKey: "sound")
+			scene.playerNode!.runAction(SCNAction.playAudio(audioSource, waitForCompletion: true))
 		} else {
-			node.runAction(SCNAction.playAudio(audioSource, waitForCompletion: true), forKey: "sound")
+			node.runAction(SCNAction.playAudio(audioSource, waitForCompletion: true))
 		}
 	}
 
