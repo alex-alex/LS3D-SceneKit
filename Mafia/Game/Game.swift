@@ -57,7 +57,7 @@ final class Game: NSObject {
 				vehicle?.applyForces()
 			} else {
 				playerController?.stop()
-				scene.playerNode?.isHidden = true
+				movePlayerIntoVehicle()
 				scnScene.rootNode.addChildNode(cameraContainer)
 				resetCarCameraFollow()
 			}
@@ -118,6 +118,7 @@ final class Game: NSObject {
 	private var stolenVehicleIds: Set<Int> = []
 	private var activeSteal: (vehicle: Vehicle, startedAt: TimeInterval)?
 	private let vehicleStealDuration: TimeInterval = 1.6
+	private var playerPhysicsBodyBeforeVehicle: SCNPhysicsBody?
 
 	init(missionName: String) throws {
 		scnScene.rootNode.name = "__root__"
@@ -271,6 +272,7 @@ final class Game: NSObject {
 			resetCarCameraLook()
 		} else if mode == .walk {
 			cameraContainer.position = SCNVector3(x: 0, y: 1.35, z: 0)
+			cameraContainer.eulerAngles = SCNVector3Zero
 			cameraNode.position = SCNVector3(x: 0, y: 1.25, z: -2.8)
 			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
 			elevation = 0
@@ -291,7 +293,7 @@ final class Game: NSObject {
 		switch mode {
 		case .walk:
 			guard scene.playerNode != nil else { return }
-			playerController?.look(deltaX: deltaX, deltaY: deltaY)
+			playerController?.look(deltaX: -deltaX, deltaY: deltaY)
 		case .car:
 			carCameraYaw = normalizedAngle(carCameraYaw - deltaX)
 			carCameraPitch = max(minCarCameraPitch, min(maxCarCameraPitch, carCameraPitch + deltaY))
@@ -521,6 +523,13 @@ final class Game: NSObject {
 		guard let playerController = playerController,
 			  let vehicle = vehicle else { return }
 
+		if let playerNode = scene.playerNode,
+		   playerNode.physicsBody == nil,
+		   let playerPhysicsBodyBeforeVehicle = playerPhysicsBodyBeforeVehicle {
+			playerNode.physicsBody = playerPhysicsBodyBeforeVehicle
+			self.playerPhysicsBodyBeforeVehicle = nil
+		}
+
 		let vehiclePosition = vehicle.node.presentation.worldPosition
 		let exitSide = horizontalVehicleRight()
 		let exitPosition = SCNVector3(
@@ -528,9 +537,32 @@ final class Game: NSObject {
 			y: vehicleBottomWorldY() + playerExitHeightOffset,
 			z: vehiclePosition.z + exitSide.z * playerExitDistance
 		)
-		let forward = vehicle.node.presentation.worldFront
-		let yaw = atan2(-forward.x, -forward.z)
-		playerController.teleport(to: exitPosition, yaw: yaw)
+		playerController.teleport(to: exitPosition, yaw: vehicleYaw())
+	}
+
+	private func movePlayerIntoVehicle() {
+		guard let playerNode = scene.playerNode,
+			  let vehicle = vehicle else { return }
+
+		if playerPhysicsBodyBeforeVehicle == nil {
+			playerPhysicsBodyBeforeVehicle = playerNode.physicsBody
+		}
+		playerNode.physicsBody = nil
+
+		let bounds = vehicle.node.boundingBox
+		let seatPosition = SCNVector3(
+			x: (bounds.min.x + bounds.max.x) / 2,
+			y: bounds.min.y + (bounds.max.y - bounds.min.y) * 0.55,
+			z: (bounds.min.z + bounds.max.z) / 2
+		)
+		playerNode.worldPosition = vehicle.node.presentation.convertPosition(seatPosition, to: nil)
+		let yaw = vehicleYaw()
+		if let playerController = playerController {
+			playerController.face(worldYaw: yaw)
+		} else {
+			playerNode.eulerAngles = SCNVector3(x: 0, y: yaw, z: 0)
+		}
+		playerNode.isHidden = true
 	}
 
 	private func horizontalVehicleRight() -> SCNVector3 {
@@ -988,18 +1020,15 @@ extension Game: SCNSceneRendererDelegate {
 			let p2 = playerNode.presentation.worldPosition
 			hud.compass.isHidden = false
 			let target = SCNVector3(x: p1.x - p2.x, y: 0, z: p1.z - p2.z)
-			let cameraTransform = cameraNode.presentation.worldTransform
-			let cameraRight = normalizedHorizontalVector(
-				SCNVector3(x: cameraTransform.m11, y: 0, z: cameraTransform.m13),
-				fallback: SCNVector3(x: 1, y: 0, z: 0)
+			let referenceNode = mode == .car ? vehicle?.node : playerNode
+			let referenceTransform = referenceNode?.presentation.worldTransform ?? playerNode.presentation.worldTransform
+			let referenceForward = normalizedHorizontalVector(
+				SCNVector3(x: referenceTransform.m31, y: 0, z: referenceTransform.m33),
+				fallback: SCNVector3(x: 0, y: 0, z: 1)
 			)
-			let cameraForward = normalizedHorizontalVector(
-				cameraNode.presentation.worldFront,
-				fallback: SCNVector3(x: 0, y: 0, z: -1)
-			)
-			let screenX = target.x * cameraRight.x + target.z * cameraRight.z
-			let screenY = target.x * cameraForward.x + target.z * cameraForward.z
-			hud.compassNeedle.zRotation = CGFloat(atan2(screenY, screenX))
+			let targetAngle = atan2(target.z, target.x)
+			let forwardAngle = atan2(referenceForward.z, referenceForward.x)
+			hud.compassNeedle.zRotation = CGFloat(targetAngle - forwardAngle + .pi / 2)
 		} else {
 			hud.compass.isHidden = true
 		}

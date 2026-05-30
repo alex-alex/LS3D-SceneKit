@@ -82,8 +82,12 @@ final class HudScene: SKScene {
 		compassNeedle.strokeColor = SKColor.clear
 		compass.addChild(compassNeedle)
 
-		let compassNeedlePoint = SKShapeNode(ellipseOf: CGSize(width: 10, height: 10))
-		compassNeedlePoint.position = CGPoint(x: 40, y: 0)
+		let compassArrowPath = CGMutablePath()
+		compassArrowPath.move(to: CGPoint(x: 50, y: 0))
+		compassArrowPath.addLine(to: CGPoint(x: 36, y: 8))
+		compassArrowPath.addLine(to: CGPoint(x: 36, y: -8))
+		compassArrowPath.closeSubpath()
+		let compassNeedlePoint = SKShapeNode(path: compassArrowPath)
 		compassNeedlePoint.fillColor = SKColor.red
 		compassNeedlePoint.strokeColor = SKColor.clear
 		compassNeedle.addChild(compassNeedlePoint)

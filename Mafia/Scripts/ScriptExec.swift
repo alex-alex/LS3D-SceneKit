@@ -406,13 +406,9 @@ extension Script {
 			next()
 			return
 		}
-		if actor1 == scene.playerNode,
-		   scene.game.mode == .car,
-		   let vehicle = scene.game.vehicle {
-			vars[varId] = vehicle.node.distance(to: actor2)
-		} else {
-			vars[varId] = actor1.distance(to: actor2)
-		}
+		let node1 = distanceNode(for: actor1Id, fallback: actor1)
+		let node2 = distanceNode(for: actor2Id, fallback: actor2)
+		vars[varId] = node1.distance(to: node2)
 		next()
 	}
 
@@ -724,7 +720,7 @@ extension Script {
 
 	private func findNode(named name: String) -> SCNNode? {
 		if name.lowercased() == "root" {
-			return scene.rootNode
+			return node
 		}
 		return scene.game.scnScene.rootNode.mafiaChildNode(named: name, recursively: true)
 	}
@@ -766,6 +762,15 @@ extension Script {
 
 	private func playerOwnerMatches(carId: Int) -> Bool {
 		scene.game.playerOwnerMatches(carNode: node(forScriptId: carId))
+	}
+
+	private func distanceNode(for actorId: Int, fallback: SCNNode) -> SCNNode {
+		if isPlayerActor(actorId),
+		   scene.game.mode == .car,
+		   let vehicle = scene.game.vehicle {
+			return vehicle.node
+		}
+		return fallback
 	}
 
 	private func isPlayerActor(_ actorId: Int) -> Bool {

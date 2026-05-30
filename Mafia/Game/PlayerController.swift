@@ -63,7 +63,7 @@ final class PlayerController {
 	init(node: SCNNode, scene: SCNScene) {
 		self.node = node
 		self.scene = scene
-		baseHeading = node.presentation.eulerAngles.y
+		baseHeading = PlayerController.worldYaw(for: node)
 		standingY = node.presentation.position.y
 		configurePhysics()
 	}
@@ -111,6 +111,8 @@ final class PlayerController {
 	func stop() {
 		movement = SCNVector3Zero
 		turn = 0
+		pendingLook = 0
+		pendingPitch = 0
 		horizontalVelocity = SCNVector3Zero
 		verticalVelocity = 0
 		updateWalkingAnimation(isMoving: false)
@@ -120,10 +122,16 @@ final class PlayerController {
 	func teleport(to worldPosition: SCNVector3, yaw: SCNFloat) {
 		stop()
 		node.worldPosition = worldPosition
-		node.eulerAngles.y = yaw
-		lookYaw = yaw - baseHeading
+		face(worldYaw: yaw)
+		lookPitch = 0
 		standingY = node.position.y
 		node.physicsBody?.velocity = SCNVector3Zero
+		node.physicsBody?.angularVelocity = SCNVector4Zero
+	}
+
+	func face(worldYaw yaw: SCNFloat) {
+		applyWorldYaw(yaw)
+		lookYaw = normalizedAngle(yaw - baseHeading)
 	}
 
 	func update(deltaTime: TimeInterval) {
@@ -137,8 +145,8 @@ final class PlayerController {
 		pendingPitch = 0
 		body.angularVelocity = SCNVector4Zero
 
-		let movementHeading = baseHeading + lookYaw
-		node.eulerAngles.y = movementHeading
+		let movementHeading = normalizedAngle(baseHeading + lookYaw)
+		applyWorldYaw(movementHeading)
 		let movementBasis = horizontalMovementBasis()
 		let desiredVelocity = SCNVector3(
 			x: (movementBasis.right.x * movement.x + movementBasis.forward.x * movement.z) * currentMoveSpeed,
@@ -193,10 +201,36 @@ final class PlayerController {
 	}
 
 	private func horizontalMovementBasis() -> (forward: SCNVector3, right: SCNVector3) {
-		let transform = node.transform
+		let transform = node.presentation.worldTransform
 		let forward = normalizedHorizontalVector(SCNVector3(x: transform.m31, y: 0, z: transform.m33), fallback: SCNVector3(x: 0, y: 0, z: 1))
 		let right = normalizedHorizontalVector(SCNVector3(x: transform.m11, y: 0, z: transform.m13), fallback: SCNVector3(x: 1, y: 0, z: 0))
 		return (forward, right)
+	}
+
+	private func applyWorldYaw(_ yaw: SCNFloat) {
+		let worldForward = SCNVector3(x: -sin(yaw), y: 0, z: -cos(yaw))
+		let localForward = node.parent?.presentation.convertVector(worldForward, from: nil) ?? worldForward
+		let localYaw = atan2(-localForward.x, -localForward.z)
+		node.eulerAngles = SCNVector3(x: 0, y: localYaw, z: 0)
+	}
+
+	private static func worldYaw(for node: SCNNode) -> SCNFloat {
+		let forward = node.presentation.worldFront
+		return atan2(-forward.x, -forward.z)
+	}
+
+	private func normalizedAngle(_ angle: SCNFloat) -> SCNFloat {
+		var angle = angle
+		let fullTurn = SCNFloat.pi * 2
+
+		while angle > .pi {
+			angle -= fullTurn
+		}
+		while angle < -.pi {
+			angle += fullTurn
+		}
+
+		return angle
 	}
 
 	private func normalizedHorizontalVector(_ vector: SCNVector3, fallback: SCNVector3) -> SCNVector3 {
