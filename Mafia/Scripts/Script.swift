@@ -62,6 +62,9 @@ final class Script {
 	var events: [String: Int] = [:]
 	var currentLine: Int = 0
 	var isRunning = false
+	var isPaused = false
+	var hasPendingRun = false
+	var hasPendingNext = false
 
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
@@ -129,7 +132,30 @@ final class Script {
 		}
 	}
 
+	func setPaused(_ paused: Bool) {
+		queue.async {
+			guard self.isPaused != paused else { return }
+
+			self.isPaused = paused
+			if !paused {
+				if self.hasPendingNext {
+					self.hasPendingNext = false
+					self.next()
+				} else if self.hasPendingRun {
+					self.hasPendingRun = false
+					self.run()
+				}
+			}
+		}
+	}
+
 	func run() {
+		guard !isPaused else {
+			hasPendingRun = true
+			return
+		}
+		hasPendingRun = false
+
 		guard !commands.isEmpty else {
 			isRunning = false
 			completionHandler?()

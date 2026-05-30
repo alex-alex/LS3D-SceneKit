@@ -85,6 +85,11 @@ extension Script {
 
 	func next() {
 		queue.asyncAfter(deadline: .now() + 0.02) { //[unowned self] in
+			guard !self.isPaused else {
+				self.hasPendingNext = true
+				return
+			}
+
 			if !self.executingEvent, !self.eventIdQueue.isEmpty {
 				self.currentEventId = self.eventIdQueue.removeFirst()
 				self.lineBeforeEvent = self.currentLine

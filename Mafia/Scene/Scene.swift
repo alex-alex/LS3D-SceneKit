@@ -687,6 +687,15 @@ final class Scene {
 		}
 	}
 
+	func setScriptsPaused(_ isPaused: Bool) {
+		var pausedScriptIds = Set<ObjectIdentifier>()
+		let allScripts = Array(initScripts.values) + Array(scripts.values)
+		for script in allScripts where !pausedScriptIds.contains(ObjectIdentifier(script)) {
+			pausedScriptIds.insert(ObjectIdentifier(script))
+			script.setPaused(isPaused)
+		}
+	}
+
 	func triggerPlayerFireEvent() {
 		guard let event = playerFireEvent else { return }
 		event.script.enqueueEvent(event.eventId)

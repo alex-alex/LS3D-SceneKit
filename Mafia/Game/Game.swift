@@ -676,6 +676,7 @@ final class Game: NSObject {
 		if pauseStateChanged {
 			isGamePaused = isPaused
 			scnScene.isPaused = isPaused
+			scene.setScriptsPaused(isPaused)
 			lastUpdateTime = nil
 		}
 
