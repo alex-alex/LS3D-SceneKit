@@ -14,9 +14,9 @@ final class HudScene: SKScene {
 
 	let game: Game
 
-	var compass: SKShapeNode!
-	var compassNeedle: SKShapeNode!
-	var actionButton: SKShapeNode!
+	var compass: SKSpriteNode!
+	var compassNeedle: SKSpriteNode!
+	var actionButton: SKSpriteNode!
 	var inventoryButton: SKShapeNode!
 	var reloadButton: SKShapeNode!
 	var dropButton: SKShapeNode!
@@ -26,6 +26,12 @@ final class HudScene: SKScene {
 	var consoleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
+	private var healthHudPanel: SKSpriteNode!
+	private var healthValueShadowLabel: SKLabelNode!
+	private var healthValueLabel: SKLabelNode!
+	private var ammoHudPanel: SKSpriteNode!
+	private var ammoValueShadowLabel: SKLabelNode!
+	private var ammoValueLabel: SKLabelNode!
 	private var pauseOverlay: SKShapeNode!
 	private var pauseTitleLabel: SKLabelNode!
 	private var pauseHintLabel: SKLabelNode!
@@ -38,6 +44,14 @@ final class HudScene: SKScene {
 	private var lastPlayerStatusText: String?
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
+	private let objectivesActionKey = "objectivesMessage"
+	private var showsTouchControls: Bool {
+		#if os(iOS)
+			return true
+		#else
+			return false
+		#endif
+	}
 	var isInventoryVisible: Bool {
 		return inventoryOverlay?.isHidden == false
 	}
@@ -71,31 +85,35 @@ final class HudScene: SKScene {
 
 		super.init(size: size)
 
-		compass = SKShapeNode(ellipseOf: CGSize(width: 100, height: 100))
+		let compassTexture = HudScene.spriteTexture(
+			imageName: "2int.tga",
+			rect: CGRect(x: 186, y: 171, width: 70, height: 71),
+			masksBlack: true
+		)
+		compass = SKSpriteNode(texture: compassTexture)
 		compass.isHidden = true
-		compass.fillColor = SKColor.white
-		compass.strokeColor = SKColor.clear
+		compass.size = CGSize(width: 90, height: 91)
 		addChild(compass)
 
-		compassNeedle = SKShapeNode(rectOf: CGSize(width: 100, height: 2))
-		compassNeedle.fillColor = SKColor.red
-		compassNeedle.strokeColor = SKColor.clear
+		let compassArrowTexture = HudScene.spriteTexture(
+			imageName: "1int.tga",
+			rect: CGRect(x: 0, y: 211, width: 64, height: 19),
+			masksBlack: true
+		)
+		compassNeedle = SKSpriteNode(texture: compassArrowTexture)
+		compassNeedle.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		compassNeedle.position = .zero
+		compassNeedle.size = CGSize(width: 48, height: 14)
 		compass.addChild(compassNeedle)
 
-		let compassArrowPath = CGMutablePath()
-		compassArrowPath.move(to: CGPoint(x: 50, y: 0))
-		compassArrowPath.addLine(to: CGPoint(x: 36, y: 8))
-		compassArrowPath.addLine(to: CGPoint(x: 36, y: -8))
-		compassArrowPath.closeSubpath()
-		let compassNeedlePoint = SKShapeNode(path: compassArrowPath)
-		compassNeedlePoint.fillColor = SKColor.red
-		compassNeedlePoint.strokeColor = SKColor.clear
-		compassNeedle.addChild(compassNeedlePoint)
-
-		actionButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
+		let actionTexture = HudScene.spriteTexture(
+			imageName: "2int.tga",
+			rect: CGRect(x: 0, y: 113, width: 35, height: 34),
+			masksBlack: true
+		)
+		actionButton = SKSpriteNode(texture: actionTexture)
 		actionButton.isHidden = true
-		actionButton.fillColor = SKColor.blue
-		actionButton.strokeColor = SKColor.clear
+		actionButton.size = CGSize(width: 44, height: 43)
 		addChild(actionButton)
 
 		renderButtons()
@@ -138,8 +156,10 @@ final class HudScene: SKScene {
 		playerStatusLabel.verticalAlignmentMode = .bottom
 		playerStatusLabel.numberOfLines = 0
 		playerStatusLabel.zPosition = 1100
+		playerStatusLabel.isHidden = true
 		addChild(playerStatusLabel)
 
+		renderPlayerStatusHud()
 		renderPauseScreen()
 		renderInventoryOverlay()
 
@@ -167,11 +187,13 @@ final class HudScene: SKScene {
 				  consoleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
+				  healthHudPanel != nil,
+				  ammoHudPanel != nil,
 				  pauseOverlay != nil,
 				  inventoryOverlay != nil else { return }
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
-		actionButton.position = CGPoint(x: 45, y: 45)
+		actionButton.position = CGPoint(x: 45, y: 104)
 		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
 		objectivesLabel.preferredMaxLayoutWidth = max(300, size.width - 160)
 		consoleLabel.position = CGPoint(x: 24, y: size.height-24)
@@ -179,6 +201,7 @@ final class HudScene: SKScene {
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
+		layoutPlayerStatusHud()
 		pauseOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
 		pauseOverlay.path = CGPath(
 			rect: CGRect(x: -size.width/2, y: -size.height/2, width: size.width, height: size.height),
@@ -188,12 +211,7 @@ final class HudScene: SKScene {
 		pauseHintLabel.position = CGPoint(x: 0, y: -24)
 		layoutInventoryOverlay()
 
-		inventoryButton?.position = CGPoint(x: size.width-45, y: size.height-45)
-		reloadButton?.position = CGPoint(x: size.width-45, y: size.height-45-60)
-		dropButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
-		jumpButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
-		carButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
-		carButton?.isHidden = game.vehicle == nil
+		layoutTouchButtons()
 	}
 
 	func updateVehicleSpeed(_ speed: CGFloat, vehicleSpeed: CGFloat, force: CGFloat, isVisible: Bool) {
@@ -214,6 +232,8 @@ final class HudScene: SKScene {
 	}
 
 	func updatePlayerStatus(health: Int, weapon: Weapon?) {
+		updatePlayerStatusHud(health: health, weapon: weapon)
+
 		let weaponText: String
 		if let weapon = weapon {
 			if weapon.isFirearm {
@@ -247,8 +267,21 @@ final class HudScene: SKScene {
 	}
 
 	func updateObjectives(_ objectives: [Int]) {
+		objectivesLabel.removeAction(forKey: objectivesActionKey)
 		objectivesLabel.text = objectives.compactMap { TextDb.get($0).map(remappedControlText) }.joined(separator: "\n")
-		objectivesLabel.isHidden = objectives.isEmpty
+		let hasObjectives = !objectives.isEmpty
+		objectivesLabel.isHidden = !hasObjectives
+		objectivesLabel.alpha = hasObjectives ? 1 : 0
+		guard hasObjectives else { return }
+
+		objectivesLabel.run(
+			SKAction.sequence([
+				SKAction.wait(forDuration: 7),
+				SKAction.fadeOut(withDuration: 0.35),
+				SKAction.hide()
+			]),
+			withKey: objectivesActionKey
+		)
 	}
 
 	func showCurrentObjectives(_ objectives: [Int]) {
@@ -261,6 +294,185 @@ final class HudScene: SKScene {
 		return text
 			.replacingOccurrences(of: "Default: F1 key", with: "Default: O key")
 			.replacingOccurrences(of: "Default: F5", with: "Default: V")
+	}
+
+}
+
+// MARK: - Player Status HUD
+
+extension HudScene {
+
+	private static let statusTextureSize = CGSize(width: 64, height: 256)
+
+	private static func spriteTexture(imageName: String, rect: CGRect, masksBlack: Bool) -> SKTexture {
+		let imageURL = mainDirectory.appendingPathComponent("maps/"+imageName)
+		#if os(macOS)
+			guard let image = NSImage(contentsOf: imageURL) else {
+				return SKTexture(imageUrl: imageURL)
+			}
+			var proposedRect = CGRect(origin: .zero, size: image.size)
+			guard var cgImage = image.cgImage(forProposedRect: &proposedRect, context: nil, hints: nil) else {
+				return SKTexture(image: image)
+			}
+		#elseif os(iOS)
+			guard let image = UIImage(contentsOfFile: imageURL.path) else {
+				return SKTexture(imageUrl: imageURL)
+			}
+			guard var cgImage = image.cgImage else {
+				return SKTexture(image: image)
+			}
+		#endif
+
+		if let croppedImage = cgImage.cropping(to: rect.integral) {
+			cgImage = croppedImage
+		}
+		if masksBlack, let maskedImage = blackTransparentImage(from: cgImage) {
+			cgImage = maskedImage
+		}
+
+		#if os(macOS)
+			return SKTexture(cgImage: cgImage)
+		#elseif os(iOS)
+			return SKTexture(cgImage: cgImage)
+		#endif
+	}
+
+	private static func blackTransparentImage(from image: CGImage) -> CGImage? {
+		let width = image.width
+		let height = image.height
+		let bytesPerPixel = 4
+		let bytesPerRow = width * bytesPerPixel
+		var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
+		let colorSpace = CGColorSpaceCreateDeviceRGB()
+		let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
+
+		let didDraw = pixels.withUnsafeMutableBytes { pixelBuffer -> Bool in
+			guard let context = CGContext(
+				data: pixelBuffer.baseAddress,
+				width: width,
+				height: height,
+				bitsPerComponent: 8,
+				bytesPerRow: bytesPerRow,
+				space: colorSpace,
+				bitmapInfo: bitmapInfo
+			) else { return false }
+
+			context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+			return true
+		}
+		guard didDraw else { return nil }
+
+		for offset in stride(from: 0, to: pixels.count, by: bytesPerPixel) {
+			if pixels[offset] <= 2,
+			   pixels[offset + 1] <= 2,
+			   pixels[offset + 2] <= 2 {
+				pixels[offset + 3] = 0
+			}
+		}
+
+		return pixels.withUnsafeMutableBytes { pixelBuffer -> CGImage? in
+			guard let outputContext = CGContext(
+				data: pixelBuffer.baseAddress,
+				width: width,
+				height: height,
+				bitsPerComponent: 8,
+				bytesPerRow: bytesPerRow,
+				space: colorSpace,
+				bitmapInfo: bitmapInfo
+			) else { return nil }
+
+			return outputContext.makeImage()
+		}
+	}
+
+	private func renderPlayerStatusHud() {
+		let statusTexture = SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/1int.tga"))
+		let healthTexture = SKTexture(rect: spriteSheetRect(x: 0, y: 73, width: 50, height: 22), in: statusTexture)
+		let ammoTexture = SKTexture(rect: spriteSheetRect(x: 0, y: 1, width: 63, height: 22), in: statusTexture)
+
+		healthHudPanel = SKSpriteNode(texture: healthTexture)
+		healthHudPanel.size = CGSize(width: 83, height: 35)
+		healthHudPanel.anchorPoint = CGPoint(x: 0, y: 0.5)
+		healthHudPanel.zPosition = 800
+		addChild(healthHudPanel)
+
+		healthValueShadowLabel = statusValueLabel(color: SKColor.black)
+		healthValueShadowLabel.position = CGPoint(x: 63, y: -2)
+		healthHudPanel.addChild(healthValueShadowLabel)
+
+		healthValueLabel = statusValueLabel(color: SKColor.white)
+		healthValueLabel.position = CGPoint(x: 61, y: 0)
+		healthHudPanel.addChild(healthValueLabel)
+
+		ammoHudPanel = SKSpriteNode(texture: ammoTexture)
+		ammoHudPanel.size = CGSize(width: 93, height: 35)
+		ammoHudPanel.anchorPoint = CGPoint(x: 0, y: 0.5)
+		ammoHudPanel.zPosition = 800
+		addChild(ammoHudPanel)
+
+		ammoValueShadowLabel = statusValueLabel(color: SKColor.black)
+		ammoValueShadowLabel.position = CGPoint(x: 62, y: -2)
+		ammoHudPanel.addChild(ammoValueShadowLabel)
+
+		ammoValueLabel = statusValueLabel(color: SKColor.white)
+		ammoValueLabel.position = CGPoint(x: 60, y: 0)
+		ammoHudPanel.addChild(ammoValueLabel)
+	}
+
+	private func layoutPlayerStatusHud() {
+		let bottomPadding: CGFloat = 43
+		let leftPadding: CGFloat = 48
+		let panelGap: CGFloat = 13
+		let healthWidth = healthHudPanel.size.width
+		let ammoWidth = ammoHudPanel.size.width
+		let totalWidth = healthWidth + panelGap + ammoWidth
+
+		if size.width >= totalWidth + leftPadding * 2 {
+			healthHudPanel.position = CGPoint(x: leftPadding, y: bottomPadding)
+			ammoHudPanel.position = CGPoint(x: leftPadding + healthWidth + panelGap, y: bottomPadding)
+		} else {
+			healthHudPanel.position = CGPoint(x: leftPadding, y: bottomPadding + 42)
+			ammoHudPanel.position = CGPoint(x: leftPadding, y: bottomPadding)
+		}
+	}
+
+	private func updatePlayerStatusHud(health: Int, weapon: Weapon?) {
+		healthValueLabel.text = "\(max(0, health))"
+		healthValueShadowLabel.text = healthValueLabel.text
+
+		let ammoText: String
+		if let weapon = weapon, weapon.isFirearm {
+			ammoText = weapon.clipAmmo == -1 ? "INF" : "\(max(0, weapon.clipAmmo))/\(max(0, weapon.restAmmo))"
+			ammoHudPanel.isHidden = false
+		} else {
+			ammoText = "--/--"
+			ammoHudPanel.isHidden = true
+		}
+		ammoValueLabel.text = ammoText
+		ammoValueShadowLabel.text = ammoText
+	}
+
+	private func statusValueLabel(color: SKColor) -> SKLabelNode {
+		let label = SKLabelNode()
+		label.fontName = "Arial-BoldMT"
+		label.fontSize = 22
+		label.fontColor = color
+		label.horizontalAlignmentMode = .center
+		label.verticalAlignmentMode = .center
+		return label
+	}
+
+	private func spriteSheetRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat) -> CGRect {
+		return textureRect(x: x, y: y, width: width, height: height, textureSize: HudScene.statusTextureSize)
+	}
+
+	private func textureRect(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, textureSize: CGSize) -> CGRect {
+		return CGRect(
+			x: x / textureSize.width,
+			y: (textureSize.height - y - height) / textureSize.height,
+			width: width / textureSize.width,
+			height: height / textureSize.height
+		)
 	}
 
 }
@@ -471,8 +683,10 @@ extension HudScene {
 extension HudScene {
 
 	func renderButtons() {
+		let isVisible = showsTouchControls
+
 		inventoryButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		inventoryButton.isHidden = false
+		inventoryButton.isHidden = !isVisible
 		inventoryButton.position = CGPoint(x: size.width-45, y: size.height-45)
 		inventoryButton.fillColor = SKColor.white
 		inventoryButton.strokeColor = SKColor.clear
@@ -487,7 +701,7 @@ extension HudScene {
 		inventoryButton.addChild(inventoryButtonLabel)
 
 		reloadButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		reloadButton.isHidden = false
+		reloadButton.isHidden = !isVisible
 		reloadButton.position = CGPoint(x: size.width-45, y: size.height-45-60)
 		reloadButton.fillColor = SKColor.white
 		reloadButton.strokeColor = SKColor.clear
@@ -502,7 +716,7 @@ extension HudScene {
 		reloadButton.addChild(reloadButtonLabel)
 
 		dropButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		dropButton.isHidden = false
+		dropButton.isHidden = !isVisible
 		dropButton.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
 		dropButton.fillColor = SKColor.white
 		dropButton.strokeColor = SKColor.clear
@@ -517,7 +731,7 @@ extension HudScene {
 		dropButton.addChild(dropButtonLabel)
 
 		jumpButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		jumpButton.isHidden = false
+		jumpButton.isHidden = !isVisible
 		jumpButton.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
 		jumpButton.fillColor = SKColor.white
 		jumpButton.strokeColor = SKColor.clear
@@ -532,7 +746,7 @@ extension HudScene {
 		jumpButton.addChild(jumpButtonLabel)
 
 		carButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		carButton.isHidden = game.vehicle == nil
+		carButton.isHidden = !isVisible || game.vehicle == nil
 		carButton.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
 		carButton.fillColor = SKColor.white
 		carButton.strokeColor = SKColor.clear
@@ -545,6 +759,25 @@ extension HudScene {
 		carButtonLabel.text = "Car"
 		carButtonLabel.verticalAlignmentMode = .center
 		carButton.addChild(carButtonLabel)
+	}
+
+	private func layoutTouchButtons() {
+		inventoryButton?.position = CGPoint(x: size.width-45, y: size.height-45)
+		reloadButton?.position = CGPoint(x: size.width-45, y: size.height-45-60)
+		dropButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
+		jumpButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
+		carButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
+
+		guard showsTouchControls else {
+			inventoryButton?.isHidden = true
+			reloadButton?.isHidden = true
+			dropButton?.isHidden = true
+			jumpButton?.isHidden = true
+			carButton?.isHidden = true
+			return
+		}
+
+		carButton?.isHidden = game.vehicle == nil
 	}
 
 }

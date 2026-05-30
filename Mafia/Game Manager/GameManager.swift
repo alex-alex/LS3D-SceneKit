@@ -57,11 +57,13 @@ class GameManager {
 
 	func loadMenu() {
 		view.scene = SCNScene()
-		view.overlaySKScene = LoadingScene(textId: 0, imageName: "00menu.tga")
+		let loadingScene = LoadingScene(textId: 0, imageName: "00menu.tga")
+		view.overlaySKScene = loadingScene
 		DispatchQueue.global().async {
 			// swiftlint:disable:next force_try
 			self.mainMenu = try! MainMenu()
 			DispatchQueue.main.async {
+				loadingScene.setProgress(1)
 				self.mainMenu?.setup(in: self.view)
 			}
 		}
@@ -69,10 +71,15 @@ class GameManager {
 
 	func loadMission(textId: Int, imageName: String, folder: String) {
 		view.scene = SCNScene()
-		view.overlaySKScene = LoadingScene(textId: textId, imageName: imageName)
+		let loadingScene = LoadingScene(textId: textId, imageName: imageName)
+		view.overlaySKScene = loadingScene
 		DispatchQueue.global().async {
 			// swiftlint:disable:next force_try
-			self.game = try! Game(missionName: folder)
+			self.game = try! Game(missionName: folder) { progress in
+				DispatchQueue.main.async {
+					loadingScene.setProgress(progress)
+				}
+			}
 			DispatchQueue.main.async {
 				self.game.setup(in: self.view)
 			}

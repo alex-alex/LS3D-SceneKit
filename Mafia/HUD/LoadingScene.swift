@@ -18,6 +18,10 @@ final class LoadingScene: SKScene {
 	var overlayImage: SKSpriteNode!
 	var logoImage: SKSpriteNode!
 	var loadingImage: SKSpriteNode!
+	private var loadingProgressCrop: SKCropNode!
+	private var loadingProgressMask: SKShapeNode!
+	private var loadingProgressImage: SKSpriteNode!
+	private var progress: CGFloat = 0
 
 	init(textId: Int, imageName: String) {
 		super.init(size: CGSize(width: 1024, height: 768))
@@ -41,9 +45,22 @@ final class LoadingScene: SKScene {
 
 		let loadingImageTexture = SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/kulicky.tga"))
 		loadingImage = SKSpriteNode(texture: loadingImageTexture)
-		loadingImage.color = SKColor(red: 0.5, green: 0, blue: 0, alpha: 1)
-		loadingImage.colorBlendFactor = 1
+		loadingImage.color = SKColor(white: 0, alpha: 1)
+		loadingImage.colorBlendFactor = 0.65
 		addChild(loadingImage)
+
+		loadingProgressCrop = SKCropNode()
+		addChild(loadingProgressCrop)
+
+		loadingProgressImage = SKSpriteNode(texture: loadingImageTexture)
+		loadingProgressImage.color = SKColor(red: 0.7, green: 0, blue: 0, alpha: 1)
+		loadingProgressImage.colorBlendFactor = 1
+		loadingProgressCrop.addChild(loadingProgressImage)
+
+		loadingProgressMask = SKShapeNode()
+		loadingProgressMask.fillColor = .white
+		loadingProgressMask.strokeColor = .clear
+		loadingProgressCrop.maskNode = loadingProgressMask
 
 		let logoImageTexture = SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/mafia.tga"))
 		logoImage = SKSpriteNode(texture: logoImageTexture)
@@ -88,10 +105,32 @@ final class LoadingScene: SKScene {
 		let loadingImageHeight = (loadingContentWidth/256)*8
 		loadingImage.size = CGSize(width: loadingContentWidth, height: loadingImageHeight)
 		loadingImage.position = CGPoint(x: loadingWidth/2, y: 30+(loadingImageHeight/2))
+		loadingProgressCrop.position = loadingImage.position
+		loadingProgressImage.size = loadingImage.size
+		updateProgressMask()
 
 		let logoImageHeight = (loadingContentWidth/256)*64
 		logoImage.size = CGSize(width: loadingContentWidth, height: logoImageHeight)
 		logoImage.position = CGPoint(x: loadingWidth/2, y: 40+loadingImageHeight+(logoImageHeight/2))
+	}
+
+	func setProgress(_ progress: CGFloat) {
+		self.progress = max(0, min(progress, 1))
+		guard loaded else { return }
+		updateProgressMask()
+	}
+
+	private func updateProgressMask() {
+		let progressWidth = loadingImage.size.width * progress
+		loadingProgressMask.path = CGPath(
+			rect: CGRect(
+				x: -loadingImage.size.width / 2,
+				y: -loadingImage.size.height / 2,
+				width: progressWidth,
+				height: loadingImage.size.height
+			),
+			transform: nil
+		)
 	}
 
 }

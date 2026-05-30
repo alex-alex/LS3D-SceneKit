@@ -120,7 +120,8 @@ final class Game: NSObject {
 	private let vehicleStealDuration: TimeInterval = 1.6
 	private var playerPhysicsBodyBeforeVehicle: SCNPhysicsBody?
 
-	init(missionName: String) throws {
+	init(missionName: String, progressHandler: ((CGFloat) -> Void)? = nil) throws {
+		progressHandler?(0.05)
 		scnScene.rootNode.name = "__root__"
 		ambientLightNode.name = "__ambient_environment__"
 		ambientLightNode.light = SCNLight()
@@ -134,8 +135,10 @@ final class Game: NSObject {
 		sceneModel.name = "__model__"
 		scnScene.rootNode.addChildNode(sceneModel)
 		print("== Loaded Scene Model")
+		progressHandler?(0.25)
 
 		scene = try Scene(named: "missions/"+missionName)
+		progressHandler?(0.45)
 
 		super.init()
 
@@ -147,17 +150,20 @@ final class Game: NSObject {
 		scene.resolvePendingScripts(in: scnScene.rootNode)
 		scene.resolvePendingObjectTypes(in: scnScene.rootNode)
 		print("== Loaded Scene")
+		progressHandler?(0.58)
 
 		if let sceneCache = try SceneCache(name: "missions/"+missionName) {
 			scnScene.rootNode.addChildNode(sceneCache.node)
 			sceneCache.node.name = "__cache__"
 			print("== Loaded Scene Cache")
 		}
+		progressHandler?(0.72)
 
 		let collisions = try Collisions(name: "missions/"+missionName, scene: scnScene)
 		collisions.node.name = "__colliions__"
 		scnScene.rootNode.addChildNode(collisions.node)
 		print("== Loaded Scene Collisions")
+		progressHandler?(0.85)
 
 //		let floorNode = SCNNode()
 //		floorNode.opacity = 0
@@ -210,6 +216,7 @@ final class Game: NSObject {
 		scnScene.rootNode.hideSkyboxBackdropGeometry()
 		skyboxNodes = scnScene.rootNode.skyboxNodes(relativeTo: cameraNode.presentation.worldPosition)
 		updateSkyboxPosition()
+		progressHandler?(1)
 	}
 
 	private func spawnPlayer() {
@@ -625,7 +632,11 @@ final class Game: NSObject {
 		guard isActionButtonVisible != isVisible else { return }
 
 		isActionButtonVisible = isVisible
-		hud.actionButton.isHidden = !isVisible
+		#if os(iOS)
+			hud.actionButton.isHidden = !isVisible
+		#else
+			hud.actionButton.isHidden = true
+		#endif
 	}
 
 	private func beginVehicleSteal(_ vehicle: Vehicle) {
