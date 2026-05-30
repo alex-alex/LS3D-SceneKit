@@ -215,23 +215,33 @@ extension SCNNode {
 	}
 
 	func mafiaChildNode(named name: String, recursively: Bool) -> SCNNode? {
-		if self.name == name {
-			return self
-		}
-		if let exactMatch = childNode(withName: name, recursively: recursively) {
+		if let exactMatch = mafiaChildNode(recursively: recursively, matches: { $0 == name }) {
 			return exactMatch
 		}
-
 		let normalizedName = name.lowercased()
-		for child in childNodes {
-			if child.name?.lowercased() == normalizedName {
+		return mafiaChildNode(recursively: recursively, matches: { $0.lowercased() == normalizedName })
+	}
+
+	private func mafiaChildNode(recursively: Bool, matches: (String) -> Bool) -> SCNNode? {
+		if let nodeName = self.name, matches(nodeName) {
+			return self
+		}
+		for child in mafiaChildNodes {
+			if let childName = child.name, matches(childName) {
 				return child
 			}
-			if recursively, let match = child.mafiaChildNode(named: name, recursively: true) {
+			if recursively, let match = child.mafiaChildNode(recursively: true, matches: matches) {
 				return match
 			}
 		}
 		return nil
+	}
+
+	private var mafiaChildNodes: [SCNNode] {
+		guard let childObjects = value(forKey: "childNodes") as? [Any] else {
+			return childNodes
+		}
+		return childObjects.compactMap { $0 as? SCNNode }
 	}
 }
 
