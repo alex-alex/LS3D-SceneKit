@@ -983,10 +983,19 @@ extension Game: SCNSceneRendererDelegate {
 			let p1 = node.presentation.worldPosition
 			let p2 = playerNode.presentation.worldPosition
 			hud.compass.isHidden = false
-			let cameraForward = cameraNode.presentation.worldFront
-			let cameraYaw = atan2(-cameraForward.x, -cameraForward.z)
-			let targetAngle = atan2(p1.x - p2.x, p1.z - p2.z)
-			hud.compassNeedle.zRotation = CGFloat(targetAngle - cameraYaw)
+			let target = SCNVector3(x: p1.x - p2.x, y: 0, z: p1.z - p2.z)
+			let cameraTransform = cameraNode.presentation.worldTransform
+			let cameraRight = normalizedHorizontalVector(
+				SCNVector3(x: cameraTransform.m11, y: 0, z: cameraTransform.m13),
+				fallback: SCNVector3(x: 1, y: 0, z: 0)
+			)
+			let cameraForward = normalizedHorizontalVector(
+				cameraNode.presentation.worldFront,
+				fallback: SCNVector3(x: 0, y: 0, z: -1)
+			)
+			let screenX = target.x * cameraRight.x + target.z * cameraRight.z
+			let screenY = target.x * cameraForward.x + target.z * cameraForward.z
+			hud.compassNeedle.zRotation = CGFloat(atan2(screenY, screenX))
 		} else {
 			hud.compass.isHidden = true
 		}
@@ -1301,6 +1310,12 @@ extension Game {
 		let length = sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z)
 		guard length > 0.0001 else { return SCNVector3(x: 0, y: 0, z: -1) }
 		return SCNVector3(x: vector.x / length, y: vector.y / length, z: vector.z / length)
+	}
+
+	private func normalizedHorizontalVector(_ vector: SCNVector3, fallback: SCNVector3) -> SCNVector3 {
+		let length = sqrt(vector.x * vector.x + vector.z * vector.z)
+		guard length > 0.0001 else { return fallback }
+		return SCNVector3(x: vector.x / length, y: 0, z: vector.z / length)
 	}
 
 	private func showMuzzleFlash() {
