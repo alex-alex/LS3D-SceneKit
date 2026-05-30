@@ -23,12 +23,14 @@ final class HudScene: SKScene {
 	var jumpButton: SKShapeNode!
 	var carButton: SKShapeNode!
 	var objectivesLabel: SKLabelNode!
+	var consoleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	private var pauseOverlay: SKShapeNode!
 	private var pauseTitleLabel: SKLabelNode!
 	private var pauseHintLabel: SKLabelNode!
 	private var lastSpeedText: String?
 	private var wasSpeedVisible = false
+	private let consoleActionKey = "consoleMessage"
 
 	#if os(macOS)
 
@@ -44,6 +46,7 @@ final class HudScene: SKScene {
 	private var walkingBackward = false
 	private var walkingLeft = false
 	private var walkingRight = false
+	private var crouching = false
 	private var freeCameraForward = false
 	private var freeCameraBackward = false
 	private var freeCameraLeft = false
@@ -86,9 +89,23 @@ final class HudScene: SKScene {
 		objectivesLabel = SKLabelNode()
 		objectivesLabel.fontName = "Arial"
 		objectivesLabel.fontSize = 17
+		objectivesLabel.fontColor = SKColor.white
 		objectivesLabel.horizontalAlignmentMode = .center
 		objectivesLabel.verticalAlignmentMode = .center
+		objectivesLabel.numberOfLines = 0
+		objectivesLabel.preferredMaxLayoutWidth = max(300, size.width - 160)
 		addChild(objectivesLabel)
+
+		consoleLabel = SKLabelNode()
+		consoleLabel.fontName = "Arial"
+		consoleLabel.fontSize = 17
+		consoleLabel.fontColor = SKColor.white
+		consoleLabel.horizontalAlignmentMode = .left
+		consoleLabel.verticalAlignmentMode = .top
+		consoleLabel.numberOfLines = 0
+		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
+		consoleLabel.alpha = 0
+		addChild(consoleLabel)
 
 		speedLabel = SKLabelNode()
 		speedLabel.fontName = "Arial"
@@ -122,12 +139,16 @@ final class HudScene: SKScene {
 		guard compass != nil,
 				  actionButton != nil,
 				  objectivesLabel != nil,
+				  consoleLabel != nil,
 				  speedLabel != nil,
 				  pauseOverlay != nil else { return }
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 45)
 		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
+		objectivesLabel.preferredMaxLayoutWidth = max(300, size.width - 160)
+		consoleLabel.position = CGPoint(x: 24, y: size.height-24)
+		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		pauseOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
 		pauseOverlay.path = CGPath(
@@ -160,6 +181,24 @@ final class HudScene: SKScene {
 			lastSpeedText = speedText
 			speedLabel.text = speedText
 		}
+	}
+
+	func showConsoleText(_ text: String) {
+		consoleLabel.removeAction(forKey: consoleActionKey)
+		consoleLabel.text = text
+		consoleLabel.alpha = 1
+		consoleLabel.run(
+			SKAction.sequence([
+				SKAction.wait(forDuration: 4),
+				SKAction.fadeOut(withDuration: 0.35)
+			]),
+			withKey: consoleActionKey
+		)
+	}
+
+	func updateObjectives(_ objectives: [Int]) {
+		objectivesLabel.text = objectives.compactMap { TextDb.get($0) }.joined(separator: "\n")
+		objectivesLabel.isHidden = objectives.isEmpty
 	}
 
 }
@@ -382,6 +421,22 @@ extension HudScene {
 		}
 
 		switch event.keyCode {
+		case 4: // H
+			game.playerDidHorn()
+
+		case 7: // X
+			game.holsterPlayerWeapons()
+
+		case 15: // R
+			game.pressControl(.RELOAD)
+
+		case 34: // I
+			game.pressControl(.INVENTORY)
+			game.openInventory()
+
+		case 59, 62: // control
+			setCrouching(true)
+
 		case 49: // space
 			if game.mode == .walk, game.scene.playerNode != nil {
 				game.playerController?.jump()
@@ -405,6 +460,9 @@ extension HudScene {
 		case 0, 123: // A, left
 			if game.mode == .walk, game.scene.playerNode != nil {
 				walkingLeft = true
+				if crouching {
+					game.playDodgeAnimation(direction: .left)
+				}
 				updateWalkingControls()
 			} else if game.mode == .walk {
 				game.cameraNode.eulerAngles.y += 0.25
@@ -413,6 +471,9 @@ extension HudScene {
 		case 2, 124: // D, right
 			if game.mode == .walk, game.scene.playerNode != nil {
 				walkingRight = true
+				if crouching {
+					game.playDodgeAnimation(direction: .right)
+				}
 				updateWalkingControls()
 			} else if game.mode == .walk {
 				game.cameraNode.eulerAngles.y -= 0.25
@@ -530,6 +591,12 @@ extension HudScene {
 			case 1, 125: // S, down
 				walkingBackward = false
 				updateWalkingControls()
+			case 59, 62: // control
+				setCrouching(false)
+			case 15: // R
+				game.releaseControl(.RELOAD)
+			case 34: // I
+				game.releaseControl(.INVENTORY)
 			default:
 				break
 			}
@@ -556,6 +623,12 @@ extension HudScene {
 		case 49: // space
 			braking = false
 			updateVehicleControls()
+
+		case 15: // R
+			game.releaseControl(.RELOAD)
+
+		case 34: // I
+			game.releaseControl(.INVENTORY)
 
 		default:
 			break
@@ -633,7 +706,34 @@ extension HudScene {
 		walkingBackward = false
 		walkingLeft = false
 		walkingRight = false
+		setCrouching(false)
 		game.playerController?.stop()
+	}
+
+	override func flagsChanged(with event: NSEvent) {
+		super.flagsChanged(with: event)
+
+		guard !game.isGamePaused else { return }
+		guard game.mode == .walk, game.scene.playerNode != nil else {
+			setCrouching(false)
+			return
+		}
+
+		setCrouching(event.modifierFlags.contains(.control))
+	}
+
+	private func setCrouching(_ isCrouching: Bool) {
+		guard crouching != isCrouching else { return }
+
+		crouching = isCrouching
+		game.setPlayerCrouching(isCrouching)
+		guard isCrouching else { return }
+
+		if walkingLeft {
+			game.playDodgeAnimation(direction: .left)
+		} else if walkingRight {
+			game.playDodgeAnimation(direction: .right)
+		}
 	}
 
 	private func updateFreeCameraControls() {

@@ -38,3 +38,15 @@ enum Control: String {
 	case WEAPONDROP
 //	case RIGHT
 }
+
+extension Control {
+
+	init?(scriptName: String) {
+		var normalized = scriptName.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+		if normalized.hasSuffix("1") {
+			normalized.removeLast()
+		}
+		self.init(rawValue: normalized)
+	}
+
+}

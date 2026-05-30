@@ -15,10 +15,13 @@ extension Script {
 		switch command.0 {
 //		"{"
 //		"}"
-//		"act_setstate"
+		case "act_setstate":			act_setstate(command.1)
 //		"autosavegame"
-//		"car_muststeal"
-//		"car_setspeed"
+		case "actor_setplacement":		actor_setplacement(command.1)
+		case "car_getspeed":			car_getspeed(command.1)
+		case "car_muststeal":			noop()
+		case "car_repair":				car_repair(command.1)
+		case "car_setspeed":			car_setspeed(command.1)
 //		"commandblock"
 		case "compareownerwithex":		compareownerwithex(command.1)
 		case "console_addtext":			console_addtext(command.1)
@@ -31,11 +34,15 @@ extension Script {
 		case "dim_act":					noop()
 		case "dim_flt":					noop()
 		case "dim_frm":					noop()
-//		"door_lock"
+		case "door_enableus":			door_enableus(command.1)
+		case "door_lock":				door_lock(command.1)
+		case "door_open":				door_open(command.1)
 		case "end":						end(command.1)
+		case "end!":					end(command.1)
+		case "endofmission":			endofmission(command.1)
 		case "enemy_playanim":			enemy_playanim(command.1)
 		case "event":					event(command.1)
-//		"event_use_cb"
+		case "event_use_cb":			noop()
 		case "findactor":				findactor(command.1)
 		case "findframe":				findframe(command.1)
 		case "frm_seton":				frm_seton(command.1)
@@ -46,23 +53,29 @@ extension Script {
 		case "human_anyweaponinhand":	human_anyweaponinhand(command.1)
 		case "human_getactanimid":		human_getactanimid(command.1)
 		case "human_getproperty":		human_getproperty(command.1)
-//		"human_holster"
+		case "human_holster":			human_holster(command.1)
 		case "human_isweapon":			human_isweapon(command.1)
+		case "human_setproperty":		human_setproperty(command.1)
 		case "human_talk":				human_talk(command.1)
 		case "if":						`if`(command.1)
-//		"ifplayerstealcar"
+		case "iffltinrange":			iffltinrange(command.1)
+		case "ifplayerstealcar":		ifplayerstealcar(command.1)
+		case "iscarusable":				iscarusable(command.1)
 		case "label":					noop()
 		case "let":						`let`(command.1)
 		case "mission_objectives":		mission_objectives(command.1)
 		case "mission_objectivesclear":	mission_objectivesclear(command.1)
-//		"player_lockcontrols"
-//		"pm_showsymbol"
+		case "person_playanim":			person_playanim(command.1)
+		case "person_stopanim":			person_stopanim(command.1)
+		case "player_lockcontrols":		noop()
+		case "pm_showsymbol":			noop()
 		case "return":					`return`(command.1)
+		case "return!":					`return`(command.1)
 		case "rnd":						rnd(command.1)
 		case "setcompass":				setcompass(command.1)
 		case "setevent":				setevent(command.1)
-//		"setplayerfireevent"
-//		"setplayerhornevent"
+		case "setplayerfireevent":		setplayerfireevent(command.1)
+		case "setplayerhornevent":		setplayerhornevent(command.1)
 		case "wait":					wait(command.1)
 		default:						noop(); // print("UNKNOWN COMMAND: \(command.0)")
 		}
@@ -75,8 +88,14 @@ extension Script {
 			if !self.executingEvent, !self.eventIdQueue.isEmpty {
 				self.currentEventId = self.eventIdQueue.removeFirst()
 				self.lineBeforeEvent = self.currentLine
-				self.executingEvent = true
-				self.currentLine = self.events[self.currentEventId!]!
+				if let currentEventId = self.currentEventId,
+				   let eventLine = self.events[currentEventId] {
+					self.executingEvent = true
+					self.currentLine = eventLine
+				} else {
+					self.currentEventId = nil
+					self.currentLine += 1
+				}
 			} else {
 				self.currentLine += 1
 			}
@@ -86,7 +105,14 @@ extension Script {
 
 	func goto(label: String) {
 		if label == "-1" { return next() }
-		guard let line = labels[label] else { fatalError() }
+		guard let line = labels[label] else {
+			next()
+			return
+		}
+		if line + 1 == currentLine {
+			next()
+			return
+		}
 		currentLine = line
 		next()
 	}
@@ -97,12 +123,69 @@ extension Script {
 		next()
 	}
 
+	private func act_setstate(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let state = args[1].getString().lowercased()
+		if let target = node(forScriptId: actorId) {
+			let isActive = state != "inactive"
+			target.isHidden = !isActive
+			target.isPaused = !isActive
+		}
+		next()
+	}
+
+	private func actor_setplacement(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let frameId = args[1].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId),
+		   let frame = node(forScriptId: frameId) {
+			let transform = frame.presentation.worldTransform
+			if let parent = actor.parent {
+				actor.transform = parent.convertTransform(transform, from: nil)
+			} else {
+				actor.transform = transform
+			}
+		}
+		next()
+	}
+
+	private func car_getspeed(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if playerOwnerMatches(carId: carId), let vehicle = scene.game.vehicle {
+			vars[varId] = Float(vehicle.speed)
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func car_repair(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		if playerOwnerMatches(carId: carId) {
+			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
+			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
+		}
+		next()
+	}
+
+	private func car_setspeed(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let speed = args[1].getValueOrVarValueFloat(vars: vars)
+		if speed == 0, playerOwnerMatches(carId: carId) {
+			scene.game.vehicle?.updateControls(throttle: 0, brake: true, steering: 0)
+			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
+			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
+		}
+		next()
+	}
+
 	private func compareownerwithex(_ args: [Argument]) {
 		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
-		let _ = args[1].getValueOrVarValue(vars: vars) // carId
+		let carId = args[1].getValueOrVarValue(vars: vars)
 		let label1 = args[2].getString()
 		let label2 = args[3].getString()
-		if scene.game.mode == .car {
+		if playerOwnerMatches(carId: carId) {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
@@ -111,7 +194,10 @@ extension Script {
 
 	private func console_addtext(_ args: [Argument]) {
 		let txtId = args[0].getValueOrVarValue(vars: vars)
-		print("console_addtext:", TextDb.get(txtId) as Any)
+		let text = TextDb.get(txtId) ?? "\(txtId)"
+		DispatchQueue.main.async {
+			self.scene.game.hud?.showConsoleText(text)
+		}
 		next()
 	}
 
@@ -130,8 +216,8 @@ extension Script {
 	private func ctrl_read(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let controlStr = args[1].getString()
-		if let control = Control(rawValue: controlStr) {
-			vars[varId] = (control == scene.game.lastControl || control == .SPEEDLIMIT) ? 1 : 0
+		if let control = Control(scriptName: controlStr) {
+			vars[varId] = (scene.game.isControlPressed(control) || control == scene.game.lastControl || control == .SPEEDLIMIT) ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}
@@ -141,7 +227,11 @@ extension Script {
 	private func detector_inrange(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let distance = args[1].getValueOrVarValue(vars: vars)
-		vars[varId] = (node.distance(to: scene.playerNode!) <= Float(distance)) ? 1 : 0
+		if let playerNode = scene.playerNode {
+			vars[varId] = (node.distance(to: playerNode) <= Float(distance)) ? 1 : 0
+		} else {
+			vars[varId] = 0
+		}
 		next()
 	}
 
@@ -150,11 +240,9 @@ extension Script {
 		let label1 = args[1].getString()
 		let label2 = args[2].getString()
 
-		let script: Script
-		if actorId == -1 {
-			script = self
-		} else {
-			script = scene.scripts[actors[actorId]!.name!]!
+		guard let script = script(forActorId: actorId) else {
+			goto(label: label2)
+			return
 		}
 
 		if script.signal {
@@ -168,14 +256,8 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let val = args[1].getValueOrVarValue(vars: vars)
 
-		let script: Script
-		if actorId == -1 {
-			script = self
-		} else {
-			script = scene.scripts[actors[actorId]!.name!]!
-		}
-
-		script.signal = val == 1
+		script(forActorId: actorId)?.signal = val == 1
+		next()
 	}
 
 	private func detector_waitforuse(_ args: [Argument]) {
@@ -187,14 +269,68 @@ extension Script {
 		}
 	}
 
+	private func door_enableus(_ args: [Argument]) {
+		let targetId = args[0].getValueOrVarValue(vars: vars)
+		let isEnabled = args[1].getValueOrVarValue(vars: vars) != 0
+		guard let target = node(forScriptId: targetId) else {
+			next()
+			return
+		}
+		if isEnabled {
+			if target.doorData == nil {
+				scene.actions.append(.door(target))
+			}
+		} else {
+			for index in scene.actions.indices.reversed() {
+				if case .door(let doorNode) = scene.actions[index],
+				   doorNode === target {
+					scene.actions.remove(at: index)
+				}
+			}
+		}
+		next()
+	}
+
+	private func door_lock(_ args: [Argument]) {
+		guard let targetId = args.first?.getValueOrVarValue(vars: vars) else {
+			next()
+			return
+		}
+		let locked = args.count > 1 ? args[1].getValueOrVarValue(vars: vars) != 0 : true
+		node(forScriptId: targetId)?.doorData?.isLocked = locked
+		next()
+	}
+
+	private func door_open(_ args: [Argument]) {
+		let targetId = args[0].getValueOrVarValue(vars: vars)
+		let shouldOpen = args[1].getValueOrVarValue(vars: vars) != 0
+		if let door = node(forScriptId: targetId)?.doorData {
+			door.isLocked = false
+			door.isOpen = shouldOpen
+		}
+		next()
+	}
+
 	private func end(_ args: [Argument]) {
+		isRunning = false
 		completionHandler?()
+	}
+
+	private func endofmission(_ args: [Argument]) {
+		let text = args.count > 1 ? TextDb.get(args[1].getValueOrVarValue(vars: vars)) : nil
+		DispatchQueue.main.async {
+			self.scene.game.hud?.showConsoleText(text ?? "Mission complete")
+		}
+		end(args)
 	}
 
 	private func enemy_playanim(_ args: [Argument]) {
 		let animName = args[0].getString()
-		// swiftlint:disable:next force_try
-		try! playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: node) {
+		do {
+			try playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: node) {
+				self.next()
+			}
+		} catch {
 			self.next()
 		}
 	}
@@ -210,11 +346,11 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
 			let name = args[1].getString()
-			if let node = scene.rootNode.childNode(withName: name, recursively: true) {
+			if let node = findNode(named: name) {
 				actors[actorId] = node
 			}
 		} else {
-			frames[actorId] = self.node
+			actors[actorId] = self.node
 		}
 		next()
 	}
@@ -223,7 +359,7 @@ extension Script {
 		let frmId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
 			let name = args[1].getString()
-			if let node = scene.rootNode.childNode(withName: name, recursively: true) {
+			if let node = findNode(named: name) {
 				frames[frmId] = node
 			}
 		} else {
@@ -249,17 +385,18 @@ extension Script {
 		let actor1Id = args[0].getValueOrVarValue(vars: vars)
 		let actor2Id = args[1].getValueOrVarValue(vars: vars)
 		let varId = args[2].getValueOrVarValue(vars: vars)
-		if actors[actor1Id]!.name == "plechovkac" {
-			vars[varId] = 2
+		guard let actor1 = actors[actor1Id],
+			  let actor2 = actors[actor2Id] else {
+			vars[varId] = 0
+			next()
+			return
+		}
+		if actor1 == scene.playerNode,
+		   scene.game.mode == .car,
+		   let vehicle = scene.game.vehicle {
+			vars[varId] = vehicle.node.distance(to: actor2)
 		} else {
-			let actor1 = actors[actor1Id]!
-			if actor1 == scene.playerNode,
-			   scene.game.mode == .car,
-			   let vehicle = scene.game.vehicle {
-				vars[varId] = vehicle.node.distance(to: actors[actor2Id]!)
-			} else {
-				vars[varId] = actor1.distance(to: actors[actor2Id]!)
-			}
+			vars[varId] = actor1.distance(to: actor2)
 		}
 		next()
 	}
@@ -293,15 +430,39 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		if actors[actorId] != nil {
-			vars[varId] = scene.pressedJump ? 98 : 0
+			if scene.pressedJump {
+				vars[varId] = 98
+				scene.pressedJump = false
+			} else {
+				vars[varId] = Float(scene.currentActionAnimationId())
+			}
 		}
 		next()
 	}
 
 	private func human_getproperty(_ args: [Argument]) {
-		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
+		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		vars[varId] = 0
+		let property = args[2].getString().lowercased()
+		if property == "energy" {
+			if isPlayerActor(actorId) {
+				vars[varId] = 100
+			} else {
+				vars[varId] = 0
+			}
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func human_holster(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		guard let actor = node(forScriptId: actorId) else {
+			next()
+			return
+		}
+		holsterWeapons(for: actor)
 		next()
 	}
 
@@ -317,24 +478,25 @@ extension Script {
 		next()
 	}
 
+	private func human_setproperty(_ args: [Argument]) {
+		next()
+	}
+
 	private func human_talk(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let soundId = args[1].getString()
-//		let _ = args[2].getValueOrVarValue(vars: vars)
 
-		if soundId == "21990001" {
-			return goto(label: "20")
-		}
-
-		if let node = actors[actorId] {
-			let url = mainDirectory.appendingPathComponent("sounds/\(soundId).wav")
-			let source = SCNAudioSource(url: url)!
+		let targetNode = node(forScriptId: actorId) ?? scene.playerNode ?? scene.rootNode
+		if let url = mafiaResourceURL(directory: "sounds", name: "\(soundId).wav"),
+		   let source = SCNAudioSource(url: url) {
 			source.load()
-			node.runAction(SCNAction.playAudio(source, waitForCompletion: true)) {
-				self.next()
+			DispatchQueue.main.async {
+				targetNode.runAction(SCNAction.playAudio(source, waitForCompletion: true)) {
+					self.next()
+				}
 			}
 		} else {
-			fatalError()
+			next()
 		}
 	}
 
@@ -365,6 +527,41 @@ extension Script {
 		} else {
 			goto(label: label2)
 		}
+	}
+
+	private func iffltinrange(_ args: [Argument]) {
+		let value = args[0].getValueOrVarValueFloat(vars: vars)
+		let lowerBound = args[1].getValueOrVarValueFloat(vars: vars)
+		let upperBound = args[2].getValueOrVarValueFloat(vars: vars)
+		let label = args[3].getString()
+
+		if value >= lowerBound && value <= upperBound {
+			goto(label: label)
+		} else {
+			next()
+		}
+	}
+
+	private func ifplayerstealcar(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+
+		if let actor = actors[actorId],
+		   scene.game.mode == .car,
+		   let vehicleNode = scene.game.vehicle?.node,
+		   (vehicleNode === actor || vehicleNode.name == actor.name) {
+			vars[varId] = 1
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func iscarusable(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = node(forScriptId: carId) != nil ? 1 : 0
+		next()
 	}
 
 	private func `let`(_ args: [Argument]) {
@@ -408,6 +605,29 @@ extension Script {
 		next()
 	}
 
+	private func person_playanim(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		guard args.count > 1,
+			  let actor = node(forScriptId: actorId) else {
+			next()
+			return
+		}
+		let animName = args[1].getString()
+		do {
+			try playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: actor) {
+				self.next()
+			}
+		} catch {
+			next()
+		}
+	}
+
+	private func person_stopanim(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		node(forScriptId: actorId)?.removeAllAnimations()
+		next()
+	}
+
 	private func `return`(_ args: [Argument]) {
 		if executingEvent {
 			eventCompletionHandler?()
@@ -442,8 +662,8 @@ extension Script {
 		let eventId = args[1].getString()
 		let labelId = args[2].getString()
 
-		if let name = actors[actorId]?.name, let script = scene.scripts[name] {
-			script.eventIdQueue.append(eventId)
+		if let script = script(forActorId: actorId) {
+			script.enqueueEvent(eventId)
 			goto(label: labelId)
 		} else {
 			print("set_event: script not found")
@@ -451,9 +671,95 @@ extension Script {
 		}
 	}
 
+	private func setplayerfireevent(_ args: [Argument]) {
+		setPlayerEvent(args, keyPath: \.playerFireEvent)
+	}
+
+	private func setplayerhornevent(_ args: [Argument]) {
+		setPlayerEvent(args, keyPath: \.playerHornEvent)
+	}
+
+	private func setPlayerEvent(_ args: [Argument], keyPath: ReferenceWritableKeyPath<Scene, ScriptEventBinding?>) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let eventId = args[1].getString()
+
+		guard actorId != -1, eventId != "-1" else {
+			scene[keyPath: keyPath] = nil
+			next()
+			return
+		}
+
+		if let script = script(forActorId: actorId) {
+			scene[keyPath: keyPath] = ScriptEventBinding(script: script, eventId: eventId)
+		} else {
+			scene[keyPath: keyPath] = nil
+		}
+		next()
+	}
+
 	private func wait(_ args: [Argument]) {
 		let delay = args[0].getValueOrVarValue(vars: vars)
 		queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: next)
+	}
+
+	private func findNode(named name: String) -> SCNNode? {
+		if name.lowercased() == "root" {
+			return scene.rootNode
+		}
+		return scene.game.scnScene.rootNode.mafiaChildNode(named: name, recursively: true)
+	}
+
+	private func node(forScriptId id: Int) -> SCNNode? {
+		if id == -1 {
+			return node
+		}
+		return actors[id] ?? frames[id]
+	}
+
+	private func script(forActorId actorId: Int) -> Script? {
+		if actorId == -1 {
+			return self
+		}
+		guard let actor = actors[actorId] else { return nil }
+		if actor === scene.rootNode {
+			return scene.initScripts["root"] ?? scene.initScripts.values.first
+		}
+		guard let name = actor.name else { return nil }
+		return scene.scripts[name] ?? scene.initScripts[name]
+	}
+
+	private func holsterWeapons(for actor: SCNNode) {
+		if let weapons = scene.weapons[actor] {
+			for weapon in weapons {
+				weapon.position = .inventory
+			}
+		}
+
+		if actor === scene.playerNode || actor.name == scene.playerNode?.name,
+		   let playerNode = scene.playerNode,
+		   let weapons = scene.weapons[playerNode] {
+			for weapon in weapons {
+				weapon.position = .inventory
+			}
+		}
+	}
+
+	private func playerOwnerMatches(carId: Int) -> Bool {
+		let ownerNode: SCNNode? = scene.game.mode == .car ? scene.game.vehicle?.node : nil
+		let expectedNode = node(forScriptId: carId)
+
+		if expectedNode == nil {
+			return ownerNode == nil
+		}
+		guard let ownerNode = ownerNode,
+			  let expectedNode = expectedNode else { return false }
+		return ownerNode === expectedNode || ownerNode.name == expectedNode.name
+	}
+
+	private func isPlayerActor(_ actorId: Int) -> Bool {
+		guard let actor = node(forScriptId: actorId),
+			  let playerNode = scene.playerNode else { return false }
+		return actor === playerNode || actor.name == playerNode.name || actor.name?.lowercased() == "tommyhat"
 	}
 
 }

@@ -121,6 +121,11 @@ struct PhysicalData {
 	let friction: CGFloat
 }
 
+struct ScriptEventBinding {
+	let script: Script
+	let eventId: String
+}
+
 final class Scene {
 
 	var game: Game!
@@ -135,6 +140,11 @@ final class Scene {
 	var actions: [Action] = []
 	var environmentLights: [EnvironmentLight] = []
 	var compassNode: SCNNode?
+	var playerFireEvent: ScriptEventBinding?
+	var playerHornEvent: ScriptEventBinding?
+	private var didStartScripts = false
+	private var lastActionAnimationId = 0
+	private var lastActionAnimationTime: TimeInterval = 0
 	private var nodesByName: [String: SCNNode] = [:]
 	private var pendingDoorDataByName: [String: DoorData] = [:]
 	private var pendingPhysicalDataByName: [String: PhysicalData] = [:]
@@ -143,7 +153,9 @@ final class Scene {
 
 	var objectives: [Int] = [] {
 		didSet {
-//			game.objectivesChanged()
+			DispatchQueue.main.async {
+				self.game?.hud?.updateObjectives(self.objectives)
+			}
 		}
 	}
 	var pressedJump = false
@@ -662,6 +674,37 @@ final class Scene {
 			node.type = type
 		}
 		pendingObjectTypesByName.removeAll()
+	}
+
+	func startScripts() {
+		guard !didStartScripts else { return }
+		didStartScripts = true
+		for script in initScripts.values {
+			script.start()
+		}
+		for script in scripts.values {
+			script.start()
+		}
+	}
+
+	func triggerPlayerFireEvent() {
+		guard let event = playerFireEvent else { return }
+		event.script.enqueueEvent(event.eventId)
+	}
+
+	func triggerPlayerHornEvent() {
+		guard let event = playerHornEvent else { return }
+		event.script.enqueueEvent(event.eventId)
+	}
+
+	func noteActionAnimation(id: Int) {
+		lastActionAnimationId = id
+		lastActionAnimationTime = Date.timeIntervalSinceReferenceDate
+	}
+
+	func currentActionAnimationId() -> Int {
+		guard Date.timeIntervalSinceReferenceDate - lastActionAnimationTime < 0.8 else { return 0 }
+		return lastActionAnimationId
 	}
 
 	private func attachScript(_ scriptString: String, named name: String, to node: SCNNode) {

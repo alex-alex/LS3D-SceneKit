@@ -61,6 +61,7 @@ final class Script {
 	var labels: [String: Int] = [:]
 	var events: [String: Int] = [:]
 	var currentLine: Int = 0
+	var isRunning = false
 
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
@@ -112,22 +113,36 @@ final class Script {
 	}
 
 	func start() {
-//		let allowed = [
-//			"xmicro", "blikani radaru", "plechovkac", "Enemy09K", "target", "target2",
-//			"Delnik", "Delnik2", "mysi", "pes1", "stavbain", "horn", "vrz1", "policie",
-//			"Enemy", "dret", "lekarna", "help", "end", "stop"
-//		]
+		queue.async {
+			guard !self.isRunning, !self.commands.isEmpty else { return }
+			self.isRunning = true
+			self.run()
+		}
+	}
 
-//		guard let name = node.name, [].contains(name) else {
-//			print("[SCRIPT]", node.name as Any)
-//			return
-//		}
-
-//		queue.async(execute: run)
+	func enqueueEvent(_ eventId: String) {
+		queue.async {
+			self.eventIdQueue.append(eventId)
+			guard !self.isRunning else { return }
+			self.isRunning = true
+			self.run()
+		}
 	}
 
 	func run() {
+		guard !commands.isEmpty else {
+			isRunning = false
+			completionHandler?()
+			return
+		}
+
 		guard currentLine < commands.endIndex else {
+			if !eventIdQueue.isEmpty {
+				currentLine = commands.endIndex - 1
+				next()
+				return
+			}
+			isRunning = false
 			completionHandler?()
 			print("END")
 			return
@@ -136,7 +151,7 @@ final class Script {
 		let command = commands[currentLine]
 
 		if mainInEvent {
-			if command.0 == "return" {
+			if command.0 == "return" || command.0 == "return!" {
 				mainInEvent = false
 			}
 			return next()

@@ -32,6 +32,9 @@ class GameViewController: NSViewController {
 		gameView.mouseMovedHandler = { [weak self] event in
 			self?.handleMouseEvent(event, source: .view)
 		}
+		gameView.mouseDownHandler = { [weak self] _ in
+			self?.gameManager.game?.playerDidFire()
+		}
 		startMouseEventMonitor()
 		startCursorCaptureTimer()
 		updateCursorCapture()

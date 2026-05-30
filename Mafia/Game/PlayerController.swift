@@ -25,6 +25,7 @@ final class PlayerController {
 	private var horizontalVelocity = SCNVector3Zero
 	private var verticalVelocity: SCNFloat = 0
 	private var standingY: SCNFloat
+	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
@@ -43,6 +44,7 @@ final class PlayerController {
 	}
 
 	private let walkSpeed: SCNFloat = 3.2
+	private let crouchSpeed: SCNFloat = 1.45
 	private let acceleration: SCNFloat = 14
 	private let stopAcceleration: SCNFloat = 24
 	private let turnSpeed: SCNFloat = 2.8
@@ -51,6 +53,9 @@ final class PlayerController {
 	private let maxLookPitch: SCNFloat = 0.45
 	private let walkingAnimationName = "anims/walk1.5ds"
 	private let walkingAnimationKey = "__walking__"
+	private let crouchDownAnimationName = "anims/x panika drep dolu.5ds"
+	private let crouchUpAnimationName = "anims/x panika drep nahoru.5ds"
+	private let crouchAnimationKey = "__crouch__"
 
 	init(node: SCNNode, scene: SCNScene) {
 		self.node = node
@@ -83,7 +88,21 @@ final class PlayerController {
 	}
 
 	func jump() {
+		guard !isCrouching else { return }
 		wantsJump = true
+	}
+
+	func setCrouching(_ value: Bool) {
+		guard value != isCrouching else { return }
+
+		isCrouching = value
+		if value {
+			wantsJump = false
+			try? playAnimation(named: crouchDownAnimationName, in: node, animationKey: crouchAnimationKey)
+		} else {
+			try? playAnimation(named: crouchUpAnimationName, in: node, animationKey: crouchAnimationKey)
+		}
+		configurePhysics()
 	}
 
 	func stop() {
@@ -119,9 +138,9 @@ final class PlayerController {
 		node.eulerAngles.y = movementHeading
 		let movementBasis = horizontalMovementBasis()
 		let desiredVelocity = SCNVector3(
-			x: (movementBasis.right.x * movement.x + movementBasis.forward.x * movement.z) * walkSpeed,
+			x: (movementBasis.right.x * movement.x + movementBasis.forward.x * movement.z) * currentMoveSpeed,
 			y: 0,
-			z: (movementBasis.right.z * movement.x + movementBasis.forward.z * movement.z) * walkSpeed
+			z: (movementBasis.right.z * movement.x + movementBasis.forward.z * movement.z) * currentMoveSpeed
 		)
 		lastMovement = movement
 		lastDesiredVelocity = desiredVelocity
@@ -134,7 +153,7 @@ final class PlayerController {
 		horizontalVelocity.z += (desiredVelocity.z - horizontalVelocity.z) * blend
 
 		moveHorizontally(dx: horizontalVelocity.x * dt, dz: horizontalVelocity.z * dt)
-		if wantsJump && node.position.y <= standingY + 0.01 {
+		if wantsJump && !isCrouching && node.position.y <= standingY + 0.01 {
 			verticalVelocity = jumpSpeed
 		}
 		wantsJump = false
@@ -164,6 +183,10 @@ final class PlayerController {
 				animationKey: walkingAnimationKey
 			)
 		}
+	}
+
+	private var currentMoveSpeed: SCNFloat {
+		return isCrouching ? crouchSpeed : walkSpeed
 	}
 
 	private func horizontalMovementBasis() -> (forward: SCNVector3, right: SCNVector3) {
@@ -213,8 +236,8 @@ final class PlayerController {
 
 	private func configurePhysics() {
 		let radius: CGFloat = 0.28
-		let height: CGFloat = 1.35
-		let centerY: SCNFloat = 0.95
+		let height: CGFloat = isCrouching ? 0.82 : 1.35
+		let centerY: SCNFloat = isCrouching ? 0.55 : 0.95
 
 		let cylinderShape = SCNPhysicsShape(geometry: SCNCylinder(radius: radius, height: height), options: nil)
 		let lowerSphereShape = SCNPhysicsShape(geometry: SCNSphere(radius: radius), options: nil)

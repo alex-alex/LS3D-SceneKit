@@ -12,6 +12,11 @@ import SpriteKit
 
 final class Game: NSObject {
 
+	enum DodgeDirection {
+		case left
+		case right
+	}
+
 	enum Mode {
 		case walk, car, freeCamera
 	}
@@ -65,6 +70,7 @@ final class Game: NSObject {
 	var playerController: PlayerController?
 	var elevation: SCNFloat = 0
 	var lastControl: Control?
+	private var activeControls: Set<Control> = []
 	private(set) var isGamePaused = false
 	private var lastUpdateTime: TimeInterval?
 	private let playerExitDistance: SCNFloat = 1.8
@@ -125,13 +131,13 @@ final class Game: NSObject {
 		super.init()
 
 		scene.game = self
-			scene.rootNode.name = "__scene__"
-			scnScene.rootNode.addChildNode(scene.rootNode)
-			scene.resolvePendingDoors(in: scnScene.rootNode)
-			scene.resolvePendingPhysicalObjects(in: scnScene.rootNode)
-			scene.resolvePendingScripts(in: scnScene.rootNode)
-			scene.resolvePendingObjectTypes(in: scnScene.rootNode)
-			print("== Loaded Scene")
+		scene.rootNode.name = "__scene__"
+		scnScene.rootNode.addChildNode(scene.rootNode)
+		scene.resolvePendingDoors(in: scnScene.rootNode)
+		scene.resolvePendingPhysicalObjects(in: scnScene.rootNode)
+		scene.resolvePendingScripts(in: scnScene.rootNode)
+		scene.resolvePendingObjectTypes(in: scnScene.rootNode)
+		print("== Loaded Scene")
 
 		if let sceneCache = try SceneCache(name: "missions/"+missionName) {
 			scnScene.rootNode.addChildNode(sceneCache.node)
@@ -587,6 +593,7 @@ final class Game: NSObject {
 		} else {
 			view.audioListener = cameraContainer
 		}
+		scene.startScripts()
 	}
 
 	func setPaused(_ isPaused: Bool) {
@@ -894,17 +901,10 @@ extension Game: SCNSceneRendererDelegate {
 			let p1 = node.presentation.worldPosition
 			let p2 = playerNode.presentation.worldPosition
 			hud.compass.isHidden = false
-			let playerAngle: SCNFloat
-			if mode == .walk {
-				playerAngle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
-			} else if mode == .freeCamera {
-				playerAngle = cameraContainer.presentation.rotation.y * cameraContainer.presentation.rotation.w - .pi
-			} else if let vehicle = self.vehicle {
-				playerAngle = vehicle.node.presentation.rotation.y * vehicle.node.presentation.rotation.w - .pi/2
-			} else {
-				playerAngle = playerNode.presentation.rotation.y * playerNode.presentation.rotation.w - .pi
-			}
-			hud.compassNeedle.zRotation = CGFloat(atan2(p2.z - p1.z, p2.x - p1.x) + playerAngle)
+			let cameraForward = cameraNode.presentation.worldFront
+			let cameraYaw = atan2(-cameraForward.x, -cameraForward.z)
+			let targetAngle = atan2(p1.x - p2.x, p1.z - p2.z)
+			hud.compassNeedle.zRotation = CGFloat(targetAngle - cameraYaw)
 		} else {
 			hud.compass.isHidden = true
 		}
@@ -963,6 +963,129 @@ extension Game {
 	func actionButtonTapped() {
 		guard let action = nearestAction() else { return }
 		performAction(action)
+	}
+
+	func playerDidFire() {
+		lastControl = .FIRE
+		shootFromCamera()
+		scene.triggerPlayerFireEvent()
+	}
+
+	func playerDidHorn() {
+		lastControl = .HORN
+		scene.triggerPlayerHornEvent()
+	}
+
+	func pressControl(_ control: Control) {
+		lastControl = control
+		activeControls.insert(control)
+	}
+
+	func releaseControl(_ control: Control) {
+		activeControls.remove(control)
+	}
+
+	func isControlPressed(_ control: Control) -> Bool {
+		return activeControls.contains(control)
+	}
+
+	func setPlayerCrouching(_ isCrouching: Bool) {
+		if isCrouching {
+			pressControl(.CROUCH)
+		} else {
+			releaseControl(.CROUCH)
+		}
+		playerController?.setCrouching(isCrouching)
+	}
+
+	func holsterPlayerWeapons() {
+		guard let playerNode = scene.playerNode,
+			  let weapons = scene.weapons[playerNode] else { return }
+		for weapon in weapons {
+			weapon.position = .inventory
+		}
+	}
+
+	func playDodgeAnimation(direction: DodgeDirection) {
+		guard mode == .walk,
+			  let playerNode = scene.playerNode else { return }
+
+		let animationName: String
+		let animationId: Int
+		switch direction {
+		case .left:
+			animationName = "anims/left1.5ds"
+			animationId = 98
+		case .right:
+			animationName = "anims/right1.5ds"
+			animationId = 99
+		}
+
+		scene.noteActionAnimation(id: animationId)
+		try? playAnimation(named: animationName, in: playerNode, animationKey: "__dodge__")
+	}
+
+	private func shootFromCamera() {
+		let origin = cameraNode.presentation.worldPosition
+		let direction = cameraNode.presentation.worldFront
+		let target = SCNVector3(
+			x: origin.x + direction.x * 120,
+			y: origin.y + direction.y * 120,
+			z: origin.z + direction.z * 120
+		)
+		let hits = scnScene.rootNode.hitTestWithSegment(
+			from: origin,
+			to: target,
+			options: [
+				SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
+				SCNHitTestOption.backFaceCulling.rawValue: false
+			]
+		)
+
+		for hit in hits {
+			guard let hitNode = shootableNode(from: hit.node) else { continue }
+			if isNode(hitNode, inside: scene.playerNode) || isNode(hitNode, inside: vehicle?.node) {
+				continue
+			}
+			let impulse = SCNVector3(
+				x: direction.x * 22,
+				y: direction.y * 22 + 1.5,
+				z: direction.z * 22
+			)
+			if hitNode.physicsBody != nil {
+				hitNode.physicsBody?.applyForce(impulse, at: hit.worldCoordinates, asImpulse: true)
+			} else {
+				hitNode.position += SCNVector3(x: direction.x * 1.2, y: 0.2, z: direction.z * 1.2)
+			}
+			return
+		}
+	}
+
+	private func shootableNode(from node: SCNNode) -> SCNNode? {
+		var current: SCNNode? = node
+		while let candidate = current {
+			if candidate.physicsBody?.type == .dynamic {
+				return candidate
+			}
+			if let name = candidate.name?.lowercased(),
+			   name.contains("plechovka") || name.contains("target") {
+				return candidate
+			}
+			current = candidate.parent
+		}
+		return nil
+	}
+
+	private func isNode(_ node: SCNNode, inside root: SCNNode?) -> Bool {
+		guard let root = root else { return false }
+		var current: SCNNode? = node
+		while let candidate = current {
+			if candidate === root {
+				return true
+			}
+			current = candidate.parent
+		}
+		return false
 	}
 
 	func nearestAction() -> Action? {

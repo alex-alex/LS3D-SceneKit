@@ -44,9 +44,10 @@ class GameViewController: UIViewController {
 		gameView.addGestureRecognizer(walkGesture)
 
 		// fire gesture
-//		fireGesture = UITapGestureRecognizer(target: self, action: #selector(fireGestureRecognized))
-//		fireGesture.delegate = self
-//		view.addGestureRecognizer(fireGesture)
+		fireGesture = UITapGestureRecognizer(target: self, action: #selector(fireGestureRecognized))
+		fireGesture.delegate = self
+		fireGesture.cancelsTouchesInView = false
+		view.addGestureRecognizer(fireGesture)
 
 		// ------
 
@@ -133,7 +134,7 @@ extension GameViewController {
 
 	@objc func fireGestureRecognized(gesture: UITapGestureRecognizer) {
 		print("== fireGestureRecognized ==")
-		gameManager.game.scene.pressedJump = true
+		gameManager.game?.playerDidFire()
 	}
 
 }
