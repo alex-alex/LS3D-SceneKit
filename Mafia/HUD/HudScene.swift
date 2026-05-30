@@ -231,7 +231,7 @@ final class HudScene: SKScene {
 
 	func showConsoleText(_ text: String) {
 		consoleLabel.removeAction(forKey: consoleActionKey)
-		consoleLabel.text = text
+		consoleLabel.text = remappedControlText(text)
 		consoleLabel.alpha = 1
 		consoleLabel.run(
 			SKAction.sequence([
@@ -243,8 +243,20 @@ final class HudScene: SKScene {
 	}
 
 	func updateObjectives(_ objectives: [Int]) {
-		objectivesLabel.text = objectives.compactMap { TextDb.get($0) }.joined(separator: "\n")
+		objectivesLabel.text = objectives.compactMap { TextDb.get($0).map(remappedControlText) }.joined(separator: "\n")
 		objectivesLabel.isHidden = objectives.isEmpty
+	}
+
+	func showCurrentObjectives(_ objectives: [Int]) {
+		let text = objectives.compactMap { TextDb.get($0).map(remappedControlText) }.joined(separator: "\n")
+		guard !text.isEmpty else { return }
+		showConsoleText(text)
+	}
+
+	private func remappedControlText(_ text: String) -> String {
+		return text
+			.replacingOccurrences(of: "Default: F1 key", with: "Default: O key")
+			.replacingOccurrences(of: "Default: F5", with: "Default: V")
 	}
 
 }
@@ -660,6 +672,9 @@ extension HudScene {
 			game.pressControl(.INVENTORY)
 			game.openInventory()
 
+		case 31: // O
+			game.showObjectives()
+
 		case 59, 62: // control
 			setCrouching(true)
 
@@ -746,7 +761,7 @@ extension HudScene {
 			reversing = true
 		case 49: // space
 			braking = true
-		case 96: // F5
+		case 9: // V
 			game.toggleSpeedLimiter()
 		case 15: // R
 			clearVehicleControls()
@@ -827,6 +842,8 @@ extension HudScene {
 				game.releaseControl(.RELOAD)
 			case 34: // I
 				game.releaseControl(.INVENTORY)
+			case 31: // O
+				game.releaseControl(.OBJECTIVES)
 			case 3: // F
 				game.releaseControl(.ACTION)
 			default:
@@ -861,6 +878,12 @@ extension HudScene {
 
 		case 34: // I
 			game.releaseControl(.INVENTORY)
+
+		case 31: // O
+			game.releaseControl(.OBJECTIVES)
+
+		case 9: // V
+			game.releaseControl(.SPEEDLIMIT)
 
 		case 3: // F
 			game.releaseControl(.ACTION)

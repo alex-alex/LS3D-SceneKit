@@ -1085,6 +1085,11 @@ extension Game {
 		hud?.showConsoleText(vehicle.isSpeedLimiterEnabled ? "Speed limiter on" : "Speed limiter off")
 	}
 
+	func showObjectives() {
+		pressControl(.OBJECTIVES)
+		hud?.showCurrentObjectives(scene.objectives)
+	}
+
 	func setVehicleStealEnabled(carId: Int, node: SCNNode?, enabled: Bool) {
 		if enabled {
 			stealEnabledVehicleIds.insert(carId)
