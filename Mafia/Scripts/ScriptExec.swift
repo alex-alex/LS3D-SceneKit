@@ -232,7 +232,10 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let controlStr = args[1].getString()
 		if let control = Control(scriptName: controlStr) {
-			vars[varId] = (scene.game.isControlPressed(control) || control == scene.game.lastControl || control == .SPEEDLIMIT) ? 1 : 0
+			let normalized = controlStr.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+			let isSecondaryAlias = normalized.hasSuffix("1")
+			let isPressed = scene.game.isControlPressed(control) || control == scene.game.lastControl
+			vars[varId] = isPressed && !isSecondaryAlias ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}

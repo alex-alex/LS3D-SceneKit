@@ -18,6 +18,8 @@ final class Vehicle {
 	private let maximumSteering: CGFloat = 0.32
 	private let engineForce: CGFloat = 6500
 	private let brakeForce: CGFloat = 260
+	private let speedLimiterBrakeForce: CGFloat = 80
+	private let speedLimiterLimit: CGFloat = 60
 	private let idleBrakeForce: CGFloat = 8
 	private let tractionAssistSpeedLimit: CGFloat = 2
 	private let launchMinimumWheelForceScale: CGFloat = 0.35
@@ -39,6 +41,7 @@ final class Vehicle {
 	private let chassisPhysicsCenterHeight: SCNFloat = 0.72
 	private let resetHeight: SCNFloat = 1.2
 	private var isBraking = false
+	var isSpeedLimiterEnabled = false
 
 	var force: CGFloat = 0
 	private var targetVehicleSteering: CGFloat = 0
@@ -203,7 +206,15 @@ final class Vehicle {
 		physicsVehicle.setSteeringAngle(vehicleSteering, forWheelAt: 1)
 
 		let clampedForce = max(-engineForce, min(engineForce, force))
-		let brakingForce = isBraking ? brakeForce : (clampedForce == 0 ? idleBrakeForce : 0)
+		let isLimiterHolding = isSpeedLimiterEnabled && speed > speedLimiterLimit && clampedForce < 0
+		let brakingForce: CGFloat
+		if isBraking {
+			brakingForce = brakeForce
+		} else if isLimiterHolding {
+			brakingForce = speedLimiterBrakeForce
+		} else {
+			brakingForce = clampedForce == 0 ? idleBrakeForce : 0
+		}
 
 		for wheelIndex in 0..<4 {
 			physicsVehicle.applyBrakingForce(0, forWheelAt: wheelIndex)
@@ -214,7 +225,7 @@ final class Vehicle {
 		let launchProgress = min(1, chassisSpeed / tractionAssistSpeedLimit)
 		let minimumWheelForceScale = clampedForce > 0 ? reverseLaunchMinimumWheelForceScale : launchMinimumWheelForceScale
 		let launchWheelForceScale = minimumWheelForceScale + (1 - minimumWheelForceScale) * launchProgress
-		let wheelForce = clampedForce * launchWheelForceScale
+		let wheelForce = isLimiterHolding ? 0 : clampedForce * launchWheelForceScale
 
 		physicsVehicle.applyEngineForce(wheelForce, forWheelAt: 2)
 		physicsVehicle.applyEngineForce(wheelForce, forWheelAt: 3)
@@ -241,7 +252,12 @@ final class Vehicle {
 	func updateControls(throttle: CGFloat, brake: Bool, steering: CGFloat) {
 		isBraking = brake
 		targetVehicleSteering = steering * maximumSteering
-		force = brake ? 0 : -max(-1, min(1, throttle)) * engineForce
+		let clampedThrottle = max(-1, min(1, throttle))
+		if isSpeedLimiterEnabled && clampedThrottle > 0 && speed >= speedLimiterLimit {
+			force = 0
+		} else {
+			force = brake ? 0 : -clampedThrottle * engineForce
+		}
 	}
 
 }

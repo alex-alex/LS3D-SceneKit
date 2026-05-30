@@ -711,6 +711,8 @@ extension HudScene {
 			reversing = true
 		case 49: // space
 			braking = true
+		case 96: // F5
+			game.toggleSpeedLimiter()
 		case 15: // R
 			clearVehicleControls()
 			game.vehicle?.resetUpright()

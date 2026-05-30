@@ -1064,6 +1064,14 @@ extension Game {
 		scene.triggerPlayerHornEvent()
 	}
 
+	func toggleSpeedLimiter() {
+		pressControl(.SPEEDLIMIT)
+		guard let vehicle = vehicle else { return }
+
+		vehicle.isSpeedLimiterEnabled.toggle()
+		hud?.showConsoleText(vehicle.isSpeedLimiterEnabled ? "Speed limiter on" : "Speed limiter off")
+	}
+
 	func setVehicleStealEnabled(carId: Int, node: SCNNode?, enabled: Bool) {
 		if enabled {
 			stealEnabledVehicleIds.insert(carId)
