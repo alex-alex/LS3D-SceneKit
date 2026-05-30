@@ -280,7 +280,8 @@ extension Script {
 
 	private func detector_waitforuse(_ args: [Argument]) {
 		if args.count > 0 {
-			let str = TextDb.get(Int(args[0].getString())!)!
+			let txtId = args[0].getValueOrVarValue(vars: vars)
+			let str = TextDb.get(txtId)
 			scene.actions.append(.action(self, str))
 		} else {
 			scene.actions.append(.action(self, nil))
@@ -406,9 +407,7 @@ extension Script {
 			next()
 			return
 		}
-		let node1 = distanceNode(for: actor1Id, fallback: actor1)
-		let node2 = distanceNode(for: actor2Id, fallback: actor2)
-		vars[varId] = node1.distance(to: node2)
+		vars[varId] = actor1.distance(to: actor2)
 		next()
 	}
 
@@ -614,8 +613,10 @@ extension Script {
 	}
 
 	private func mission_objectives(_ args: [Argument]) {
-		let txtId = args[0].getString()
-		scene.objectives.append(Int(txtId)!)
+		let txtId = args[0].getValueOrVarValue(vars: vars)
+		if txtId >= 0 {
+			scene.objectives.append(txtId)
+		}
 		next()
 	}
 
@@ -762,15 +763,6 @@ extension Script {
 
 	private func playerOwnerMatches(carId: Int) -> Bool {
 		scene.game.playerOwnerMatches(carNode: node(forScriptId: carId))
-	}
-
-	private func distanceNode(for actorId: Int, fallback: SCNNode) -> SCNNode {
-		if isPlayerActor(actorId),
-		   scene.game.mode == .car,
-		   let vehicle = scene.game.vehicle {
-			return vehicle.node
-		}
-		return fallback
 	}
 
 	private func isPlayerActor(_ actorId: Int) -> Bool {

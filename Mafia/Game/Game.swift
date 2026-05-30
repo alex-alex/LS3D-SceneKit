@@ -572,6 +572,13 @@ final class Game: NSObject {
 		playerNode.isHidden = true
 	}
 
+	private func syncPlayerToVehicle() {
+		guard let playerNode = scene.playerNode,
+			  let vehicle = vehicle else { return }
+
+		playerNode.worldPosition = vehicle.node.presentation.worldPosition
+	}
+
 	private func horizontalVehicleRight() -> SCNVector3 {
 		guard let vehicle = vehicle else { return SCNVector3(x: 1, y: 0, z: 0) }
 
@@ -632,11 +639,7 @@ final class Game: NSObject {
 		guard isActionButtonVisible != isVisible else { return }
 
 		isActionButtonVisible = isVisible
-		#if os(iOS)
-			hud.actionButton.isHidden = !isVisible
-		#else
-			hud.actionButton.isHidden = true
-		#endif
+		hud.actionButton.isHidden = !isVisible
 	}
 
 	private func beginVehicleSteal(_ vehicle: Vehicle) {
@@ -968,6 +971,7 @@ extension Game: SCNSceneRendererDelegate {
 				z: 0
 			)
 		} else if mode == .car && vehicle != nil {
+			syncPlayerToVehicle()
 			updateCarCameraLook(deltaTime: deltaTime)
 			updateCarCameraFollow(deltaTime: deltaTime)
 		} else {
