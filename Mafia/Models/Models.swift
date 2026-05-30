@@ -282,6 +282,10 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		material.isLitPerPixel = false
 		material.writesToDepthBuffer = true
 		material.readsFromDepthBuffer = true
+		let isTransparentMaterial = flags.contains(.colorKey) ||
+				flags.contains(.opacityTexture) ||
+				flags.contains(.imageAlpha) ||
+				flags.contains(.additiveBlend)
 
 		if flags.contains(.doubleSided) {
 			material.isDoubleSided = true
@@ -322,6 +326,14 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 
 		let opacity: Float = try stream.read()
 		material.transparency = CGFloat(opacity)
+		if opacity < 1 {
+			material.blendMode = flags.contains(.additiveBlend) ? .add : .alpha
+		}
+		if isTransparentMaterial || opacity < 1 {
+			material.writesToDepthBuffer = false
+			material.readsFromDepthBuffer = true
+			material.transparencyMode = .aOne
+		}
 
 		if flags.contains(.reflectionTexture) {
 			let ratio: Float = try stream.read()
@@ -347,42 +359,46 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			let data = try Data(contentsOf: url)
 
 			#if os(macOS)
+			if flags.contains(.colorKey) {
+				let b = CGFloat(data[54])/255
+				let g = CGFloat(data[55])/255
+				let r = CGFloat(data[56])/255
+				let color = NSColor(red: r, green: g, blue: b, alpha: 1)
+				if let source = CGImageSourceCreateWithData(data as CFData, nil),
+				   let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
+				   let masked = cgImage.removeColor(color.cgColor) {
+					material.diffuse.contents = masked.caLayer()
+				} else {
+					material.diffuse.contents = NSImage(data: data)
+				}
+			} else {
+				material.diffuse.contents = NSImage(data: data)
+			}
+			#elseif os(iOS)
+			if let image = imageCache[textureName] {
+				material.diffuse.contents = image
+			} else {
 				if flags.contains(.colorKey) {
 					let b = CGFloat(data[54])/255
 					let g = CGFloat(data[55])/255
 					let r = CGFloat(data[56])/255
-					let color = NSColor(red: r, green: g, blue: b, alpha: 1)
-					if let source = CGImageSourceCreateWithData(data as CFData, nil),
-					   let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
-					   let masked = cgImage.removeColor(color.cgColor) {
-						material.diffuse.contents = masked.caLayer()
-					} else {
-						material.diffuse.contents = NSImage(data: data)
-					}
+					let color = UIColor(red: r, green: g, blue: b, alpha: 1)
+					let image = UIImage(data: data)?.removeColor(color)
+					imageCache[textureName] = image
+					material.diffuse.contents = image?.cgImage?.caLayer()
 				} else {
-					material.diffuse.contents = NSImage(data: data)
-				}
-			#elseif os(iOS)
-				if let image = imageCache[textureName] {
+					let image = UIImage(data: data)
+					imageCache[textureName] = image
 					material.diffuse.contents = image
-				} else {
-					if flags.contains(.colorKey) {
-						let b = CGFloat(data[54])/255
-						let g = CGFloat(data[55])/255
-						let r = CGFloat(data[56])/255
-						let color = UIColor(red: r, green: g, blue: b, alpha: 1)
-						let image = UIImage(data: data)?.removeColor(color)
-						imageCache[textureName] = image
-						material.diffuse.contents = image?.cgImage?.caLayer()
-					} else {
-						let image = UIImage(data: data)
-						imageCache[textureName] = image
-						material.diffuse.contents = image
-					}
 				}
+			}
 			#endif
 			material.diffuse.wrapS = .repeat
 			material.diffuse.wrapT = .repeat
+			if flags.contains(.colorKey) {
+				material.blendMode = .alpha
+				material.transparencyMode = .aOne
+			}
 		}
 
 		if flags.contains(.opacityTexture) {
@@ -391,6 +407,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			textureNames.append(textureName)
 			let url = mainDirectory.appendingPathComponent("maps/"+textureName)
 			material.transparencyMode = .rgbZero
+			material.blendMode = flags.contains(.additiveBlend) ? .add : .alpha
 			#if os(macOS)
 				material.transparent.contents = NSImage(contentsOf: url)?.inversed
 			#elseif os(iOS)

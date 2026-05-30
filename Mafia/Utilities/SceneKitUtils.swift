@@ -187,6 +187,26 @@ extension SCNNode {
 		let dz = Float(nodePosition.z - position.z)
 		return dx * dx + dy * dy + dz * dz
 	}
+
+	func mafiaChildNode(named name: String, recursively: Bool) -> SCNNode? {
+		if self.name == name {
+			return self
+		}
+		if let exactMatch = childNode(withName: name, recursively: recursively) {
+			return exactMatch
+		}
+
+		let normalizedName = name.lowercased()
+		for child in childNodes {
+			if child.name?.lowercased() == normalizedName {
+				return child
+			}
+			if recursively, let match = child.mafiaChildNode(named: name, recursively: true) {
+				return match
+			}
+		}
+		return nil
+	}
 }
 
 func isSkyboxResourceName(_ name: String?) -> Bool {

@@ -139,6 +139,7 @@ final class Scene {
 	private var pendingDoorDataByName: [String: DoorData] = [:]
 	private var pendingPhysicalDataByName: [String: PhysicalData] = [:]
 	private var pendingScriptStringsByName: [String: String] = [:]
+	private var pendingObjectTypesByName: [String: ObjectDefinitionType] = [:]
 
 	var objectives: [Int] = [] {
 		didSet {
@@ -334,14 +335,22 @@ final class Scene {
 						let partEndOffset = stream.currentOffset + partSize - 6
 
 						switch partSgn {
-						case 0xae23: // name
-							name = try stream.read(maxLength: partSize - 6)
-							node = self.node(named: name)
-							node?.type = type
+							case 0xae23: // name
+								name = try stream.read(maxLength: partSize - 6)
+								node = self.node(named: name)
+								if let node = node {
+									node.type = type
+								} else if type != .empty {
+									pendingObjectTypesByName[name] = type
+								}
 
-						case 0xae22: // type
-							type = try ObjectDefinitionType(forcedRawValue: stream.read())
-							node?.type = type
+							case 0xae22: // type
+								type = try ObjectDefinitionType(forcedRawValue: stream.read())
+								if let node = node {
+									node.type = type
+								} else if !name.isEmpty {
+									pendingObjectTypesByName[name] = type
+								}
 
 						case 0xae24: // props
 
@@ -610,7 +619,7 @@ final class Scene {
 
 	func resolvePendingDoors(in rootNode: SCNNode) {
 		for (name, doorData) in pendingDoorDataByName {
-			guard let node = rootNode.childNode(withName: name, recursively: true) else { continue }
+			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
 			attachDoor(doorData, to: node)
 		}
 		pendingDoorDataByName.removeAll()
@@ -633,7 +642,7 @@ final class Scene {
 
 	func resolvePendingPhysicalObjects(in rootNode: SCNNode) {
 		for (name, physicalData) in pendingPhysicalDataByName {
-			guard let node = rootNode.childNode(withName: name, recursively: true) else { continue }
+			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
 			attachPhysical(physicalData, to: node)
 		}
 		pendingPhysicalDataByName.removeAll()
@@ -641,10 +650,18 @@ final class Scene {
 
 	func resolvePendingScripts(in rootNode: SCNNode) {
 		for (name, scriptString) in pendingScriptStringsByName {
-			guard let node = rootNode.childNode(withName: name, recursively: true) else { continue }
+			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
 			attachScript(scriptString, named: name, to: node)
 		}
 		pendingScriptStringsByName.removeAll()
+	}
+
+	func resolvePendingObjectTypes(in rootNode: SCNNode) {
+		for (name, type) in pendingObjectTypesByName {
+			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
+			node.type = type
+		}
+		pendingObjectTypesByName.removeAll()
 	}
 
 	private func attachScript(_ scriptString: String, named name: String, to node: SCNNode) {
@@ -772,7 +789,7 @@ final class Scene {
 	}
 
 	private func node(named name: String) -> SCNNode? {
-		return nodesByName[name] ?? rootNode.childNode(withName: name, recursively: true)
+		return nodesByName[name] ?? rootNode.mafiaChildNode(named: name, recursively: true)
 	}
 
 }

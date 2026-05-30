@@ -130,6 +130,7 @@ final class Game: NSObject {
 			scene.resolvePendingDoors(in: scnScene.rootNode)
 			scene.resolvePendingPhysicalObjects(in: scnScene.rootNode)
 			scene.resolvePendingScripts(in: scnScene.rootNode)
+			scene.resolvePendingObjectTypes(in: scnScene.rootNode)
 			print("== Loaded Scene")
 
 		if let sceneCache = try SceneCache(name: "missions/"+missionName) {
@@ -166,9 +167,7 @@ final class Game: NSObject {
 
 		// -----
 
-		if let carNode = findVehicleNode() {
-			vehicle = Vehicle(scene: scnScene, node: carNode)
-		}
+		vehicle = findVehicle()
 
 		// -----
 
@@ -219,26 +218,29 @@ final class Game: NSObject {
 			"start_point"
 		]
 		for name in preferredNames {
-			if let node = scnScene.rootNode.childNode(withName: name, recursively: true) {
+			if let node = scnScene.rootNode.mafiaChildNode(named: name, recursively: true) {
 				return node
 			}
 		}
 		return scene.rootNode.childNodes.first
 	}
 
-	private func findVehicleNode() -> SCNNode? {
+	private func findVehicle() -> Vehicle? {
 		let preferredNames = [
 			"cad_road",
 			"taxi2"
 		]
 		for name in preferredNames {
-			if let node = scene.rootNode.childNode(withName: name, recursively: true),
-			   node.hasModelContent {
-				return node
+			if let node = scnScene.rootNode.mafiaChildNode(named: name, recursively: true),
+			   node.hasModelContent,
+			   let vehicle = Vehicle(scene: scnScene, node: node) {
+				return vehicle
 			}
 		}
-		return scene.rootNode.firstNode { node in
-			node.type == .car && node.hasModelContent
+
+		return scnScene.rootNode.firstResult { node in
+			guard node.type == .car && node.hasModelContent else { return nil }
+			return Vehicle(scene: scnScene, node: node)
 		}
 	}
 
@@ -620,6 +622,18 @@ private extension SCNNode {
 		return nil
 	}
 
+	func firstResult<Result>(where transform: (SCNNode) -> Result?) -> Result? {
+		if let result = transform(self) {
+			return result
+		}
+		for child in childNodes {
+			if let result = child.firstResult(where: transform) {
+				return result
+			}
+		}
+		return nil
+	}
+
 	func hideSkyboxBackdropGeometry() {
 		if isSkyboxBackdropNode {
 			isHidden = true
@@ -729,7 +743,7 @@ private extension Array where Element == EnvironmentLight {
 		for light in self where light.kind == kind {
 			let level: Int
 			if let sectorName = light.sectorName,
-			   let sectorNode = rootNode.childNode(withName: sectorName, recursively: true) {
+			   let sectorNode = rootNode.mafiaChildNode(named: sectorName, recursively: true) {
 				guard sectorNode.containsWorldPosition(cameraPosition) else { continue }
 				level = sectorName == "Primary Sector" ? 0 : sectorNode.hierarchyLevel
 			} else {

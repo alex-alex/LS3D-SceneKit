@@ -63,8 +63,20 @@ final class Vehicle {
 		}
 	}
 
-	init(scene: SCNScene, node: SCNNode) {
-		let taxiNode = node.childNode(withName: "BODY", recursively: false)!
+	init?(scene: SCNScene, node: SCNNode) {
+		guard let taxiNode = node.mafiaChildNode(named: "BODY", recursively: false),
+			  let whl0 = node.mafiaChildNode(named: "WHL0", recursively: true),
+			  let whr0 = node.mafiaChildNode(named: "WHR0", recursively: true),
+			  let whl1 = node.mafiaChildNode(named: "WHL1", recursively: true),
+			  let whr1 = node.mafiaChildNode(named: "WHR1", recursively: true),
+			  Vehicle.hasUsableBounds(taxiNode),
+			  Vehicle.hasUsableBounds(whl0),
+			  Vehicle.hasUsableBounds(whr0),
+			  Vehicle.hasUsableBounds(whl1),
+			  Vehicle.hasUsableBounds(whr1) else {
+			return nil
+		}
+
 		self.node = taxiNode
 
 		Vehicle.attachChassisVisuals(from: node, to: taxiNode)
@@ -87,11 +99,6 @@ final class Vehicle {
 		taxiNode.physicsBody?.damping = 0.12
 		taxiNode.physicsBody?.angularDamping = 0.8
 		taxiNode.physicsBody?.centerOfMassOffset = SCNVector3(x: 0, y: centerOfMassYOffset, z: 0)
-
-		let whl0 = node.childNode(withName: "WHL0", recursively: true)!
-		let whr0 = node.childNode(withName: "WHR0", recursively: true)!
-		let whl1 = node.childNode(withName: "WHL1", recursively: true)!
-		let whr1 = node.childNode(withName: "WHR1", recursively: true)!
 
 		let wheel0 = SCNPhysicsVehicleWheel(node: whl0)
 		let wheel1 = SCNPhysicsVehicleWheel(node: whr0)
@@ -141,6 +148,14 @@ final class Vehicle {
 		return SCNPhysicsShape(node: shapeNode, options: nil)
 	}
 
+	private static func hasUsableBounds(_ node: SCNNode) -> Bool {
+		let bounds = node.boundingBox
+		let width = bounds.max.x - bounds.min.x
+		let height = bounds.max.y - bounds.min.y
+		let length = bounds.max.z - bounds.min.z
+		return width > 0 && height > 0 && length > 0
+	}
+
 	private static func wheelRadius(for wheelNode: SCNNode) -> CGFloat {
 		let bounds = wheelNode.boundingBox
 		let verticalDiameter = bounds.max.y - bounds.min.y
@@ -168,11 +183,11 @@ final class Vehicle {
 	}
 
 	private static func attachChassisVisuals(from vehicleRoot: SCNNode, to chassisNode: SCNNode) {
-		let detachedWheelNames: Set<String> = ["WHL0", "WHR0", "WHL1", "WHR1"]
+		let detachedWheelNames: Set<String> = ["whl0", "whr0", "whl1", "whr1"]
 
 		for childNode in vehicleRoot.childNodes {
 			guard childNode !== chassisNode else { continue }
-			guard !detachedWheelNames.contains(childNode.name ?? "") else { continue }
+			guard !detachedWheelNames.contains(childNode.name?.lowercased() ?? "") else { continue }
 
 			let worldTransform = childNode.worldTransform
 			chassisNode.addChildNode(childNode)
