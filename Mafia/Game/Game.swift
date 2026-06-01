@@ -39,11 +39,14 @@ final class Game: NSObject {
 			cameraContainer.removeFromParentNode()
 			configureCamera(for: mode)
 			if mode == .freeCamera {
+				VehicleSoundLog.log("Game mode changed to freeCamera; vehicle audio inactive")
 				scnScene.rootNode.addChildNode(cameraContainer)
 				playerController?.stop()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 				vehicle?.applyForces()
+				vehicle?.updateAudio(isActive: false)
 			} else if mode == .walk {
+				VehicleSoundLog.log("Game mode changed to walk; vehicle audio inactive")
 				scene.playerNode?.isHidden = false
 				if oldValue != .freeCamera {
 					teleportPlayerBesideVehicle()
@@ -56,11 +59,14 @@ final class Game: NSObject {
 				playerController?.stop()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 				vehicle?.applyForces()
+				vehicle?.updateAudio(isActive: false)
 			} else {
+				VehicleSoundLog.log("Game mode changed to car; vehicle audio active")
 				playerController?.stop()
 				movePlayerIntoVehicle()
 				scnScene.rootNode.addChildNode(cameraContainer)
 				resetCarCameraFollow()
+				vehicle?.updateAudio(isActive: true)
 			}
 		}
 	}
@@ -776,6 +782,7 @@ final class Game: NSObject {
 			isGamePaused = isPaused
 			scnScene.isPaused = isPaused
 			scene.setAudioPaused(isPaused)
+			vehicle?.setAudioPaused(isPaused)
 			if isPaused {
 				playPauseMenuOpenSound()
 			}
@@ -1110,6 +1117,8 @@ extension Game: SCNSceneRendererDelegate {
 		}
 
 		#endif
+
+		vehicle?.updateAudio(isActive: mode == .car)
 
 		let vehicleVelocity = vehicle?.node.physicsBody?.velocity ?? SCNVector3Zero
 		let vehicleSpeed = sqrt(

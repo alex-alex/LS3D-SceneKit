@@ -168,6 +168,7 @@ private var followsCameraKey: UInt8 = 0
 private var doorDataKey: UInt8 = 0
 private var actionsEnabledKey: UInt8 = 0
 private var humanEnergyKey: UInt8 = 0
+private var vehicleModelNameKey: UInt8 = 0
 
 final class DoorData {
 	let open1: UInt8
@@ -220,6 +221,18 @@ final class DoorData {
 }
 
 extension SCNNode {
+	var vehicleModelName: String? {
+		get {
+			let value: NSString = associatedObject(self, key: &vehicleModelNameKey) {
+				return NSString(string: "")
+			}
+			return value.length > 0 ? value as String : nil
+		}
+		set {
+			associateObject(self, key: &vehicleModelNameKey, value: NSString(string: newValue ?? ""))
+		}
+	}
+
 	var type: ObjectDefinitionType {
 		get {
 			let rawValue: NSNumber = associatedObject(self, key: &nodeTypeKey) {

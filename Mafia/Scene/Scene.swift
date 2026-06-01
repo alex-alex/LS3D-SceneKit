@@ -280,6 +280,7 @@ final class Scene {
 						case .model:
 							var str: String = try stream.read(maxLength: partSize - 6)
 							str = str.lowercased().replacingOccurrences(of: ".i3d", with: "")
+							objectNode.vehicleModelName = str
 							try loadModel(named: "models/" + str, node: objectNode)
 
 						case .type:
