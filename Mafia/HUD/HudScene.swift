@@ -850,6 +850,8 @@ extension HudScene {
 	}
 
 	override func keyDown(with event: NSEvent) {
+		guard !event.isARepeat else { return }
+
 		if event.keyCode == 53 { // escape
 			if inventoryOverlay.isHidden == false {
 				setInventoryVisible(false)

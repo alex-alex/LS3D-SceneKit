@@ -234,8 +234,9 @@ extension Script {
 		if let control = Control(scriptName: controlStr) {
 			let normalized = controlStr.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
 			let isSecondaryAlias = normalized.hasSuffix("1")
-			let isPressed = scene.game.isControlPressed(control) || control == scene.game.lastControl
-			vars[varId] = isPressed && !isSecondaryAlias ? 1 : 0
+			let isPressed = scene.game.isControlPressed(control)
+			let wasPressed = !isSecondaryAlias && (isPressed || scene.game.consumeLastControl(control))
+			vars[varId] = wasPressed ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}

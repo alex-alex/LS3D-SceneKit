@@ -1177,10 +1177,19 @@ extension Game {
 
 	func releaseControl(_ control: Control) {
 		activeControls.remove(control)
+		if lastControl == control {
+			lastControl = nil
+		}
 	}
 
 	func isControlPressed(_ control: Control) -> Bool {
 		return activeControls.contains(control)
+	}
+
+	func consumeLastControl(_ control: Control) -> Bool {
+		guard lastControl == control else { return false }
+		lastControl = nil
+		return true
 	}
 
 	func setPlayerCrouching(_ isCrouching: Bool) {
