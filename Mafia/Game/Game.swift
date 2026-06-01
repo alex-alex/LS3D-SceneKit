@@ -1334,7 +1334,7 @@ extension Game {
 	}
 
 	private func firePlayerWeapon() {
-		guard mode == .walk,
+		guard mode == .walk || mode == .car,
 			  let weapon = equippedPlayerWeapon(),
 			  weapon.isFirearm,
 			  let profile = weapon.profile else { return }
