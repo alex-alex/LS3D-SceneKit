@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import AVFoundation
 import SceneKit
 import SpriteKit
 
@@ -167,6 +168,8 @@ final class Scene {
 	private var pendingPhysicalDataByName: [String: PhysicalData] = [:]
 	private var pendingScriptStringsByName: [String: String] = [:]
 	private var pendingObjectTypesByName: [String: ObjectDefinitionType] = [:]
+	private var activeAudioPlayers: [ObjectIdentifier: (node: SCNNode, player: SCNAudioPlayer)] = [:]
+	private var isAudioPaused = false
 
 	var objectives: [Int] = [] {
 		didSet {
@@ -721,6 +724,51 @@ final class Scene {
 		for script in allScripts where !pausedScriptIds.contains(ObjectIdentifier(script)) {
 			pausedScriptIds.insert(ObjectIdentifier(script))
 			script.setPaused(isPaused)
+		}
+	}
+
+	func playAudio(_ source: SCNAudioSource, on node: SCNNode, completion: (() -> Void)? = nil) {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.playAudio(source, on: node, completion: completion)
+			}
+			return
+		}
+
+		let player = SCNAudioPlayer(source: source)
+		let playerId = ObjectIdentifier(player)
+		player.didFinishPlayback = { [weak self] in
+			DispatchQueue.main.async {
+				guard let self = self,
+					  let activePlayer = self.activeAudioPlayers.removeValue(forKey: playerId) else { return }
+				activePlayer.player.didFinishPlayback = nil
+				activePlayer.node.removeAudioPlayer(activePlayer.player)
+				completion?()
+			}
+		}
+		activeAudioPlayers[playerId] = (node, player)
+		node.addAudioPlayer(player)
+		if isAudioPaused, let audioPlayerNode = player.audioNode as? AVAudioPlayerNode {
+			audioPlayerNode.pause()
+		}
+	}
+
+	func setAudioPaused(_ isPaused: Bool) {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.setAudioPaused(isPaused)
+			}
+			return
+		}
+
+		isAudioPaused = isPaused
+		for (_, player) in activeAudioPlayers.values {
+			guard let audioPlayerNode = player.audioNode as? AVAudioPlayerNode else { continue }
+			if isPaused {
+				audioPlayerNode.pause()
+			} else if !audioPlayerNode.isPlaying {
+				audioPlayerNode.play()
+			}
 		}
 	}
 

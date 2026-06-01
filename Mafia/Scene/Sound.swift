@@ -33,8 +33,6 @@ final class Sound {
 
 		let url = mainDirectory.appendingPathComponent("sounds/" + sound.lowercased())
 		audioSource = SCNAudioSource(url: url)!
-		audioSource.loops = false
-		audioSource.load()
 		//scene.sounds[objectNode] = source
 		//objectNode.runAction(SCNAction.playAudio(source, waitForCompletion: true), forKey: "sound")
 
@@ -43,8 +41,11 @@ final class Sound {
 
 		let _: UInt16 = try stream.read()		// const 0x4062
 		let _: UInt32 = try stream.read()		// always 10?
-		let _: Float = try stream.read()		// 0 - 1 (volume?)
-//		audioSource.volume = param4
+		let volume: Float = try stream.read()		// 0 - 1
+		audioSource.loops = false
+		audioSource.isPositional = sourceType != .global
+		audioSource.volume = volume
+		audioSource.load()
 
 		let _: UInt16 = try stream.read()		// const 0x4063
 		let _: UInt32 = try stream.read()		// always 10?
@@ -80,9 +81,9 @@ final class Sound {
 
 	func play() {
 		if sourceType == .global {
-			scene.playerNode!.runAction(SCNAction.playAudio(audioSource, waitForCompletion: true))
+			scene.playAudio(audioSource, on: scene.rootNode)
 		} else {
-			node.runAction(SCNAction.playAudio(audioSource, waitForCompletion: true))
+			scene.playAudio(audioSource, on: node)
 		}
 	}
 

@@ -741,6 +741,10 @@ final class Game: NSObject {
 		if pauseStateChanged {
 			isGamePaused = isPaused
 			scnScene.isPaused = isPaused
+			scene.setAudioPaused(isPaused)
+			if isPaused {
+				playPauseMenuOpenSound()
+			}
 			scene.setScriptsPaused(isPaused)
 			lastUpdateTime = nil
 		}
@@ -751,6 +755,23 @@ final class Game: NSObject {
 			playerController?.stop()
 			vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 		}
+	}
+
+	private func playPauseMenuOpenSound() {
+		let url = mainDirectory.appendingPathComponent("sounds/menuopen.wav")
+		guard let source = SCNAudioSource(url: url) else { return }
+		source.isPositional = false
+		source.load()
+
+		let player = SCNAudioPlayer(source: source)
+		player.didFinishPlayback = { [weak self, weak player] in
+			DispatchQueue.main.async {
+				if let player = player {
+					self?.scene.rootNode.removeAudioPlayer(player)
+				}
+			}
+		}
+		scene.rootNode.addAudioPlayer(player)
 	}
 
 }
@@ -1500,7 +1521,7 @@ extension Game {
 			weaponAudioSources[normalizedName] = loadedSource
 			source = loadedSource
 		}
-		cameraNode.runAction(SCNAction.playAudio(source, waitForCompletion: false))
+		scene.playAudio(source, on: cameraNode)
 	}
 
 	private func playWeaponAnimation(profile: Weapon.Profile, action: String) {
@@ -1758,7 +1779,7 @@ extension Game {
 		let url = mainDirectory.appendingPathComponent("sounds/" + normalizedName)
 		guard let source = SCNAudioSource(url: url) else { return }
 		source.load()
-		node.runAction(SCNAction.playAudio(source, waitForCompletion: false))
+		scene.playAudio(source, on: node)
 	}
 
 	func openInventory() {

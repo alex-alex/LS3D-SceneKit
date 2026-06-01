@@ -503,12 +503,12 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let soundId = args[1].getString()
 
-		let targetNode = node(forScriptId: actorId) ?? scene.playerNode ?? scene.rootNode
 		if let url = mafiaResourceURL(directory: "sounds", name: "\(soundId).wav"),
 		   let source = SCNAudioSource(url: url) {
+			source.isPositional = false
 			source.load()
 			DispatchQueue.main.async {
-				targetNode.runAction(SCNAction.playAudio(source, waitForCompletion: true)) {
+				self.scene.playAudio(source, on: self.scene.rootNode) {
 					self.next()
 				}
 			}
