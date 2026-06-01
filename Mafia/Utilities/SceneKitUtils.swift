@@ -122,6 +122,7 @@ func mafiaMapURL(named name: String) -> URL? {
 private var nodeTypeKey: UInt8 = 0
 private var followsCameraKey: UInt8 = 0
 private var doorDataKey: UInt8 = 0
+private var actionsEnabledKey: UInt8 = 0
 
 final class DoorData {
 	let open1: UInt8
@@ -209,6 +210,29 @@ extension SCNNode {
 				objc_setAssociatedObject(self, &doorDataKey, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
+	}
+
+	var actionsEnabled: Bool {
+		get {
+			let value: NSNumber = associatedObject(self, key: &actionsEnabledKey) {
+				return NSNumber(value: true)
+			}
+			return value.boolValue
+		}
+		set {
+			associateObject(self, key: &actionsEnabledKey, value: NSNumber(value: newValue))
+		}
+	}
+
+	var actionsEnabledInHierarchy: Bool {
+		var current: SCNNode? = self
+		while let node = current {
+			if !node.actionsEnabled {
+				return false
+			}
+			current = node.parent
+		}
+		return true
 	}
 
 	func distance(to node: SCNNode) -> Float {

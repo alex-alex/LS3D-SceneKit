@@ -132,9 +132,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let state = args[1].getString().lowercased()
 		if let target = node(forScriptId: actorId) {
-			let isActive = state != "inactive"
-			target.isHidden = !isActive
-			target.isPaused = !isActive
+			target.actionsEnabled = state != "inactive"
 		}
 		next()
 	}

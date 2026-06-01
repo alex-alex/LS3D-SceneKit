@@ -45,4 +45,8 @@ enum Action {
 			return "Enter car"
 		}
 	}
+
+	var isEnabled: Bool {
+		return node.actionsEnabledInHierarchy
+	}
 }

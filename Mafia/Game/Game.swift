@@ -637,7 +637,8 @@ final class Game: NSObject {
 			actions.append(enterAction)
 		}
 		let hasNearbyAction = actions.contains { action in
-			action.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared
+			action.isEnabled &&
+				action.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared
 		}
 		setActionButtonVisible(hasNearbyAction)
 	}
@@ -1711,7 +1712,7 @@ extension Game {
 			actions.append(enterAction)
 		}
 		return actions
-			.filter { $0.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared }
+			.filter { $0.isEnabled && $0.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared }
 			.min { $0.node.actionSquaredDistance(to: playerPosition) < $1.node.actionSquaredDistance(to: playerPosition) }
 	}
 
