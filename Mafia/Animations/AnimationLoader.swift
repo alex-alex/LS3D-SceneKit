@@ -106,6 +106,8 @@ func readPositions(stream: InputStream) throws -> [Int: SCNVector3] {
 }
 
 class Animation {
+	private static let frameDuration: TimeInterval = 1.0 / 25.0
+
 	let name: String
 	let timerMax: Int
 	let rotations: [Int: SCNQuaternion]
@@ -128,27 +130,131 @@ class Animation {
 	}
 
 	var action: SCNAction {
-		var actions: [SCNAction] = []
-		for t in 0 ... timerMax {
-			actions.append(SCNAction.sequence([
-				SCNAction.run { node in
-//					SCNTransaction.begin()
-//					SCNTransaction.animationDuration = 0.04
-					if let position = self.positions[t] {
-						node.position = position
-					}
-					if let scale = self.scales[t] {
-						node.scale = scale
-					}
-					if let rotation = self.rotations[t] {
-						node.orientation = rotation
-					}
-//					SCNTransaction.commit()
-				},
-				SCNAction.wait(duration: 0.04)
-			]))
+		let positionKeys = positions.keys.sorted()
+		let scaleKeys = scales.keys.sorted()
+		let rotationKeys = rotations.keys.sorted()
+		let duration = TimeInterval(timerMax) * Animation.frameDuration
+
+		guard duration > 0 else {
+			return SCNAction.run { node in
+				if let position = self.positions[0] {
+					node.position = position
+				}
+				if let scale = self.scales[0] {
+					node.scale = scale
+				}
+				if let rotation = self.rotations[0] {
+					node.orientation = rotation
+				}
+			}
 		}
-		return SCNAction.sequence(actions)
+
+		return SCNAction.customAction(duration: duration) { node, elapsedTime in
+			let tick = CGFloat(elapsedTime / CGFloat(Animation.frameDuration))
+			if let position = Animation.interpolatedVector(keys: positionKeys, values: self.positions, at: tick) {
+				node.position = position
+			}
+			if let scale = Animation.interpolatedVector(keys: scaleKeys, values: self.scales, at: tick) {
+				node.scale = scale
+			}
+			if let rotation = Animation.interpolatedQuaternion(keys: rotationKeys, values: self.rotations, at: tick) {
+				node.orientation = rotation
+			}
+		}
+	}
+
+	private static func interpolatedVector(keys: [Int], values: [Int: SCNVector3], at tick: CGFloat) -> SCNVector3? {
+		guard let firstKey = keys.first else { return nil }
+		guard tick >= CGFloat(firstKey) else { return nil }
+
+		var previousKey = firstKey
+		for key in keys.dropFirst() {
+			guard tick > CGFloat(key) else {
+				guard let previousValue = values[previousKey],
+					  let nextValue = values[key] else { return values[key] }
+				let t = CGFloat(key == previousKey ? 1 : (tick - CGFloat(previousKey)) / CGFloat(key - previousKey))
+				return lerp(previousValue, nextValue, t)
+			}
+			previousKey = key
+		}
+
+		return values[previousKey]
+	}
+
+	private static func interpolatedQuaternion(keys: [Int], values: [Int: SCNQuaternion], at tick: CGFloat) -> SCNQuaternion? {
+		guard let firstKey = keys.first else { return nil }
+		guard tick >= CGFloat(firstKey) else { return nil }
+
+		var previousKey = firstKey
+		for key in keys.dropFirst() {
+			guard tick > CGFloat(key) else {
+				guard let previousValue = values[previousKey],
+					  let nextValue = values[key] else { return values[key] }
+				let t = CGFloat(key == previousKey ? 1 : (tick - CGFloat(previousKey)) / CGFloat(key - previousKey))
+				return slerp(previousValue, nextValue, t)
+			}
+			previousKey = key
+		}
+
+		return values[previousKey]
+	}
+
+	private static func lerp(_ start: SCNVector3, _ end: SCNVector3, _ t: CGFloat) -> SCNVector3 {
+		let amount = SCNFloat(max(0, min(1, t)))
+		return SCNVector3(
+			x: start.x + (end.x - start.x) * amount,
+			y: start.y + (end.y - start.y) * amount,
+			z: start.z + (end.z - start.z) * amount
+		)
+	}
+
+	private static func slerp(_ start: SCNQuaternion, _ end: SCNQuaternion, _ t: CGFloat) -> SCNQuaternion {
+		let amount = SCNFloat(max(0, min(1, t)))
+		var to = end
+		var cosine = start.x * to.x + start.y * to.y + start.z * to.z + start.w * to.w
+
+		if cosine < 0 {
+			cosine = -cosine
+			to = SCNQuaternion(x: -to.x, y: -to.y, z: -to.z, w: -to.w)
+		}
+
+		if cosine > 0.9995 {
+			return normalized(SCNQuaternion(
+				x: start.x + (to.x - start.x) * amount,
+				y: start.y + (to.y - start.y) * amount,
+				z: start.z + (to.z - start.z) * amount,
+				w: start.w + (to.w - start.w) * amount
+			))
+		}
+
+		let angle = acos(max(-1, min(1, cosine)))
+		let sinAngle = sin(angle)
+		guard abs(sinAngle) > 0.0001 else { return start }
+
+		let startScale = sin((1 - amount) * angle) / sinAngle
+		let endScale = sin(amount * angle) / sinAngle
+		return normalized(SCNQuaternion(
+			x: start.x * startScale + to.x * endScale,
+			y: start.y * startScale + to.y * endScale,
+			z: start.z * startScale + to.z * endScale,
+			w: start.w * startScale + to.w * endScale
+		))
+	}
+
+	private static func normalized(_ quaternion: SCNQuaternion) -> SCNQuaternion {
+		let length = sqrt(
+			quaternion.x * quaternion.x +
+			quaternion.y * quaternion.y +
+			quaternion.z * quaternion.z +
+			quaternion.w * quaternion.w
+		)
+		guard length > 0.0001 else { return SCNQuaternion(x: 0, y: 0, z: 0, w: 1) }
+		return SCNQuaternion(
+			x: quaternion.x / length,
+			y: quaternion.y / length,
+			z: quaternion.z / length,
+			w: quaternion.w / length
+		)
 	}
 }
 
