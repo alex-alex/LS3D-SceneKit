@@ -30,6 +30,10 @@ final class PlayerController {
 	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
 	private var currentWalkingAnimationName: String?
+	private var currentCrouchTransitionAnimationName: String?
+	private var crouchTransitionId = 0
+	private var isCrouchTransitionPlaying = false
+	private var walkingAnimationHoldCount = 0
 	private var footstepAudio = FootstepAudio()
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
@@ -122,6 +126,21 @@ final class PlayerController {
 		resetAngularVelocity()
 	}
 
+	func playActionAnimation(named animationName: String, animationKey: String) {
+		holdWalkingAnimation()
+		do {
+			try playAnimation(
+				named: animationName,
+				in: node,
+				animationKey: animationKey
+			) { [weak self] in
+				self?.releaseWalkingAnimationHold()
+			}
+		} catch {
+			releaseWalkingAnimationHold()
+		}
+	}
+
 	func teleport(to worldPosition: SCNVector3, yaw: SCNFloat) {
 		stop()
 		node.worldPosition = worldPosition
@@ -190,6 +209,12 @@ final class PlayerController {
 	}
 
 	private func updateWalkingAnimation(isMoving: Bool) {
+		guard !isWalkingAnimationHeld else {
+			stopCurrentWalkingAnimation()
+			isWalkingAnimationPlaying = false
+			return
+		}
+
 		let animationName = walkingAnimationName()
 		guard isMoving != isWalkingAnimationPlaying || currentWalkingAnimationName != animationName else { return }
 
@@ -207,11 +232,6 @@ final class PlayerController {
 		currentWalkingAnimationName = isMoving ? animationName : nil
 	}
 
-	private func refreshWalkingAnimation() {
-		guard isWalkingAnimationPlaying else { return }
-		updateWalkingAnimation(isMoving: true)
-	}
-
 	private var requestedCrouchingValue: Bool {
 		stateLock.lock()
 		defer { stateLock.unlock() }
@@ -223,14 +243,52 @@ final class PlayerController {
 		guard shouldCrouch != isCrouching else { return }
 
 		isCrouching = shouldCrouch
+		stopCurrentWalkingAnimation()
 		if isCrouching {
 			wantsJump = false
-			try? playAnimation(named: crouchDownAnimationName, in: node, animationKey: crouchAnimationKey)
+			playCrouchTransition(named: crouchDownAnimationName)
 		} else {
-			try? playAnimation(named: crouchUpAnimationName, in: node, animationKey: crouchAnimationKey)
+			playCrouchTransition(named: crouchUpAnimationName)
 		}
 		configurePhysics()
-		refreshWalkingAnimation()
+	}
+
+	private func playCrouchTransition(named animationName: String) {
+		stopCurrentCrouchTransitionAnimation()
+		crouchTransitionId += 1
+		let transitionId = crouchTransitionId
+		currentCrouchTransitionAnimationName = animationName
+		isCrouchTransitionPlaying = true
+
+		do {
+			try playAnimation(
+				named: animationName,
+				in: node,
+				animationKey: crouchAnimationKey
+			) { [weak self] in
+				guard let self = self,
+					  self.crouchTransitionId == transitionId else { return }
+
+				self.currentCrouchTransitionAnimationName = nil
+				self.isCrouchTransitionPlaying = false
+				let isMoving = self.movement.x * self.movement.x + self.movement.z * self.movement.z > 0.0001
+				self.updateWalkingAnimation(isMoving: isMoving)
+			}
+		} catch {
+			currentCrouchTransitionAnimationName = nil
+			isCrouchTransitionPlaying = false
+		}
+	}
+
+	private func stopCurrentCrouchTransitionAnimation() {
+		guard let animationName = currentCrouchTransitionAnimationName else { return }
+
+		try? stopAnimation(
+			named: animationName,
+			in: node,
+			animationKey: crouchAnimationKey
+		)
+		currentCrouchTransitionAnimationName = nil
 	}
 
 	private func stopCurrentWalkingAnimation() {
@@ -242,6 +300,24 @@ final class PlayerController {
 			animationKey: walkingAnimationKey
 		)
 		currentWalkingAnimationName = nil
+	}
+
+	private var isWalkingAnimationHeld: Bool {
+		return isCrouchTransitionPlaying || walkingAnimationHoldCount > 0
+	}
+
+	private func holdWalkingAnimation() {
+		walkingAnimationHoldCount += 1
+		stopCurrentWalkingAnimation()
+		isWalkingAnimationPlaying = false
+	}
+
+	private func releaseWalkingAnimationHold() {
+		walkingAnimationHoldCount = max(0, walkingAnimationHoldCount - 1)
+		guard !isWalkingAnimationHeld else { return }
+
+		let isMoving = movement.x * movement.x + movement.z * movement.z > 0.0001
+		updateWalkingAnimation(isMoving: isMoving)
 	}
 
 	private func walkingAnimationName() -> String? {

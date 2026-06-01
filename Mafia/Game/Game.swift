@@ -1431,7 +1431,7 @@ extension Game {
 
 	func playDodgeAnimation(direction: DodgeDirection) {
 		guard mode == .walk,
-			  let playerNode = scene.playerNode else { return }
+			  scene.playerNode != nil else { return }
 
 		let animationName: String
 		let animationId: Int
@@ -1445,7 +1445,7 @@ extension Game {
 		}
 
 		scene.noteActionAnimation(id: animationId)
-		try? playAnimation(named: animationName, in: playerNode, animationKey: "__dodge__")
+		playPlayerActionAnimation(named: animationName, animationKey: "__dodge__")
 	}
 
 	private func firePlayerWeapon() {
@@ -1590,18 +1590,18 @@ extension Game {
 	}
 
 	private func playBaseballBatWindupAnimation() {
-		guard let playerNode = scene.playerNode,
+		guard scene.playerNode != nil,
 			  let animationName = firstExistingAnimation(named: [
 				"anims/boj basb naprah hpt.5ds",
 				"anims/boj hpt basb rh.5ds",
 				"anims/boj hpt basb lh.5ds"
 			  ]) else { return }
 
-		try? playAnimation(named: animationName, in: playerNode, animationKey: "__bat_swing__")
+		playPlayerActionAnimation(named: animationName, animationKey: "__bat_swing__")
 	}
 
 	private func playBaseballBatHitAnimation() {
-		guard let playerNode = scene.playerNode else { return }
+		guard scene.playerNode != nil else { return }
 
 		let candidates = [
 			"anims/boj basb z rh.5ds",
@@ -1619,7 +1619,7 @@ extension Game {
 		guard let animationName = firstExistingAnimation(named: orderedCandidates) else { return }
 
 		batSwingAnimationIndex += 1
-		try? playAnimation(named: animationName, in: playerNode, animationKey: "__bat_swing__")
+		playPlayerActionAnimation(named: animationName, animationKey: "__bat_swing__")
 	}
 
 	private func shootFromCamera(profile: Weapon.Profile) {
@@ -1979,15 +1979,19 @@ extension Game {
 
 	private func playWeaponAnimation(profile: Weapon.Profile, action: String) {
 		guard profile.animationSetId > 0,
-			  let playerNode = scene.playerNode else { return }
+			  scene.playerNode != nil else { return }
 
 		let stance = playerController?.isPlayerCrouching == true ? "drep" : "stoj"
 		guard let animationName = weaponAnimationName(animationSetId: profile.animationSetId, stance: stance, action: action) else { return }
-		try? playAnimation(
-			named: animationName,
-			in: playerNode,
-			animationKey: "__weapon_\(action)__"
-		)
+		playPlayerActionAnimation(named: animationName, animationKey: "__weapon_\(action)__")
+	}
+
+	private func playPlayerActionAnimation(named animationName: String, animationKey: String) {
+		if let playerController = playerController {
+			playerController.playActionAnimation(named: animationName, animationKey: animationKey)
+		} else if let playerNode = scene.playerNode {
+			try? playAnimation(named: animationName, in: playerNode, animationKey: animationKey)
+		}
 	}
 
 	private func weaponAnimationName(animationSetId: Int, stance: String, action: String) -> String? {
