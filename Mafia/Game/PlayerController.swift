@@ -13,6 +13,7 @@ final class PlayerController {
 
 	private let node: SCNNode
 	private let scene: SCNScene
+	private let stateLock = NSLock()
 
 	private var movement = SCNVector3Zero
 	private var turn: SCNFloat = 0
@@ -24,6 +25,7 @@ final class PlayerController {
 	private var lookPitch: SCNFloat = 0
 	private var horizontalVelocity = SCNVector3Zero
 	private var verticalVelocity: SCNFloat = 0
+	private var requestedCrouching = false
 	private var standingY: SCNFloat
 	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
@@ -45,7 +47,7 @@ final class PlayerController {
 		return lookPitch
 	}
 	var isPlayerCrouching: Bool {
-		return isCrouching
+		return requestedCrouchingValue
 	}
 
 	private let walkSpeed: SCNFloat = 3.2
@@ -98,22 +100,14 @@ final class PlayerController {
 	}
 
 	func jump() {
-		guard !isCrouching else { return }
+		guard !requestedCrouchingValue else { return }
 		wantsJump = true
 	}
 
 	func setCrouching(_ value: Bool) {
-		guard value != isCrouching else { return }
-
-		isCrouching = value
-		if value {
-			wantsJump = false
-			try? playAnimation(named: crouchDownAnimationName, in: node, animationKey: crouchAnimationKey)
-		} else {
-			try? playAnimation(named: crouchUpAnimationName, in: node, animationKey: crouchAnimationKey)
-		}
-		configurePhysics()
-		refreshWalkingAnimation()
+		stateLock.lock()
+		defer { stateLock.unlock() }
+		requestedCrouching = value
 	}
 
 	func stop() {
@@ -144,6 +138,7 @@ final class PlayerController {
 	}
 
 	func update(deltaTime: TimeInterval) {
+		applyPendingCrouchChange()
 		guard let body = node.physicsBody else { return }
 
 		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
@@ -215,6 +210,27 @@ final class PlayerController {
 	private func refreshWalkingAnimation() {
 		guard isWalkingAnimationPlaying else { return }
 		updateWalkingAnimation(isMoving: true)
+	}
+
+	private var requestedCrouchingValue: Bool {
+		stateLock.lock()
+		defer { stateLock.unlock() }
+		return requestedCrouching
+	}
+
+	private func applyPendingCrouchChange() {
+		let shouldCrouch = requestedCrouchingValue
+		guard shouldCrouch != isCrouching else { return }
+
+		isCrouching = shouldCrouch
+		if isCrouching {
+			wantsJump = false
+			try? playAnimation(named: crouchDownAnimationName, in: node, animationKey: crouchAnimationKey)
+		} else {
+			try? playAnimation(named: crouchUpAnimationName, in: node, animationKey: crouchAnimationKey)
+		}
+		configurePhysics()
+		refreshWalkingAnimation()
 	}
 
 	private func stopCurrentWalkingAnimation() {

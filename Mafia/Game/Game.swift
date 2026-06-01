@@ -83,6 +83,8 @@ final class Game: NSObject {
 	private var lastUpdateTime: TimeInterval?
 	private let playerExitDistance: SCNFloat = 1.8
 	private let playerExitHeightOffset: SCNFloat = 0.5
+	private let walkCameraStandingHeight: SCNFloat = 1.35
+	private let walkCameraCrouchOffset: SCNFloat = 0.45
 	private var carCameraYaw: SCNFloat = 0
 	private var carCameraPitch: SCNFloat = 0
 	private var carCameraMouseIdleTime: TimeInterval = 0
@@ -318,7 +320,7 @@ final class Game: NSObject {
 			elevation = 0
 			resetCarCameraLook()
 		} else if mode == .walk {
-			cameraContainer.position = SCNVector3(x: 0, y: 1.35, z: 0)
+			cameraContainer.position = SCNVector3(x: 0, y: walkCameraStandingHeight, z: 0)
 			cameraContainer.eulerAngles = SCNVector3Zero
 			cameraNode.position = SCNVector3(x: 0, y: 1.25, z: -2.8)
 			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
@@ -332,6 +334,12 @@ final class Game: NSObject {
 		}
 
 		cameraContainer.eulerAngles.x = elevation
+	}
+
+	private func updateWalkCameraHeight(deltaTime: TimeInterval) {
+		let targetHeight = walkCameraStandingHeight - (playerController?.isPlayerCrouching == true ? walkCameraCrouchOffset : 0)
+		let blend = SCNFloat(min(1, max(0, deltaTime) * 12))
+		cameraContainer.position.y += (targetHeight - cameraContainer.position.y) * blend
 	}
 
 	func look(deltaX: SCNFloat, deltaY: SCNFloat) {
@@ -1080,6 +1088,7 @@ extension Game: SCNSceneRendererDelegate {
 
 		if mode == .walk {
 			playerController?.update(deltaTime: deltaTime)
+			updateWalkCameraHeight(deltaTime: deltaTime)
 			cameraContainer.eulerAngles = SCNVector3(
 				x: playerController?.cameraPitch ?? 0,
 				y: 0,
