@@ -49,6 +49,9 @@ struct XTOBB {
 			_node.physicsBody?.damping = 0.05
 			_node.physicsBody?.angularDamping = 0.15
 			_node.physicsBody?.allowsResting = true
+			_node.physicsBody?.categoryBitMask = PhysicsCategory.dynamicObject
+			_node.physicsBody?.collisionBitMask = PhysicsCategory.all
+			_node.physicsBody?.contactTestBitMask = PhysicsCategory.player
 		} else {
 //			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
 //			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])

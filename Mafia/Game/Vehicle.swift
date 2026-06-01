@@ -104,6 +104,9 @@ final class Vehicle {
 		taxiNode.physicsBody?.damping = 0.12
 		taxiNode.physicsBody?.angularDamping = 0.8
 		taxiNode.physicsBody?.centerOfMassOffset = SCNVector3(x: 0, y: centerOfMassYOffset, z: 0)
+		taxiNode.physicsBody?.categoryBitMask = PhysicsCategory.vehicle
+		taxiNode.physicsBody?.collisionBitMask = PhysicsCategory.all
+		taxiNode.physicsBody?.contactTestBitMask = PhysicsCategory.player
 
 		let wheel0 = SCNPhysicsVehicleWheel(node: whl0)
 		let wheel1 = SCNPhysicsVehicleWheel(node: whr0)

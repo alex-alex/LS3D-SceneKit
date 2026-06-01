@@ -16,6 +16,15 @@ import SpriteKit
 	typealias SCNFloat = Float
 #endif
 
+enum PhysicsCategory {
+	static let world = 1 << 0
+	static let player = 1 << 1
+	static let dynamicObject = 1 << 2
+	static let vehicle = 1 << 3
+	static let all = world | player | dynamicObject | vehicle
+	static let playerBlocking = world | dynamicObject | vehicle
+}
+
 func + (lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
 	return SCNVector3(x: lhs.x + rhs.x, y: lhs.y + rhs.y, z: lhs.z + rhs.z)
 }

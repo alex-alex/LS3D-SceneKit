@@ -828,6 +828,9 @@ final class Scene {
 		node.physicsBody?.damping = 0.05
 		node.physicsBody?.angularDamping = 0.15
 		node.physicsBody?.allowsResting = true
+		node.physicsBody?.categoryBitMask = PhysicsCategory.dynamicObject
+		node.physicsBody?.collisionBitMask = PhysicsCategory.all
+		node.physicsBody?.contactTestBitMask = PhysicsCategory.player
 	}
 
 	private func readDoorData(stream: InputStream) throws -> DoorData {
