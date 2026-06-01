@@ -190,6 +190,15 @@ final class Game: NSObject {
 		}
 		progressHandler?(0.85)
 
+		if let loadedMissionEffects = try? MissionEffects(name: "missions/"+missionName),
+		   let missionEffects = loadedMissionEffects {
+			missionEffects.node.name = "__effects__"
+			scnScene.rootNode.addChildNode(missionEffects.node)
+			print("== Loaded Mission Effects")
+		} else {
+			print("== Skipped Mission Effects")
+		}
+
 		let road: Road? = (try? Road(name: "missions/"+missionName)) ?? nil
 		trafficManager = TrafficManager(road: road, trafficSettings: scene.trafficSettings, scene: scnScene)
 		if road != nil {

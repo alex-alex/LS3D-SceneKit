@@ -10,6 +10,8 @@
 		FA0A0D771D5FB07A00878046 /* ImageUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D761D5FB07A00878046 /* ImageUtils.swift */; };
 		FA0A0D791D5FB08A00878046 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D781D5FB08A00878046 /* Models.swift */; };
 		FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45571D610BB500B7C721 /* SceneCache.swift */; };
+		FA0D455A1D610BB500B7C721 /* MissionEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45591D610BB500B7C721 /* MissionEffects.swift */; };
+		FA0D455B1D610BB500B7C721 /* MissionEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45591D610BB500B7C721 /* MissionEffects.swift */; };
 		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
 		FA2FE8B9200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
 		FA2FE8BA200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
@@ -119,6 +121,7 @@
 		FA0A0D761D5FB07A00878046 /* ImageUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ImageUtils.swift; sourceTree = "<group>"; };
 		FA0A0D781D5FB08A00878046 /* Models.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		FA0D45571D610BB500B7C721 /* SceneCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneCache.swift; sourceTree = "<group>"; };
+		FA0D45591D610BB500B7C721 /* MissionEffects.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MissionEffects.swift; sourceTree = "<group>"; };
 		FA177F8C1E3534B2009FA6D7 /* Script.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Script.swift; sourceTree = "<group>"; };
 		FA2FE8B8200FD1650057A80E /* Aurora.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Aurora.ttf; sourceTree = "<group>"; };
 		FA2FE8BC200FE4610057A80E /* GameManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameManager.swift; sourceTree = "<group>"; };
@@ -360,6 +363,7 @@
 				FA4B74142006427E00E0A66F /* Record.swift */,
 				FA7E390F20013DCC00C86A72 /* Sound.swift */,
 				FA0D45571D610BB500B7C721 /* SceneCache.swift */,
+				FA0D45591D610BB500B7C721 /* MissionEffects.swift */,
 				FABBB1A11D621E49006A39F8 /* TextDb.swift */,
 			);
 			path = Scene;
@@ -570,6 +574,7 @@
 				FA9C95F92002A544005FBB66 /* Weapon.swift in Sources */,
 				FA0A0D791D5FB08A00878046 /* Models.swift in Sources */,
 				FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */,
+				FA0D455A1D610BB500B7C721 /* MissionEffects.swift in Sources */,
 				FAFE4FAC1D75E95A00BB2FB0 /* Collisions.swift in Sources */,
 				FA37F0A7204C8C8F001FF8A7 /* CMAccelerationUtils.swift in Sources */,
 				FA37F0B9204C92BA001FF8A7 /* CollisionXTOBB.swift in Sources */,
@@ -617,6 +622,7 @@
 				FA9C95FA2002A545005FBB66 /* Weapon.swift in Sources */,
 				FA37F0A6204C8B68001FF8A7 /* ModelObject.swift in Sources */,
 				FA6DAAF91D67709C002017DE /* SceneCache.swift in Sources */,
+				FA0D455B1D610BB500B7C721 /* MissionEffects.swift in Sources */,
 				FA7E391120013DCC00C86A72 /* Sound.swift in Sources */,
 				FA50107D20018F2D00B24CE6 /* Collisions.swift in Sources */,
 				FA4B74162006428200E0A66F /* Record.swift in Sources */,
