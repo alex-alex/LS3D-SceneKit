@@ -684,7 +684,6 @@ final class Game: NSObject {
 		activeSteal = nil
 		hud?.updateVehicleStealProgress(1, isVisible: false)
 		vehicle = steal.vehicle
-		mode = .car
 		hud?.showConsoleText("Car stolen")
 	}
 
