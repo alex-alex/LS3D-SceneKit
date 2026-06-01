@@ -78,10 +78,12 @@ public extension InputStream {
 
 	func read(maxLength: Int, encoding: String.Encoding = .utf8) throws -> String {
 		var bytes: [UInt8] = try read(maxLength: maxLength)
-		if bytes.last != 0 {
-			bytes.append(0)
+		if let terminatorIndex = bytes.firstIndex(of: 0) {
+			bytes.removeSubrange(terminatorIndex...)
 		}
+		if bytes.isEmpty { return "" }
 		if encoding == .utf8 {
+			bytes.append(0)
 			return String(cString: bytes.map({ Int8(bitPattern: $0) }))
 		} else {
 			let data = Data(bytes: bytes)
