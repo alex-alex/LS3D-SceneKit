@@ -25,6 +25,50 @@ enum PhysicsCategory {
 	static let playerBlocking = world | dynamicObject | vehicle
 }
 
+extension SCNPhysicsBody {
+	func configureAsWorldCollider() {
+		categoryBitMask = PhysicsCategory.world
+		collisionBitMask = PhysicsCategory.all
+		contactTestBitMask = PhysicsCategory.player
+	}
+
+	func configureAsDynamicObjectCollider() {
+		categoryBitMask = PhysicsCategory.dynamicObject
+		collisionBitMask = PhysicsCategory.all
+		contactTestBitMask = PhysicsCategory.player
+	}
+
+	func configureAsVehicleCollider() {
+		categoryBitMask = PhysicsCategory.vehicle
+		collisionBitMask = PhysicsCategory.all
+		contactTestBitMask = PhysicsCategory.player
+	}
+}
+
+extension SCNNode {
+	func convexHullPhysicsShapeFromGeometryHierarchy() -> SCNPhysicsShape? {
+		var shapes: [SCNPhysicsShape] = []
+		var transforms: [NSValue] = []
+
+		collectConvexHullPhysicsShapes(relativeTo: self, shapes: &shapes, transforms: &transforms)
+		guard !shapes.isEmpty else { return nil }
+		return SCNPhysicsShape(shapes: shapes, transforms: transforms)
+	}
+
+	private func collectConvexHullPhysicsShapes(relativeTo rootNode: SCNNode, shapes: inout [SCNPhysicsShape], transforms: inout [NSValue]) {
+		if let geometry = geometry {
+			shapes.append(SCNPhysicsShape(geometry: geometry, options: [
+				.type: SCNPhysicsShape.ShapeType.convexHull.rawValue
+			]))
+			transforms.append(NSValue(scnMatrix4: convertTransform(SCNMatrix4Identity, to: rootNode)))
+		}
+
+		for child in mafiaChildNodes {
+			child.collectConvexHullPhysicsShapes(relativeTo: rootNode, shapes: &shapes, transforms: &transforms)
+		}
+	}
+}
+
 func + (lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
 	return SCNVector3(x: lhs.x + rhs.x, y: lhs.y + rhs.y, z: lhs.z + rhs.z)
 }

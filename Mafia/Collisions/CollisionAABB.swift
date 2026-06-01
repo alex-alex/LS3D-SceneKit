@@ -39,6 +39,7 @@ struct AABB {
 			CGFloat(min.z+(max.z-min.z)/2)
 		)
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
+		node.physicsBody?.configureAsWorldCollider()
 		return node
 	}
 }

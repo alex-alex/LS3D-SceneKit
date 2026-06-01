@@ -29,6 +29,7 @@ struct Sphere {
 //		node.geometry = sphere
 		node.position = position
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: sphere, options: nil))
+		node.physicsBody?.configureAsWorldCollider()
 		return node
 	}
 }

@@ -439,12 +439,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		if actors[actorId] != nil {
-			if scene.pressedJump {
-				vars[varId] = 98
-				scene.pressedJump = false
-			} else {
-				vars[varId] = Float(scene.currentActionAnimationId())
-			}
+			vars[varId] = Float(scene.currentActionAnimationId())
 		}
 		next()
 	}

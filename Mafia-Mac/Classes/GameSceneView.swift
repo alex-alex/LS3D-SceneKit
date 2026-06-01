@@ -68,4 +68,9 @@ final class GameSceneView: SCNView {
 		mouseDownHandler?(event)
 	}
 
+	override func flagsChanged(with event: NSEvent) {
+		overlaySKScene?.flagsChanged(with: event)
+		super.flagsChanged(with: event)
+	}
+
 }

@@ -276,6 +276,7 @@ final class Collisions {
 				node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: geometry, options: [
 					.type: SCNPhysicsShape.ShapeType.concavePolyhedron.rawValue
 				]))
+				node.physicsBody?.configureAsWorldCollider()
 				facesNode.addChildNode(node)
 			}
 		}

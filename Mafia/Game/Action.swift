@@ -15,6 +15,7 @@ enum Action {
 	case door(SCNNode)
 	case vehicleSteal(Vehicle)
 	case vehicleEnter(Vehicle)
+	case vehicleExit(Vehicle)
 
 	var node: SCNNode {
 		switch self {
@@ -27,6 +28,8 @@ enum Action {
 		case .vehicleSteal(let vehicle):
 			return vehicle.node
 		case .vehicleEnter(let vehicle):
+			return vehicle.node
+		case .vehicleExit(let vehicle):
 			return vehicle.node
 		}
 	}
@@ -43,6 +46,8 @@ enum Action {
 			return "Steal car"
 		case .vehicleEnter:
 			return "Enter car"
+		case .vehicleExit:
+			return "Get out"
 		}
 	}
 

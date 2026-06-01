@@ -21,8 +21,7 @@ final class HudScene: SKScene {
 	var reloadButton: SKShapeNode!
 	var dropButton: SKShapeNode!
 	var jumpButton: SKShapeNode!
-	var carButton: SKShapeNode!
-	var objectivesLabel: SKLabelNode!
+	var objectivesNode: SKNode!
 	var consoleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
@@ -49,6 +48,7 @@ final class HudScene: SKScene {
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
 	private let objectivesActionKey = "objectivesMessage"
+	private let objectiveLineSpacing: CGFloat = 24
 	private var showsTouchControls: Bool {
 		#if os(iOS)
 			return true
@@ -78,6 +78,8 @@ final class HudScene: SKScene {
 	private var walkingLeft = false
 	private var walkingRight = false
 	private var crouching = false
+	private var lastCrouchSidestepTapDirection = 0
+	private var lastCrouchSidestepTapTime: TimeInterval = 0
 	private var freeCameraForward = false
 	private var freeCameraBackward = false
 	private var freeCameraLeft = false
@@ -125,15 +127,8 @@ final class HudScene: SKScene {
 
 		renderButtons()
 
-		objectivesLabel = SKLabelNode()
-		objectivesLabel.fontName = "Arial"
-		objectivesLabel.fontSize = 17
-		objectivesLabel.fontColor = SKColor.white
-		objectivesLabel.horizontalAlignmentMode = .center
-		objectivesLabel.verticalAlignmentMode = .center
-		objectivesLabel.numberOfLines = 0
-		objectivesLabel.preferredMaxLayoutWidth = max(300, size.width - 160)
-		addChild(objectivesLabel)
+		objectivesNode = SKNode()
+		addChild(objectivesNode)
 
 		consoleLabel = SKLabelNode()
 		consoleLabel.fontName = "Arial"
@@ -191,7 +186,7 @@ final class HudScene: SKScene {
 	private func layoutHud() {
 		guard compass != nil,
 				  actionButton != nil,
-				  objectivesLabel != nil,
+				  objectivesNode != nil,
 				  consoleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
@@ -205,8 +200,7 @@ final class HudScene: SKScene {
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 104)
-		objectivesLabel.position = CGPoint(x: size.width/2, y: size.height/2)
-		objectivesLabel.preferredMaxLayoutWidth = max(300, size.width - 160)
+		objectivesNode.position = CGPoint(x: size.width/2, y: size.height/2)
 		consoleLabel.position = CGPoint(x: 24, y: size.height-24)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
@@ -301,14 +295,28 @@ final class HudScene: SKScene {
 	}
 
 	func updateObjectives(_ objectives: [Int]) {
-		objectivesLabel.removeAction(forKey: objectivesActionKey)
-		objectivesLabel.text = objectives.compactMap { TextDb.get($0).map(remappedControlText) }.joined(separator: "\n")
-		let hasObjectives = !objectives.isEmpty
-		objectivesLabel.isHidden = !hasObjectives
-		objectivesLabel.alpha = hasObjectives ? 1 : 0
+		objectivesNode.removeAction(forKey: objectivesActionKey)
+		objectivesNode.removeAllChildren()
+		let texts = objectives.compactMap { TextDb.get($0).map(remappedControlText) }
+		let hasObjectives = !texts.isEmpty
+		objectivesNode.isHidden = !hasObjectives
+		objectivesNode.alpha = hasObjectives ? 1 : 0
 		guard hasObjectives else { return }
 
-		objectivesLabel.run(
+		let startY = CGFloat(texts.count - 1) * objectiveLineSpacing / 2
+		for (index, text) in texts.enumerated() {
+			let label = SKLabelNode()
+			label.fontName = "Arial"
+			label.fontSize = 17
+			label.fontColor = SKColor.white
+			label.horizontalAlignmentMode = .center
+			label.verticalAlignmentMode = .center
+			label.text = text
+			label.position = CGPoint(x: 0, y: startY - CGFloat(index) * objectiveLineSpacing)
+			objectivesNode.addChild(label)
+		}
+
+		objectivesNode.run(
 			SKAction.sequence([
 				SKAction.wait(forDuration: 7),
 				SKAction.fadeOut(withDuration: 0.35),
@@ -826,20 +834,6 @@ extension HudScene {
 		jumpButtonLabel.verticalAlignmentMode = .center
 		jumpButton.addChild(jumpButtonLabel)
 
-		carButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		carButton.isHidden = !isVisible || game.vehicle == nil
-		carButton.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
-		carButton.fillColor = SKColor.white
-		carButton.strokeColor = SKColor.clear
-		addChild(carButton)
-
-		let carButtonLabel = SKLabelNode()
-		carButtonLabel.fontName = "Arial"
-		carButtonLabel.fontSize = 17
-		carButtonLabel.fontColor = SKColor.black
-		carButtonLabel.text = "Car"
-		carButtonLabel.verticalAlignmentMode = .center
-		carButton.addChild(carButtonLabel)
 	}
 
 	private func layoutTouchButtons() {
@@ -847,18 +841,14 @@ extension HudScene {
 		reloadButton?.position = CGPoint(x: size.width-45, y: size.height-45-60)
 		dropButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
 		jumpButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
-		carButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
 
 		guard showsTouchControls else {
 			inventoryButton?.isHidden = true
 			reloadButton?.isHidden = true
 			dropButton?.isHidden = true
 			jumpButton?.isHidden = true
-			carButton?.isHidden = true
 			return
 		}
-
-		carButton?.isHidden = game.vehicle == nil
 	}
 
 	func handlesTouchControl(at point: CGPoint) -> Bool {
@@ -881,8 +871,7 @@ extension HudScene {
 			inventoryButton,
 			reloadButton,
 			dropButton,
-			jumpButton,
-			carButton
+			jumpButton
 		]
 
 		return controls.contains { control in
@@ -936,16 +925,6 @@ extension HudScene {
 				game.lastControl = .JUMP
 				game.playerController?.jump()
 				game.scene.pressedJump = true
-			case carButton, carButton.children[0]:
-				game.lastControl = .ACTION
-				guard game.vehicle != nil else { break }
-				if game.mode == .walk {
-					if game.canEnterCurrentVehicle() {
-						game.mode = .car
-					}
-				} else {
-					game.mode = .walk
-				}
 			default:
 				break
 			}
@@ -1054,17 +1033,6 @@ extension HudScene {
 				game.scene.pressedJump = true
 			}
 
-		case 14: // E
-			clearWalkingControls()
-			guard game.vehicle != nil else { break }
-			if game.mode == .walk {
-				if game.canEnterCurrentVehicle() {
-					game.mode = .car
-				}
-			} else {
-				game.mode = .walk
-			}
-
 		case 3: // F
 			guard let action = game.nearestAction() else { break }
 			game.pressControl(.ACTION)
@@ -1073,9 +1041,7 @@ extension HudScene {
 		case 0, 123: // A, left
 			if game.mode == .walk, game.scene.playerNode != nil {
 				walkingLeft = true
-				if crouching {
-					game.playDodgeAnimation(direction: .left)
-				}
+				registerCrouchSidestepTap(direction: -1)
 				updateWalkingControls()
 			} else if game.mode == .walk {
 				game.cameraNode.eulerAngles.y += 0.25
@@ -1084,9 +1050,7 @@ extension HudScene {
 		case 2, 124: // D, right
 			if game.mode == .walk, game.scene.playerNode != nil {
 				walkingRight = true
-				if crouching {
-					game.playDodgeAnimation(direction: .right)
-				}
+				registerCrouchSidestepTap(direction: 1)
 				updateWalkingControls()
 			} else if game.mode == .walk {
 				game.cameraNode.eulerAngles.y -= 0.25
@@ -1334,6 +1298,7 @@ extension HudScene {
 		walkingBackward = false
 		walkingLeft = false
 		walkingRight = false
+		resetCrouchSidestepTap()
 		setCrouching(false)
 		game.playerController?.stop()
 	}
@@ -1347,7 +1312,9 @@ extension HudScene {
 			return
 		}
 
-		setCrouching(event.modifierFlags.contains(.control))
+		setCrouching(event.modifierFlags
+			.intersection(.deviceIndependentFlagsMask)
+			.contains(.control))
 	}
 
 	private func setCrouching(_ isCrouching: Bool) {
@@ -1355,13 +1322,29 @@ extension HudScene {
 
 		crouching = isCrouching
 		game.setPlayerCrouching(isCrouching)
-		guard isCrouching else { return }
+		resetCrouchSidestepTap()
+	}
 
-		if walkingLeft {
-			game.playDodgeAnimation(direction: .left)
-		} else if walkingRight {
-			game.playDodgeAnimation(direction: .right)
+	private func registerCrouchSidestepTap(direction: Int) {
+		guard crouching else {
+			resetCrouchSidestepTap()
+			return
 		}
+
+		let now = Date.timeIntervalSinceReferenceDate
+		let isDoubleTap = direction == lastCrouchSidestepTapDirection && now - lastCrouchSidestepTapTime <= 0.32
+		lastCrouchSidestepTapDirection = direction
+		lastCrouchSidestepTapTime = now
+
+		guard isDoubleTap else { return }
+
+		resetCrouchSidestepTap()
+		game.playDodgeAnimation(direction: direction < 0 ? .left : .right)
+	}
+
+	private func resetCrouchSidestepTap() {
+		lastCrouchSidestepTapDirection = 0
+		lastCrouchSidestepTapTime = 0
 	}
 
 	private func updateFreeCameraControls() {

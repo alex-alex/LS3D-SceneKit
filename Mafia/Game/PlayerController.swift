@@ -27,6 +27,7 @@ final class PlayerController {
 	private var standingY: SCNFloat
 	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
+	private var currentWalkingAnimationName: String?
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
 	private(set) var lastDesiredVelocity = SCNVector3Zero
@@ -54,7 +55,12 @@ final class PlayerController {
 	private let jumpSpeed: SCNFloat = 5.2
 	private let minLookPitch: SCNFloat = -0.65
 	private let maxLookPitch: SCNFloat = 0.45
-	private let walkingAnimationName = "anims/walk1.5ds"
+	private let standingWalkingAnimationName = "anims/walk1.5ds"
+	private let crouchWalkingAnimationCandidates = [
+		"anims/x panika drep chuze.5ds",
+		"anims/x panika drep krok.5ds",
+		"anims/walk drep.5ds"
+	]
 	private let walkingAnimationKey = "__walking__"
 	private let crouchDownAnimationName = "anims/x panika drep dolu.5ds"
 	private let crouchUpAnimationName = "anims/x panika drep nahoru.5ds"
@@ -106,6 +112,7 @@ final class PlayerController {
 			try? playAnimation(named: crouchUpAnimationName, in: node, animationKey: crouchAnimationKey)
 		}
 		configurePhysics()
+		refreshWalkingAnimation()
 	}
 
 	func stop() {
@@ -177,27 +184,51 @@ final class PlayerController {
 	}
 
 	private func updateWalkingAnimation(isMoving: Bool) {
-		guard isMoving != isWalkingAnimationPlaying else { return }
+		let animationName = walkingAnimationName()
+		guard isMoving != isWalkingAnimationPlaying || currentWalkingAnimationName != animationName else { return }
+
+		stopCurrentWalkingAnimation()
 
 		isWalkingAnimationPlaying = isMoving
-		if isMoving {
+		if isMoving, let animationName = animationName {
 			try? playAnimation(
-				named: walkingAnimationName,
+				named: animationName,
 				in: node,
 				repeat: true,
 				animationKey: walkingAnimationKey
 			)
-		} else {
-			try? stopAnimation(
-				named: walkingAnimationName,
-				in: node,
-				animationKey: walkingAnimationKey
-			)
 		}
+		currentWalkingAnimationName = isMoving ? animationName : nil
+	}
+
+	private func refreshWalkingAnimation() {
+		guard isWalkingAnimationPlaying else { return }
+		updateWalkingAnimation(isMoving: true)
+	}
+
+	private func stopCurrentWalkingAnimation() {
+		guard let animationName = currentWalkingAnimationName else { return }
+
+		try? stopAnimation(
+			named: animationName,
+			in: node,
+			animationKey: walkingAnimationKey
+		)
+		currentWalkingAnimationName = nil
+	}
+
+	private func walkingAnimationName() -> String? {
+		guard isCrouching else { return standingWalkingAnimationName }
+		return crouchWalkingAnimationCandidates.first { animationExists(named: $0) }
 	}
 
 	private var currentMoveSpeed: SCNFloat {
 		return isCrouching ? crouchSpeed : walkSpeed
+	}
+
+	private func animationExists(named animationName: String) -> Bool {
+		let url = mainDirectory.appendingPathComponent(animationName.lowercased())
+		return FileManager.default.fileExists(atPath: url.path)
 	}
 
 	private func horizontalMovementBasis() -> (forward: SCNVector3, right: SCNVector3) {
@@ -262,6 +293,7 @@ final class PlayerController {
 	private func isBlockedHorizontally() -> Bool {
 		guard let body = node.physicsBody else { return false }
 
+		scene.physicsWorld.updateCollisionPairs()
 		return scene.physicsWorld.contactTest(with: body, options: [
 			SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking
 		]).contains { contact in

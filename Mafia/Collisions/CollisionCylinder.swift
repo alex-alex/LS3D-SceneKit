@@ -31,6 +31,7 @@ struct Cylinder {
 //		node.geometry = cylinder
 		node.position = SCNVector3(position.x, 0, position.y)
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: cylinder, options: nil))
+		node.physicsBody?.configureAsWorldCollider()
 		return node
 	}
 }

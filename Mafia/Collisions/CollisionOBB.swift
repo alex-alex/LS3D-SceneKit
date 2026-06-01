@@ -38,6 +38,7 @@ struct OBB {
 //		node.geometry = box
 		node.transform = transform
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
+		node.physicsBody?.configureAsWorldCollider()
 		return node
 	}
 }

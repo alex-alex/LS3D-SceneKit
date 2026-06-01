@@ -100,6 +100,7 @@ final class Game: NSObject {
 	private var isActionButtonVisible = false
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
 	private let actionDistanceSquared: Float = 4
+	private let vehicleStoppedSpeedThreshold: CGFloat = 1
 	private var lastWeaponShotTime: TimeInterval = 0
 	private var weaponAudioSources: [String: SCNAudioSource] = [:]
 	private var modeBeforeFreeCamera: Mode = .walk
@@ -545,7 +546,8 @@ final class Game: NSObject {
 		}
 
 		let vehiclePosition = vehicle.node.presentation.worldPosition
-		let exitSide = horizontalVehicleRight()
+		let vehicleRight = horizontalVehicleRight()
+		let exitSide = SCNVector3(x: -vehicleRight.x, y: 0, z: -vehicleRight.z)
 		let exitPosition = SCNVector3(
 			x: vehiclePosition.x + exitSide.x * playerExitDistance,
 			y: vehicleBottomWorldY() + playerExitHeightOffset,
@@ -619,9 +621,19 @@ final class Game: NSObject {
 	}
 
 	private func updateActionButtonVisibility(at time: TimeInterval) {
-		guard mode == .walk,
-			  let playerNode = scene.playerNode,
-			  time - lastActionButtonUpdateTime >= actionButtonUpdateInterval else {
+		guard time - lastActionButtonUpdateTime >= actionButtonUpdateInterval else { return }
+		guard mode == .walk || mode == .car else {
+			setActionButtonVisible(false)
+			return
+		}
+
+		if mode == .car {
+			lastActionButtonUpdateTime = time
+			setActionButtonVisible(vehicleExitAction()?.isEnabled == true)
+			return
+		}
+
+		guard let playerNode = scene.playerNode else {
 			if mode != .walk {
 				setActionButtonVisible(false)
 			}
@@ -710,6 +722,14 @@ final class Game: NSObject {
 			  canEnterCurrentVehicle() else { return nil }
 
 		return .vehicleEnter(vehicle)
+	}
+
+	private func vehicleExitAction() -> Action? {
+		guard mode == .car,
+			  let vehicle = vehicle,
+			  vehicle.speed <= vehicleStoppedSpeedThreshold else { return nil }
+
+		return .vehicleExit(vehicle)
 	}
 
 	private func isVehicle(_ vehicle: Vehicle, matching node: SCNNode) -> Bool {
@@ -1144,6 +1164,9 @@ extension Game {
 
 		case .vehicleEnter:
 			mode = .car
+
+		case .vehicleExit:
+			mode = .walk
 		}
 	}
 
@@ -1700,6 +1723,10 @@ extension Game {
 	}
 
 	func nearestAction() -> Action? {
+		if mode == .car {
+			return vehicleExitAction()
+		}
+
 		guard mode == .walk,
 			  let playerNode = scene.playerNode else { return nil }
 

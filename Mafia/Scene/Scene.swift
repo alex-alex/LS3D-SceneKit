@@ -127,6 +127,21 @@ struct ScriptEventBinding {
 	let eventId: String
 }
 
+private final class ActiveAudioPlayer {
+	let node: SCNNode
+	let player: SCNAudioPlayer
+	let completion: (() -> Void)?
+	var fallbackWorkItem: DispatchWorkItem?
+	var fallbackDeadline: TimeInterval?
+	var fallbackRemaining: TimeInterval?
+
+	init(node: SCNNode, player: SCNAudioPlayer, completion: (() -> Void)?) {
+		self.node = node
+		self.player = player
+		self.completion = completion
+	}
+}
+
 struct TrafficCarDefinition {
 	let modelName: String
 	let density: Float
@@ -162,13 +177,13 @@ final class Scene {
 	var playerHornEvent: ScriptEventBinding?
 	private var didStartScripts = false
 	private var lastActionAnimationId = 0
-	private var lastActionAnimationTime: TimeInterval = 0
+	private var lastActionAnimationEndTime: TimeInterval = 0
 	private var nodesByName: [String: SCNNode] = [:]
 	private var pendingDoorDataByName: [String: DoorData] = [:]
 	private var pendingPhysicalDataByName: [String: PhysicalData] = [:]
 	private var pendingScriptStringsByName: [String: String] = [:]
 	private var pendingObjectTypesByName: [String: ObjectDefinitionType] = [:]
-	private var activeAudioPlayers: [ObjectIdentifier: (node: SCNNode, player: SCNAudioPlayer)] = [:]
+	private var activeAudioPlayers: [ObjectIdentifier: ActiveAudioPlayer] = [:]
 	private var isAudioPaused = false
 
 	var objectives: [Int] = [] {
@@ -674,6 +689,7 @@ final class Scene {
 			node.eulerAngles.y += doorData.initialOpenAngle(forUserSide: 0)
 			doorData.openDirection = 0
 		}
+		attachDoorPhysics(to: node)
 		guard !actions.contains(where: { action in
 			if case .door(let doorNode) = action {
 				return doorNode === node
@@ -681,6 +697,13 @@ final class Scene {
 			return false
 		}) else { return }
 		actions.append(.door(node))
+	}
+
+	private func attachDoorPhysics(to node: SCNNode) {
+		guard let shape = node.convexHullPhysicsShapeFromGeometryHierarchy() else { return }
+
+		node.physicsBody = SCNPhysicsBody(type: .kinematic, shape: shape)
+		node.physicsBody?.configureAsDynamicObjectCollider()
 	}
 
 	func resolvePendingPhysicalObjects(in rootNode: SCNNode) {
@@ -728,9 +751,18 @@ final class Scene {
 	}
 
 	func playAudio(_ source: SCNAudioSource, on node: SCNNode, completion: (() -> Void)? = nil) {
+		playAudio(source, on: node, fallbackDuration: nil, completion: completion)
+	}
+
+	func playAudio(_ source: SCNAudioSource, url: URL, on node: SCNNode, completion: (() -> Void)? = nil) {
+		let fallbackDuration = completion == nil ? nil : audioDuration(url: url)
+		playAudio(source, on: node, fallbackDuration: fallbackDuration, completion: completion)
+	}
+
+	private func playAudio(_ source: SCNAudioSource, on node: SCNNode, fallbackDuration: TimeInterval?, completion: (() -> Void)?) {
 		guard Thread.isMainThread else {
 			DispatchQueue.main.async {
-				self.playAudio(source, on: node, completion: completion)
+				self.playAudio(source, on: node, fallbackDuration: fallbackDuration, completion: completion)
 			}
 			return
 		}
@@ -739,17 +771,17 @@ final class Scene {
 		let playerId = ObjectIdentifier(player)
 		player.didFinishPlayback = { [weak self] in
 			DispatchQueue.main.async {
-				guard let self = self,
-					  let activePlayer = self.activeAudioPlayers.removeValue(forKey: playerId) else { return }
-				activePlayer.player.didFinishPlayback = nil
-				activePlayer.node.removeAudioPlayer(activePlayer.player)
-				completion?()
+				self?.finishAudioPlayer(playerId)
 			}
 		}
-		activeAudioPlayers[playerId] = (node, player)
+		let activePlayer = ActiveAudioPlayer(node: node, player: player, completion: completion)
+		activeAudioPlayers[playerId] = activePlayer
 		node.addAudioPlayer(player)
 		if isAudioPaused, let audioPlayerNode = player.audioNode as? AVAudioPlayerNode {
 			audioPlayerNode.pause()
+		}
+		if let fallbackDuration = fallbackDuration {
+			scheduleAudioCompletionFallback(for: playerId, after: fallbackDuration + 0.1)
 		}
 	}
 
@@ -762,14 +794,62 @@ final class Scene {
 		}
 
 		isAudioPaused = isPaused
-		for (_, player) in activeAudioPlayers.values {
-			guard let audioPlayerNode = player.audioNode as? AVAudioPlayerNode else { continue }
+		for activePlayer in activeAudioPlayers.values {
+			guard let audioPlayerNode = activePlayer.player.audioNode as? AVAudioPlayerNode else { continue }
 			if isPaused {
 				audioPlayerNode.pause()
+				pauseAudioCompletionFallback(for: activePlayer)
 			} else if !audioPlayerNode.isPlaying {
 				audioPlayerNode.play()
+				rescheduleAudioCompletionFallback(for: activePlayer)
 			}
 		}
+	}
+
+	private func audioDuration(url: URL) -> TimeInterval? {
+		guard let file = try? AVAudioFile(forReading: url) else { return nil }
+		return TimeInterval(file.length) / file.processingFormat.sampleRate
+	}
+
+	private func finishAudioPlayer(_ playerId: ObjectIdentifier) {
+		guard let activePlayer = activeAudioPlayers.removeValue(forKey: playerId) else { return }
+		activePlayer.fallbackWorkItem?.cancel()
+		activePlayer.fallbackWorkItem = nil
+		activePlayer.player.didFinishPlayback = nil
+		activePlayer.node.removeAudioPlayer(activePlayer.player)
+		activePlayer.completion?()
+	}
+
+	private func scheduleAudioCompletionFallback(for playerId: ObjectIdentifier, after delay: TimeInterval) {
+		guard let activePlayer = activeAudioPlayers[playerId] else { return }
+		activePlayer.fallbackWorkItem?.cancel()
+		activePlayer.fallbackRemaining = nil
+		guard !isAudioPaused else {
+			activePlayer.fallbackDeadline = nil
+			activePlayer.fallbackRemaining = delay
+			return
+		}
+		let workItem = DispatchWorkItem { [weak self] in
+			DispatchQueue.main.async {
+				self?.finishAudioPlayer(playerId)
+			}
+		}
+		activePlayer.fallbackWorkItem = workItem
+		activePlayer.fallbackDeadline = Date.timeIntervalSinceReferenceDate + delay
+		DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+	}
+
+	private func pauseAudioCompletionFallback(for activePlayer: ActiveAudioPlayer) {
+		guard let fallbackDeadline = activePlayer.fallbackDeadline else { return }
+		activePlayer.fallbackWorkItem?.cancel()
+		activePlayer.fallbackWorkItem = nil
+		activePlayer.fallbackDeadline = nil
+		activePlayer.fallbackRemaining = max(0, fallbackDeadline - Date.timeIntervalSinceReferenceDate)
+	}
+
+	private func rescheduleAudioCompletionFallback(for activePlayer: ActiveAudioPlayer) {
+		guard let fallbackRemaining = activePlayer.fallbackRemaining else { return }
+		scheduleAudioCompletionFallback(for: ObjectIdentifier(activePlayer.player), after: fallbackRemaining)
 	}
 
 	func triggerPlayerFireEvent() {
@@ -782,13 +862,13 @@ final class Scene {
 		event.script.enqueueEvent(event.eventId)
 	}
 
-	func noteActionAnimation(id: Int) {
+	func noteActionAnimation(id: Int, duration: TimeInterval = 0.8) {
 		lastActionAnimationId = id
-		lastActionAnimationTime = Date.timeIntervalSinceReferenceDate
+		lastActionAnimationEndTime = Date.timeIntervalSinceReferenceDate + duration
 	}
 
 	func currentActionAnimationId() -> Int {
-		guard Date.timeIntervalSinceReferenceDate - lastActionAnimationTime < 0.8 else { return 0 }
+		guard Date.timeIntervalSinceReferenceDate < lastActionAnimationEndTime else { return 0 }
 		return lastActionAnimationId
 	}
 
@@ -815,11 +895,8 @@ final class Scene {
 	}
 
 	private func attachPhysical(_ physicalData: PhysicalData, to node: SCNNode) {
-		guard node.hasGeometryContent else { return }
+		guard let shape = node.convexHullPhysicsShapeFromGeometryHierarchy() else { return }
 
-		let shape = SCNPhysicsShape(node: node, options: [
-			.type: SCNPhysicsShape.ShapeType.convexHull.rawValue
-		])
 		node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
 		node.physicsBody?.mass = physicalData.weight
 		node.physicsBody?.friction = physicalData.friction
@@ -828,9 +905,7 @@ final class Scene {
 		node.physicsBody?.damping = 0.05
 		node.physicsBody?.angularDamping = 0.15
 		node.physicsBody?.allowsResting = true
-		node.physicsBody?.categoryBitMask = PhysicsCategory.dynamicObject
-		node.physicsBody?.collisionBitMask = PhysicsCategory.all
-		node.physicsBody?.contactTestBitMask = PhysicsCategory.player
+		node.physicsBody?.configureAsDynamicObjectCollider()
 	}
 
 	private func readDoorData(stream: InputStream) throws -> DoorData {

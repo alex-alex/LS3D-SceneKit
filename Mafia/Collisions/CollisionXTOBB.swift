@@ -40,7 +40,7 @@ struct XTOBB {
 //		node.transform = transform
 
 		if volume.mtlId == 41 {
-			let shape = SCNPhysicsShape(node: _node, options: [:])
+			guard let shape = _node.convexHullPhysicsShapeFromGeometryHierarchy() else { return node }
 			_node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
 			_node.physicsBody?.mass = 35
 			_node.physicsBody?.friction = 0.6
@@ -49,9 +49,7 @@ struct XTOBB {
 			_node.physicsBody?.damping = 0.05
 			_node.physicsBody?.angularDamping = 0.15
 			_node.physicsBody?.allowsResting = true
-			_node.physicsBody?.categoryBitMask = PhysicsCategory.dynamicObject
-			_node.physicsBody?.collisionBitMask = PhysicsCategory.all
-			_node.physicsBody?.contactTestBitMask = PhysicsCategory.player
+			_node.physicsBody?.configureAsDynamicObjectCollider()
 		} else {
 //			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
 //			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])
