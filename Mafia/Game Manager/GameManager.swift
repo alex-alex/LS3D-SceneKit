@@ -80,6 +80,9 @@ class GameManager {
 					loadingScene.setProgress(progress)
 				}
 			}
+			self.game.onMissionEnded = { [weak self] in
+				self?.loadMissionSelector()
+			}
 			DispatchQueue.main.async {
 				self.game.setup(in: self.view)
 			}

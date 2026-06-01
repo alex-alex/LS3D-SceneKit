@@ -22,6 +22,7 @@ final class Game: NSObject {
 	}
 
 	var hud: HudScene!
+	var onMissionEnded: (() -> Void)?
 
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
@@ -105,6 +106,7 @@ final class Game: NSObject {
 	private var lastWeaponShotTime: TimeInterval = 0
 	private var reloadingWeaponUUID: NSUUID?
 	private var weaponReloadEndTime: TimeInterval = 0
+	private var didEndMission = false
 	private var activeBatChargeStartedAt: TimeInterval?
 	private let batChargeDuration: TimeInterval = 1.3
 	private let batRange: SCNFloat = 2.4
@@ -786,6 +788,24 @@ final class Game: NSObject {
 		if pauseStateChanged {
 			playerController?.stop()
 			vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+		}
+	}
+
+	func endMission(message: String?) {
+		guard !didEndMission else { return }
+		didEndMission = true
+
+		hud?.showConsoleText(message ?? "Mission complete")
+		isGamePaused = true
+		scnScene.isPaused = true
+		scene.setAudioPaused(true)
+		scene.setScriptsPaused(true)
+		lastUpdateTime = nil
+		hud?.setPauseScreenVisible(false)
+		playerController?.stop()
+		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+		DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+			self?.onMissionEnded?()
 		}
 	}
 

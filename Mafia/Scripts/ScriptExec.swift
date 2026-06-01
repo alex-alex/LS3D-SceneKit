@@ -196,9 +196,9 @@ extension Script {
 		let label1 = args[2].getString()
 		let label2 = args[3].getString()
 		if playerOwnerMatches(carId: carId) {
-			goto(label: label1)
-		} else {
 			goto(label: label2)
+		} else {
+			goto(label: label1)
 		}
 	}
 
@@ -337,7 +337,7 @@ extension Script {
 	private func endofmission(_ args: [Argument]) {
 		let text = args.count > 1 ? TextDb.get(args[1].getValueOrVarValue(vars: vars)) : nil
 		DispatchQueue.main.async {
-			self.scene.game.hud?.showConsoleText(text ?? "Mission complete")
+			self.scene.game.endMission(message: text)
 		}
 		end(args)
 	}
@@ -762,7 +762,10 @@ extension Script {
 	}
 
 	private func playerOwnerMatches(carId: Int) -> Bool {
-		scene.game.playerOwnerMatches(carNode: node(forScriptId: carId))
+		if let carNode = node(forScriptId: carId) {
+			return scene.game.playerOwnerMatches(carNode: carNode)
+		}
+		return scene.game.mode == .car && scene.game.vehicle != nil
 	}
 
 	private func isPlayerActor(_ actorId: Int) -> Bool {
