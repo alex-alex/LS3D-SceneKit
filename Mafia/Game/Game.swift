@@ -181,10 +181,13 @@ final class Game: NSObject {
 		}
 		progressHandler?(0.72)
 
-		let collisions = try Collisions(name: "missions/"+missionName, scene: scnScene)
-		collisions.node.name = "__colliions__"
-		scnScene.rootNode.addChildNode(collisions.node)
-		print("== Loaded Scene Collisions")
+		if let collisions = try? Collisions(name: "missions/"+missionName, scene: scnScene) {
+			collisions.node.name = "__colliions__"
+			scnScene.rootNode.addChildNode(collisions.node)
+			print("== Loaded Scene Collisions")
+		} else {
+			print("== Skipped Scene Collisions")
+		}
 		progressHandler?(0.85)
 
 		let road: Road? = (try? Road(name: "missions/"+missionName)) ?? nil
@@ -2162,7 +2165,7 @@ extension Game {
 		guard let door = node.doorData else { return }
 		guard node.action(forKey: "door") == nil else { return }
 
-		// WARN: Lock doors
+		#warning("Lock doors")
 		/*if door.isLocked {
 			playDoorSound(door.lockedSound, on: node)
 			return
