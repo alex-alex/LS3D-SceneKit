@@ -13,6 +13,7 @@ final class GameSceneView: SCNView {
 
 	var mouseMovedHandler: ((NSEvent) -> Void)?
 	var mouseDownHandler: ((NSEvent) -> Void)?
+	var mouseUpHandler: ((NSEvent) -> Void)?
 
 	private var mouseTrackingArea: NSTrackingArea?
 
@@ -66,6 +67,14 @@ final class GameSceneView: SCNView {
 
 	override func rightMouseDown(with event: NSEvent) {
 		mouseDownHandler?(event)
+	}
+
+	override func mouseUp(with event: NSEvent) {
+		mouseUpHandler?(event)
+	}
+
+	override func rightMouseUp(with event: NSEvent) {
+		mouseUpHandler?(event)
 	}
 
 	override func flagsChanged(with event: NSEvent) {

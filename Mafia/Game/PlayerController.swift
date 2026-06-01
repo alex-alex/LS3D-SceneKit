@@ -293,7 +293,7 @@ final class PlayerController {
 	private func isBlockedHorizontally() -> Bool {
 		guard let body = node.physicsBody else { return false }
 
-		scene.physicsWorld.updateCollisionPairs()
+		// scene.physicsWorld.updateCollisionPairs()
 		return scene.physicsWorld.contactTest(with: body, options: [
 			SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking
 		]).contains { contact in

@@ -42,6 +42,9 @@ class GameViewController: NSViewController {
 			}
 			self.gameManager.game?.playerDidFire()
 		}
+		gameView.mouseUpHandler = { [weak self] _ in
+			self?.gameManager.game?.releaseControl(.FIRE)
+		}
 		startMouseEventMonitor()
 		startCursorCaptureTimer()
 		updateCursorCapture()

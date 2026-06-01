@@ -46,12 +46,24 @@ final class Weapon {
 		return definition.name
 	}
 
+	var modelName: String {
+		return definition.modelName
+	}
+
 	var profile: Profile? {
 		return definition.profile
 	}
 
 	var isFirearm: Bool {
 		return profile != nil
+	}
+
+	var isBaseballBat: Bool {
+		let normalizedName = name.lowercased()
+		let normalizedModelName = modelName.lowercased()
+		return normalizedName.contains("bat") ||
+			normalizedModelName.contains("2bbat") ||
+			normalizedModelName.contains("basb")
 	}
 
 	var hasAmmoLoaded: Bool {

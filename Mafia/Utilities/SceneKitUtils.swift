@@ -167,6 +167,7 @@ private var nodeTypeKey: UInt8 = 0
 private var followsCameraKey: UInt8 = 0
 private var doorDataKey: UInt8 = 0
 private var actionsEnabledKey: UInt8 = 0
+private var humanEnergyKey: UInt8 = 0
 
 final class DoorData {
 	let open1: UInt8
@@ -277,6 +278,19 @@ extension SCNNode {
 			current = node.parent
 		}
 		return true
+	}
+
+	var humanEnergy: Float? {
+		get {
+			return (objc_getAssociatedObject(self, &humanEnergyKey) as? NSNumber)?.floatValue
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(self, &humanEnergyKey, NSNumber(value: newValue), .OBJC_ASSOCIATION_RETAIN)
+			} else {
+				objc_setAssociatedObject(self, &humanEnergyKey, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
+		}
 	}
 
 	func distance(to node: SCNNode) -> Float {

@@ -100,9 +100,21 @@ final class Game: NSObject {
 	private var isActionButtonVisible = false
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
 	private let actionDistanceSquared: Float = 4
+	private let vehicleOwnerMatchDistanceSquared: Float = 36
 	private let vehicleStoppedSpeedThreshold: CGFloat = 1
 	private var lastWeaponShotTime: TimeInterval = 0
+	private var reloadingWeaponUUID: NSUUID?
+	private var weaponReloadEndTime: TimeInterval = 0
+	private var activeBatChargeStartedAt: TimeInterval?
+	private let batChargeDuration: TimeInterval = 1.3
+	private let batRange: SCNFloat = 2.4
+	private let batMinImpulse: SCNFloat = 1.8
+	private let batMaxImpulse: SCNFloat = 18
+	private var batSwingAnimationIndex = 0
 	private var weaponAudioSources: [String: SCNAudioSource] = [:]
+	private var heldWeaponNode: SCNNode?
+	private var heldWeaponUUID: NSUUID?
+	private let heldWeaponNodeNamePrefix = "__held_weapon_"
 	private var modeBeforeFreeCamera: Mode = .walk
 	private var freeCameraPosition = SCNVector3Zero
 	private var freeCameraMovement = SCNVector3Zero
@@ -838,6 +850,13 @@ private extension SCNNode {
 		}
 	}
 
+	func disablePhysicsInHierarchy() {
+		physicsBody = nil
+		for child in childNodes {
+			child.disablePhysicsInHierarchy()
+		}
+	}
+
 	var isSkyboxBackdropNode: Bool {
 		if isSkyboxBackdropResourceName(name) {
 			return true
@@ -1086,6 +1105,7 @@ extension Game: SCNSceneRendererDelegate {
 		)
 		refreshPlayerStatusHud()
 		updateVehicleStealing()
+		updateBatCharge()
 
 		if let node = scene.compassNode,
 		   let playerNode = scene.playerNode {
@@ -1155,6 +1175,7 @@ extension Game {
 
 			scene.weapons[scene.playerNode!]!.append(weapon)
 			weapon.position = .hand
+			refreshPlayerStatusHud()
 
 		case .door(let node):
 			useDoor(node)
@@ -1176,7 +1197,13 @@ extension Game {
 	}
 
 	func playerDidFire() {
-		lastControl = .FIRE
+		guard !isGamePaused else { return }
+
+		pressControl(.FIRE)
+		if equippedPlayerWeapon()?.isBaseballBat == true {
+			beginBatCharge()
+			return
+		}
 		firePlayerWeapon()
 		scene.triggerPlayerFireEvent()
 	}
@@ -1227,7 +1254,9 @@ extension Game {
 		guard mode == .car,
 			  let vehicle = vehicle else { return false }
 
-		return isVehicle(vehicle, matching: carNode)
+		return isVehicle(vehicle, matching: carNode) ||
+			vehicle.node.squaredDistance(to: carNode.presentation.worldPosition) <= vehicleOwnerMatchDistanceSquared ||
+			vehicle.scriptNode.squaredDistance(to: carNode.presentation.worldPosition) <= vehicleOwnerMatchDistanceSquared
 	}
 
 	func canEnterCurrentVehicle() -> Bool {
@@ -1244,6 +1273,9 @@ extension Game {
 		activeControls.remove(control)
 		if lastControl == control {
 			lastControl = nil
+		}
+		if control == .FIRE {
+			releaseBatCharge()
 		}
 	}
 
@@ -1314,15 +1346,25 @@ extension Game {
 	}
 
 	func reloadPlayerWeapon() {
-		guard let weapon = equippedPlayerWeapon(), weapon.canReload, let profile = weapon.profile else { return }
+		guard let weapon = equippedPlayerWeapon(),
+			  weapon.canReload,
+			  let profile = weapon.profile,
+			  !isReloading(weapon) else { return }
 
-		let neededAmmo = profile.clipSize - weapon.clipAmmo
-		let loadedAmmo = min(neededAmmo, weapon.restAmmo)
-		weapon.clipAmmo += loadedAmmo
+		reload(weapon, profile: profile)
+	}
+
+	private func reload(_ weapon: Weapon, profile: Weapon.Profile) {
+		let now = Date.timeIntervalSinceReferenceDate
+		guard !isReloading(weapon, at: now) else { return }
+
+		let loadedAmmo = min(profile.clipSize, weapon.restAmmo)
+		weapon.clipAmmo = loadedAmmo
 		weapon.restAmmo -= loadedAmmo
+		reloadingWeaponUUID = weapon.uuid
+		weaponReloadEndTime = now + reloadDuration(profile: profile)
 		playWeaponAnimation(profile: profile, action: "reload")
 		playWeaponSound(profile.reloadSoundName)
-		hud?.showConsoleText("\(weapon.name): \(weapon.clipAmmo)/\(weapon.restAmmo)")
 		refreshPlayerStatusHud()
 	}
 
@@ -1357,16 +1399,20 @@ extension Game {
 	}
 
 	private func firePlayerWeapon() {
-		guard mode == .walk || mode == .car,
+		guard !isGamePaused,
+			  mode == .walk || mode == .car,
 			  let weapon = equippedPlayerWeapon(),
 			  weapon.isFirearm,
 			  let profile = weapon.profile else { return }
 
 		let now = Date.timeIntervalSinceReferenceDate
+		guard !isReloading(weapon, at: now) else { return }
 		guard now - lastWeaponShotTime >= profile.shotInterval else { return }
 
-		guard weapon.hasAmmoLoaded else {
-			hud?.showConsoleText("\(weapon.name): empty")
+		if !weapon.hasAmmoLoaded {
+			if weapon.canReload {
+				reload(weapon, profile: profile)
+			}
 			return
 		}
 
@@ -1384,9 +1430,155 @@ extension Game {
 		showMuzzleFlash()
 	}
 
+	private func isReloading(_ weapon: Weapon, at time: TimeInterval = Date.timeIntervalSinceReferenceDate) -> Bool {
+		guard reloadingWeaponUUID == weapon.uuid else { return false }
+		if time < weaponReloadEndTime {
+			return true
+		}
+		reloadingWeaponUUID = nil
+		weaponReloadEndTime = 0
+		return false
+	}
+
+	private func reloadDuration(profile: Weapon.Profile) -> TimeInterval {
+		let stance = playerController?.isPlayerCrouching == true ? "drep" : "stoj"
+		guard let animationName = weaponAnimationName(animationSetId: profile.animationSetId, stance: stance, action: "reload"),
+			  let animation = try? loadAnimation(named: animationName) else {
+			return 1.0
+		}
+		return max(0.2, animation.1)
+	}
+
+	private func beginBatCharge() {
+		guard mode == .walk,
+			  activeBatChargeStartedAt == nil,
+			  equippedPlayerWeapon()?.isBaseballBat == true else { return }
+
+		activeBatChargeStartedAt = Date.timeIntervalSinceReferenceDate
+		hud?.updateVehicleStealProgress(0, isVisible: true, label: "Swing force")
+		playBaseballBatWindupAnimation()
+	}
+
+	private func updateBatCharge() {
+		guard let startedAt = activeBatChargeStartedAt else { return }
+		guard isControlPressed(.FIRE),
+			  mode == .walk,
+			  equippedPlayerWeapon()?.isBaseballBat == true else {
+			cancelBatCharge()
+			return
+		}
+
+		let elapsed = Date.timeIntervalSinceReferenceDate - startedAt
+		hud?.updateVehicleStealProgress(CGFloat(elapsed / batChargeDuration), isVisible: true, label: "Swing force")
+	}
+
+	private func releaseBatCharge() {
+		guard let startedAt = activeBatChargeStartedAt else { return }
+
+		activeBatChargeStartedAt = nil
+		hud?.updateVehicleStealProgress(0, isVisible: false)
+		guard mode == .walk,
+			  equippedPlayerWeapon()?.isBaseballBat == true else { return }
+
+		let elapsed = Date.timeIntervalSinceReferenceDate - startedAt
+		let charge = SCNFloat(max(0.15, min(elapsed / batChargeDuration, 1)))
+		playBaseballBatHitAnimation()
+		swingBaseballBat(charge: charge)
+		scene.triggerPlayerFireEvent()
+	}
+
+	private func cancelBatCharge() {
+		activeBatChargeStartedAt = nil
+		hud?.updateVehicleStealProgress(0, isVisible: false)
+	}
+
+	private func swingBaseballBat(charge: SCNFloat) {
+		let origin = cameraNode.presentation.worldPosition
+		let cameraForward = cameraNode.presentation.worldFront
+		let direction = normalized(SCNVector3(x: -cameraForward.x, y: -cameraForward.y, z: -cameraForward.z))
+		let target = SCNVector3(
+			x: origin.x + direction.x * batRange,
+			y: origin.y + direction.y * batRange,
+			z: origin.z + direction.z * batRange
+		)
+
+		let hits = scnScene.rootNode.hitTestWithSegment(
+			from: origin,
+			to: target,
+			options: [
+				SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
+				SCNHitTestOption.backFaceCulling.rawValue: false
+			]
+		)
+
+		for hit in hits {
+			if isShotEffectNode(hit.node) ||
+			   isNode(hit.node, inside: scene.playerNode) ||
+			   isNode(hit.node, inside: vehicle?.node) ||
+			   isNode(hit.node, inside: heldWeaponNode) {
+				continue
+			}
+
+			if let hitNode = shootableNode(from: hit.node) {
+				let impulse = batMinImpulse + (batMaxImpulse - batMinImpulse) * charge
+				let damagedHuman = applyHumanDamage(to: hit.node, amount: impulse)
+				if let body = hitNode.physicsBody {
+					applyMeleeImpact(
+						to: body,
+						node: hitNode,
+						at: hit.worldCoordinates,
+						direction: direction,
+						impulse: impulse
+					)
+				} else if !damagedHuman {
+					hitNode.position += SCNVector3(x: direction.x * charge, y: 0.12 * charge, z: direction.z * charge)
+				}
+				showImpact(at: hit.worldCoordinates, normal: hit.worldNormal)
+				return
+			}
+		}
+	}
+
+	private func playBaseballBatWindupAnimation() {
+		guard let playerNode = scene.playerNode,
+			  let animationName = firstExistingAnimation(named: [
+				"anims/boj basb naprah hpt.5ds",
+				"anims/boj hpt basb rh.5ds",
+				"anims/boj hpt basb lh.5ds"
+			  ]) else { return }
+
+		try? playAnimation(named: animationName, in: playerNode, animationKey: "__bat_swing__")
+	}
+
+	private func playBaseballBatHitAnimation() {
+		guard let playerNode = scene.playerNode else { return }
+
+		let candidates = [
+			"anims/boj basb z rh.5ds",
+			"anims/boj basb z lh.5ds",
+			"anims/boj basb z rs.5ds",
+			"anims/boj basb z ls.5ds",
+			"anims/boj basb kombo.5ds",
+			"anims/boj hpt basb rh.5ds",
+			"anims/boj hpt basb lh.5ds",
+			"anims/boj hpt basb rs.5ds",
+			"anims/boj hpt basb ls.5ds"
+		]
+		let startIndex = batSwingAnimationIndex % candidates.count
+		let orderedCandidates = Array(candidates[startIndex...]) + Array(candidates[..<startIndex])
+		guard let animationName = firstExistingAnimation(named: orderedCandidates) else { return }
+
+		batSwingAnimationIndex += 1
+		try? playAnimation(named: animationName, in: playerNode, animationKey: "__bat_swing__")
+	}
+
 	private func shootFromCamera(profile: Weapon.Profile) {
 		let origin = cameraNode.presentation.worldPosition
-		let direction = spreadDirection(from: cameraNode.presentation.worldFront, spread: profile.spread)
+		let cameraForward = cameraNode.presentation.worldFront
+		let direction = spreadDirection(
+			from: SCNVector3(x: -cameraForward.x, y: -cameraForward.y, z: -cameraForward.z),
+			spread: profile.spread
+		)
 		let target = SCNVector3(
 			x: origin.x + direction.x * profile.range,
 			y: origin.y + direction.y * profile.range,
@@ -1411,14 +1603,16 @@ extension Game {
 
 			tracerEnd = hit.worldCoordinates
 			if let hitNode = shootableNode(from: hit.node) {
-				let impulse = SCNVector3(
-					x: direction.x * profile.impulse,
-					y: direction.y * profile.impulse + 1.5,
-					z: direction.z * profile.impulse
-				)
-				if hitNode.physicsBody != nil {
-					hitNode.physicsBody?.applyForce(impulse, at: hit.worldCoordinates, asImpulse: true)
-				} else {
+				let damagedHuman = applyHumanDamage(to: hit.node, amount: profile.impulse)
+				if let body = hitNode.physicsBody {
+					applyShotImpact(
+						to: body,
+						node: hitNode,
+						at: hit.worldCoordinates,
+						direction: direction,
+						impulse: profile.impulse
+					)
+				} else if !damagedHuman {
 					hitNode.position += SCNVector3(x: direction.x * 1.2, y: 0.2, z: direction.z * 1.2)
 				}
 			}
@@ -1429,6 +1623,79 @@ extension Game {
 		showTracer(from: origin, to: tracerEnd)
 	}
 
+	private func applyShotImpact(to body: SCNPhysicsBody, node: SCNNode, at hitPosition: SCNVector3, direction: SCNVector3, impulse: SCNFloat) {
+		let scaledImpulse = impulse * 0.01
+		let linearImpulse = SCNVector3(
+			x: direction.x * scaledImpulse,
+			y: direction.y * scaledImpulse + min(0.08, scaledImpulse * 0.05),
+			z: direction.z * scaledImpulse
+		)
+		body.applyForce(linearImpulse, at: hitPosition, asImpulse: true)
+
+		guard body.type == .dynamic else { return }
+
+		let center = node.presentation.worldPosition
+		let lever = hitPosition - center
+		var torqueAxis = cross(lever, linearImpulse)
+		if torqueAxis.length < 0.001 {
+			torqueAxis = cross(SCNVector3(x: 0, y: 1, z: 0), direction)
+		}
+		torqueAxis = normalized(torqueAxis)
+		let angularImpulse = max(0.02, impulse * 0.004)
+		body.applyTorque(
+			SCNVector4(x: torqueAxis.x, y: torqueAxis.y, z: torqueAxis.z, w: angularImpulse),
+			asImpulse: true
+		)
+	}
+
+	private func applyMeleeImpact(to body: SCNPhysicsBody, node: SCNNode, at hitPosition: SCNVector3, direction: SCNVector3, impulse: SCNFloat) {
+		let linearImpulse = SCNVector3(
+			x: direction.x * impulse,
+			y: direction.y * impulse + min(1.2, impulse * 0.12),
+			z: direction.z * impulse
+		)
+		body.applyForce(linearImpulse, at: hitPosition, asImpulse: true)
+
+		guard body.type == .dynamic else { return }
+
+		let center = node.presentation.worldPosition
+		let lever = hitPosition - center
+		var torqueAxis = cross(lever, linearImpulse)
+		if torqueAxis.length < 0.001 {
+			torqueAxis = cross(SCNVector3(x: 0, y: 1, z: 0), direction)
+		}
+		torqueAxis = normalized(torqueAxis)
+		let angularImpulse = max(0.08, impulse * 0.08)
+		body.applyTorque(
+			SCNVector4(x: torqueAxis.x, y: torqueAxis.y, z: torqueAxis.z, w: angularImpulse),
+			asImpulse: true
+		)
+	}
+
+	@discardableResult
+	private func applyHumanDamage(to node: SCNNode, amount: SCNFloat) -> Bool {
+		guard let humanNode = humanNode(from: node) else { return false }
+
+		let currentEnergy = humanNode.humanEnergy ?? 100
+		humanNode.humanEnergy = max(0, currentEnergy - Float(amount))
+		return true
+	}
+
+	private func humanNode(from node: SCNNode) -> SCNNode? {
+		var current: SCNNode? = node
+		while let candidate = current {
+			if candidate.humanEnergy != nil {
+				return candidate
+			}
+			if candidate.type == .player {
+				candidate.humanEnergy = 100
+				return candidate
+			}
+			current = candidate.parent
+		}
+		return nil
+	}
+
 	func equippedPlayerWeapon() -> Weapon? {
 		guard let playerNode = scene.playerNode,
 			  let weapons = scene.weapons[playerNode] else { return nil }
@@ -1436,7 +1703,120 @@ extension Game {
 	}
 
 	func refreshPlayerStatusHud() {
-		hud?.updatePlayerStatus(health: playerHealth, weapon: equippedPlayerWeapon())
+		let weapon = equippedPlayerWeapon()
+		syncHeldPlayerWeapon(weapon)
+		hud?.updatePlayerStatus(health: playerHealth, weapon: weapon)
+	}
+
+	private func syncHeldPlayerWeapon(_ weapon: Weapon?) {
+		guard let playerNode = scene.playerNode,
+			  let weapon = weapon,
+			  weapon.isFirearm || weapon.isBaseballBat else {
+			removeHeldPlayerWeapon()
+			return
+		}
+		if heldWeaponUUID == weapon.uuid,
+		   heldWeaponNode?.parent != nil,
+		   staleHeldWeaponNodes(in: playerNode).isEmpty {
+			return
+		}
+
+		removeHeldPlayerWeapon()
+		guard let modelNode = loadHeldWeaponModel(for: weapon) else { return }
+
+		modelNode.name = "\(heldWeaponNodeNamePrefix)\(weapon.id)__"
+		modelNode.physicsBody = nil
+		modelNode.disablePhysicsInHierarchy()
+		let anchor = heldWeaponAnchor(in: playerNode)
+		anchor.addChildNode(modelNode)
+		positionHeldWeapon(modelNode, weapon: weapon, anchor: anchor, playerNode: playerNode)
+
+		heldWeaponNode = modelNode
+		heldWeaponUUID = weapon.uuid
+	}
+
+	private func removeHeldPlayerWeapon() {
+		heldWeaponNode?.removeFromParentNode()
+		if let playerNode = scene.playerNode {
+			for node in heldWeaponNodes(in: playerNode) {
+				node.removeFromParentNode()
+			}
+		}
+		heldWeaponNode = nil
+		heldWeaponUUID = nil
+	}
+
+	private func staleHeldWeaponNodes(in rootNode: SCNNode) -> [SCNNode] {
+		return heldWeaponNodes(in: rootNode).filter { $0 !== heldWeaponNode }
+	}
+
+	private func heldWeaponNodes(in rootNode: SCNNode) -> [SCNNode] {
+		var nodes: [SCNNode] = []
+		collectHeldWeaponNodes(in: rootNode, nodes: &nodes)
+		return nodes
+	}
+
+	private func collectHeldWeaponNodes(in node: SCNNode, nodes: inout [SCNNode]) {
+		if node.name?.hasPrefix(heldWeaponNodeNamePrefix) == true {
+			nodes.append(node)
+		}
+		for child in node.childNodes {
+			collectHeldWeaponNodes(in: child, nodes: &nodes)
+		}
+	}
+
+	private func loadHeldWeaponModel(for weapon: Weapon) -> SCNNode? {
+		let rawModelName = weapon.modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !rawModelName.isEmpty else { return nil }
+
+		let normalizedModelName = rawModelName.replacingOccurrences(of: "\\", with: "/")
+		let modelName = (normalizedModelName as NSString).deletingPathExtension
+		let modelPath = modelName.contains("/") ? modelName : "models/" + modelName
+		guard let node = try? loadModel(named: modelPath), node.hasModelContent else { return nil }
+		return node
+	}
+
+	private func heldWeaponAnchor(in playerNode: SCNNode) -> SCNNode {
+		let handNodeNames = [
+			"Bip01 R Hand",
+			"Bip01 R Forearm",
+			"R Hand",
+			"Right Hand",
+			"rhand",
+			"r_hand",
+			"hand_r",
+			"right_hand",
+			"ruka prava",
+			"prava ruka"
+		]
+
+		for name in handNodeNames {
+			if let node = playerNode.mafiaChildNode(named: name, recursively: true) {
+				return node
+			}
+		}
+		return playerNode
+	}
+
+	private func positionHeldWeapon(_ weaponNode: SCNNode, weapon: Weapon, anchor: SCNNode, playerNode: SCNNode) {
+		weaponNode.scale = SCNVector3(x: 1, y: 1, z: 1)
+		if anchor === playerNode {
+			if weapon.isBaseballBat {
+				weaponNode.position = SCNVector3(x: 0.3, y: 0.95, z: -0.12)
+				weaponNode.eulerAngles = SCNVector3(x: 0.25, y: .pi / 2, z: .pi / 2)
+			} else {
+				weaponNode.position = SCNVector3(x: 0.33, y: 1.02, z: -0.18)
+				weaponNode.eulerAngles = SCNVector3(x: -0.08, y: .pi / 2, z: -0.18)
+			}
+		} else {
+			if weapon.isBaseballBat {
+				weaponNode.position = SCNVector3(x: 0.03, y: -0.06, z: 0.02)
+				weaponNode.eulerAngles = SCNVector3(x: 0, y: .pi / 2, z: .pi / 2)
+			} else {
+				weaponNode.position = SCNVector3(x: 0.05, y: -0.03, z: 0.02)
+				weaponNode.eulerAngles = SCNVector3(x: 0, y: .pi / 2, z: 0)
+			}
+		}
 	}
 
 	private func spreadDirection(from direction: SCNVector3, spread: SCNFloat) -> SCNVector3 {
@@ -1566,6 +1946,10 @@ extension Game {
 			"anims/\(animationPrefix) \(stance) \(action).5ds",
 			"anims/\(animationPrefix) stoj \(action).5ds"
 		]
+		return firstExistingAnimation(named: candidates)
+	}
+
+	private func firstExistingAnimation(named candidates: [String]) -> String? {
 		return candidates.first { animationExists(named: $0) }
 	}
 
@@ -1687,6 +2071,9 @@ extension Game {
 	private func shootableNode(from node: SCNNode) -> SCNNode? {
 		var current: SCNNode? = node
 		while let candidate = current {
+			if candidate.humanEnergy != nil || candidate.type == .player {
+				return candidate
+			}
 			if candidate.physicsBody?.type == .dynamic {
 				return candidate
 			}
@@ -1746,10 +2133,11 @@ extension Game {
 		guard let door = node.doorData else { return }
 		guard node.action(forKey: "door") == nil else { return }
 
-		if door.isLocked {
+		// WARN: Lock doors
+		/*if door.isLocked {
 			playDoorSound(door.lockedSound, on: node)
 			return
-		}
+		}*/
 
 		let currentEulerAngles = node.eulerAngles
 		if door.closedEulerAngles == nil {

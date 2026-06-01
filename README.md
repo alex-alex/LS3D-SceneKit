@@ -8,10 +8,9 @@
   - Windows
   - Mafia v1.2
   - [Mafia Data Xtractor v1.1](http://www.moddb.com/games/mafia/downloads/mafia-data-xtractor-v11)
-  - [iFunBox](https://i-funbox.en.softonic.com)
 
 **Steps**
   - Install Mafia
   - Use Mafia Data Xtractor to extract game files
-  - [iOS] Copy all files to `[App Sandbox]/Documents/Mafia` using iFunBox
+  - [iOS] Copy the Mafia folder into the app Documents via Finder iPhone File Sharing
   - [Mac] Change path in `/Mafia/Game Manager/GameManager.swift`

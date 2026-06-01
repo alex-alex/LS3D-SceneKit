@@ -140,8 +140,8 @@ extension GameViewController {
 	}
 
 	@objc func fireGestureRecognized(gesture: UITapGestureRecognizer) {
-		print("== fireGestureRecognized ==")
 		gameManager.game?.playerDidFire()
+		gameManager.game?.releaseControl(.FIRE)
 	}
 
 }

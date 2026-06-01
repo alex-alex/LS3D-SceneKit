@@ -451,6 +451,8 @@ extension Script {
 		if property == "energy" {
 			if isPlayerActor(actorId) {
 				vars[varId] = Float(scene.game.playerHealth)
+			} else if let actor = node(forScriptId: actorId) {
+				vars[varId] = humanEnergy(for: actor)
 			} else {
 				vars[varId] = 0
 			}
@@ -486,8 +488,12 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let value = args[1].getValueOrVarValue(vars: vars)
 		let property = args[2].getString().lowercased()
-		if property == "energy", isPlayerActor(actorId) {
-			scene.game.setPlayerHealth(value)
+		if property == "energy" {
+			if isPlayerActor(actorId) {
+				scene.game.setPlayerHealth(value)
+			} else if let actor = node(forScriptId: actorId) {
+				humanNode(for: actor)?.humanEnergy = max(0, Float(value))
+			}
 		}
 		next()
 	}
@@ -763,6 +769,31 @@ extension Script {
 		guard let actor = node(forScriptId: actorId),
 			  let playerNode = scene.playerNode else { return false }
 		return actor === playerNode || actor.name == playerNode.name || actor.name?.lowercased() == "tommyhat"
+	}
+
+	private func humanEnergy(for node: SCNNode) -> Float {
+		guard let humanNode = humanNode(for: node) else { return 0 }
+		return humanNode.humanEnergy ?? 100
+	}
+
+	private func humanNode(for node: SCNNode) -> SCNNode? {
+		var current: SCNNode? = node
+		while let candidate = current {
+			if candidate.humanEnergy != nil || candidate.type == .player {
+				if candidate.humanEnergy == nil {
+					candidate.humanEnergy = 100
+				}
+				return candidate
+			}
+			current = candidate.parent
+		}
+
+		for child in node.childNodes {
+			if let humanNode = humanNode(for: child) {
+				return humanNode
+			}
+		}
+		return nil
 	}
 
 }

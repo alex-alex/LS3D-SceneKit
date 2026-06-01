@@ -183,6 +183,7 @@ final class Scene {
 	private var pendingPhysicalDataByName: [String: PhysicalData] = [:]
 	private var pendingScriptStringsByName: [String: String] = [:]
 	private var pendingObjectTypesByName: [String: ObjectDefinitionType] = [:]
+	private var pendingHumanEnergyByName: [String: Float] = [:]
 	private var activeAudioPlayers: [ObjectIdentifier: ActiveAudioPlayer] = [:]
 	private var isAudioPaused = false
 
@@ -411,7 +412,7 @@ final class Scene {
 								let _: UInt32 = try stream.read()						// 1		behavior
 								let _: UInt32 = try stream.read()						// 3		voice
 								let _: Float = try stream.read()						// 0.7		strength
-								let _: Float = try stream.read()						// 200		energy
+								let energy: Float = try stream.read()					// 200		energy
 								let _: Float = try stream.read()						// 40		energy hand r
 								let _: Float = try stream.read()						// 40		energy hand l
 								let _: Float = try stream.read()						// 40		energy leg l
@@ -427,6 +428,11 @@ final class Scene {
 								let _: Float = try stream.read()						// 80		mass
 								let _: Float = try stream.read()						// 0.5		behavior 2
 
+								if let node = node {
+									node.humanEnergy = energy
+								} else if !name.isEmpty {
+									pendingHumanEnergyByName[name] = energy
+								}
 								self.playerNode = node
 
 							case .car:
@@ -728,6 +734,11 @@ final class Scene {
 			node.type = type
 		}
 		pendingObjectTypesByName.removeAll()
+		for (name, energy) in pendingHumanEnergyByName {
+			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
+			node.humanEnergy = energy
+		}
+		pendingHumanEnergyByName.removeAll()
 	}
 
 	func startScripts() {

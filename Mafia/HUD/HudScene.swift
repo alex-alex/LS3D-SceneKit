@@ -25,6 +25,7 @@ final class HudScene: SKScene {
 	var consoleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
+	private var crosshairNode: SKNode!
 	private var vehicleStealProgressBackground: SKShapeNode!
 	private var vehicleStealProgressFill: SKShapeNode!
 	private var vehicleStealProgressLabel: SKLabelNode!
@@ -161,6 +162,7 @@ final class HudScene: SKScene {
 		playerStatusLabel.isHidden = true
 		addChild(playerStatusLabel)
 
+		renderCrosshair()
 		renderVehicleStealProgress()
 		renderPlayerStatusHud()
 		renderPauseScreen()
@@ -190,6 +192,7 @@ final class HudScene: SKScene {
 				  consoleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
+				  crosshairNode != nil,
 				  vehicleStealProgressBackground != nil,
 				  vehicleStealProgressFill != nil,
 				  vehicleStealProgressLabel != nil,
@@ -206,6 +209,7 @@ final class HudScene: SKScene {
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
+		crosshairNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
 		layoutVehicleStealProgress()
 		layoutPlayerStatusHud()
 		pauseOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
@@ -239,6 +243,7 @@ final class HudScene: SKScene {
 
 	func updatePlayerStatus(health: Int, weapon: Weapon?) {
 		updatePlayerStatusHud(health: health, weapon: weapon)
+		crosshairNode.isHidden = weapon?.isFirearm != true
 
 		let weaponText: String
 		if let weapon = weapon {
@@ -259,10 +264,11 @@ final class HudScene: SKScene {
 		}
 	}
 
-	func updateVehicleStealProgress(_ progress: CGFloat, isVisible: Bool) {
+	func updateVehicleStealProgress(_ progress: CGFloat, isVisible: Bool, label: String = "Stealing car") {
 		vehicleStealProgressBackground.isHidden = !isVisible
 		vehicleStealProgressFill.isHidden = !isVisible
 		vehicleStealProgressLabel.isHidden = !isVisible
+		vehicleStealProgressLabel.text = label
 		guard isVisible else {
 			lastVehicleStealProgress = -1
 			return
@@ -472,6 +478,36 @@ extension HudScene {
 
 			return outputContext.makeImage()
 		}
+	}
+
+	private func renderCrosshair() {
+		crosshairNode = SKNode()
+		crosshairNode.zPosition = 900
+		crosshairNode.isHidden = true
+		addChild(crosshairNode)
+
+		let materialColor = SKColor.white.withAlphaComponent(0.82)
+		let shadowColor = SKColor.black.withAlphaComponent(0.45)
+		addCrosshairLine(from: CGPoint(x: -15, y: 0), to: CGPoint(x: -5, y: 0), color: shadowColor, width: 3)
+		addCrosshairLine(from: CGPoint(x: 5, y: 0), to: CGPoint(x: 15, y: 0), color: shadowColor, width: 3)
+		addCrosshairLine(from: CGPoint(x: 0, y: -15), to: CGPoint(x: 0, y: -5), color: shadowColor, width: 3)
+		addCrosshairLine(from: CGPoint(x: 0, y: 5), to: CGPoint(x: 0, y: 15), color: shadowColor, width: 3)
+		addCrosshairLine(from: CGPoint(x: -14, y: 0), to: CGPoint(x: -6, y: 0), color: materialColor, width: 1.5)
+		addCrosshairLine(from: CGPoint(x: 6, y: 0), to: CGPoint(x: 14, y: 0), color: materialColor, width: 1.5)
+		addCrosshairLine(from: CGPoint(x: 0, y: -14), to: CGPoint(x: 0, y: -6), color: materialColor, width: 1.5)
+		addCrosshairLine(from: CGPoint(x: 0, y: 6), to: CGPoint(x: 0, y: 14), color: materialColor, width: 1.5)
+	}
+
+	private func addCrosshairLine(from start: CGPoint, to end: CGPoint, color: SKColor, width: CGFloat) {
+		let path = CGMutablePath()
+		path.move(to: start)
+		path.addLine(to: end)
+
+		let line = SKShapeNode(path: path)
+		line.strokeColor = color
+		line.lineWidth = width
+		line.lineCap = .round
+		crosshairNode.addChild(line)
 	}
 
 	private func renderPlayerStatusHud() {
