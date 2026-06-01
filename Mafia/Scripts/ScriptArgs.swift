@@ -155,7 +155,7 @@ extension Script {
 	}
 
 	private func getArgs_car_muststeal(_ scanner: Scanner) -> [Argument] {
-		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .number(1)]
+		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(1)]
 	}
 
 	private func getArgs_car_repair(_ scanner: Scanner) -> [Argument] {
@@ -163,7 +163,7 @@ extension Script {
 	}
 
 	private func getArgs_car_setspeed(_ scanner: Scanner) -> [Argument] {
-		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .number(0)]
+		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(0)]
 	}
 
 	private func getArgs_compareownerwithex(_ scanner: Scanner) -> [Argument] {
@@ -210,7 +210,7 @@ extension Script {
 	}
 
 	private func getArgs_door_enableus(_ scanner: Scanner) -> [Argument] {
-		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .number(1)]
+		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(1)]
 	}
 
 	private func getArgs_door_lock(_ scanner: Scanner) -> [Argument] {
@@ -222,7 +222,7 @@ extension Script {
 	}
 
 	private func getArgs_door_open(_ scanner: Scanner) -> [Argument] {
-		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .number(1)]
+		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(1)]
 	}
 
 	private func getArgs_endofmission(_ scanner: Scanner) -> [Argument] {
@@ -298,8 +298,8 @@ extension Script {
 
 	private func getArgs_human_talk(_ scanner: Scanner) -> [Argument] {
 		var args = [scanVarOrValue(scanner), .label(scanParam(scanner))]
-		if let val = scanValue(scanner) {
-			args.append(.number(val))
+		if let val = scanNumber(scanner) {
+			args.append(val)
 		}
 		return args
 	}
@@ -445,21 +445,36 @@ extension Script {
 		return var1
 	}
 
+	private func scanNumber(_ scanner: Scanner) -> Argument? {
+		guard let token = scanParamOptional(scanner) else { return nil }
+		if token.contains(".") || token.contains("e") || token.contains("E") {
+			guard let value = Float(token) else { fatalError() }
+			return .number(value)
+		}
+		if let value = Int(token) {
+			return .integer(value)
+		}
+		guard let value = Float(token) else { fatalError() }
+		return .number(value)
+	}
+
 	private func scanValue(_ scanner: Scanner) -> Float? {
-		var value: Float = 0
-		guard scanner.scanFloat(&value) else { return nil }
-		let charset = CharacterSet(charactersIn: ",").union(.whitespaces)
-		scanner.scanCharacters(from: charset, into: nil)
-		return value
+		guard let number = scanNumber(scanner) else { return nil }
+		switch number {
+		case .integer(let value):
+			return Float(value)
+		case .number(let value):
+			return value
+		default:
+			fatalError()
+		}
 	}
 
 	private func scanVarOrValueOptional(_ scanner: Scanner) -> Argument? {
 		if let varId = scanVar(scanner) {
 			return .variable(varId)
-		} else if let value = scanValue(scanner) {
-			return .number(value)
 		} else {
-			return nil
+			return scanNumber(scanner)
 		}
 	}
 

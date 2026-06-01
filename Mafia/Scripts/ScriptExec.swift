@@ -506,7 +506,7 @@ extension Script {
 			source.isPositional = false
 			source.load()
 			DispatchQueue.main.async {
-				self.scene.playAudio(source, on: self.scene.rootNode) {
+				self.scene.playAudio(source, url: url, on: self.scene.rootNode) {
 					self.next()
 				}
 			}

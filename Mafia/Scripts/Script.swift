@@ -11,6 +11,7 @@ import SceneKit
 
 enum Argument {
 //	case empty
+	case integer(Int)
 	case number(Float)
 	case label(String)
 	case string(String)
@@ -27,7 +28,9 @@ enum Argument {
 	}
 
 	func getValueOrVarValueFloat(vars: [Int: Float]) -> Float {
-		if case .number(let num) = self {
+		if case .integer(let num) = self {
+			return Float(num)
+		} else if case .number(let num) = self {
 			return num
 		} else if case .variable(let varId) = self {
 			return vars[Int(varId)] ?? 0
@@ -41,6 +44,15 @@ enum Argument {
 	}
 
 	func getValueOrVarValue(vars: [Int: Float]) -> Int {
+		if case .integer(let num) = self {
+			return num
+		} else if case .number(let num) = self {
+			return Int(num)
+		} else if case .label(let str) = self, let num = Int(str) {
+			return num
+		} else if case .string(let str) = self, let num = Int(str) {
+			return num
+		}
 		return Int(getValueOrVarValueFloat(vars: vars))
 	}
 }
