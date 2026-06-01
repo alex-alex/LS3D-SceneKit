@@ -28,6 +28,7 @@ final class PlayerController {
 	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
 	private var currentWalkingAnimationName: String?
+	private var footstepAudio = FootstepAudio()
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
 	private(set) var lastDesiredVelocity = SCNVector3Zero
@@ -123,6 +124,7 @@ final class PlayerController {
 		horizontalVelocity = SCNVector3Zero
 		verticalVelocity = 0
 		updateWalkingAnimation(isMoving: false)
+		footstepAudio.reset()
 		resetAngularVelocity()
 	}
 
@@ -170,7 +172,16 @@ final class PlayerController {
 		horizontalVelocity.x += (desiredVelocity.x - horizontalVelocity.x) * blend
 		horizontalVelocity.z += (desiredVelocity.z - horizontalVelocity.z) * blend
 
+		let positionBeforeMove = node.position
 		moveHorizontally(dx: horizontalVelocity.x * dt, dz: horizontalVelocity.z * dt)
+		let actualHorizontalDelta = SCNVector3(x: node.position.x - positionBeforeMove.x, y: 0, z: node.position.z - positionBeforeMove.z)
+		footstepAudio.update(
+			on: node,
+			distanceMoved: actualHorizontalDelta.horizontalLength,
+			isMoving: horizontalSpeed > 0.01,
+			isCrouching: isCrouching,
+			isGrounded: node.position.y <= standingY + 0.01
+		)
 		if wantsJump && !isCrouching && node.position.y <= standingY + 0.01 {
 			verticalVelocity = jumpSpeed
 		}
@@ -339,6 +350,83 @@ final class PlayerController {
 
 	private func resetAngularVelocity() {
 		node.physicsBody?.angularVelocity = SCNVector4Zero
+	}
+
+}
+
+private final class FootstepAudio {
+
+	private let standingStepDistance: SCNFloat = 1.15
+	private let crouchStepDistance: SCNFloat = 1.45
+	private let standingVolume: Float = 0.42
+	private let crouchVolume: Float = 0.22
+	private let soundName = "03c_stepsd.wav"
+	private let maxPlaybackDuration: TimeInterval = 1
+
+	private var distanceSinceStep: SCNFloat = 0
+	private var sourceCache: [String: SCNAudioSource] = [:]
+
+	func reset() {
+		distanceSinceStep = 0
+	}
+
+	func update(on node: SCNNode, distanceMoved: SCNFloat, isMoving: Bool, isCrouching: Bool, isGrounded: Bool) {
+		guard isMoving, isGrounded, distanceMoved > 0 else {
+			reset()
+			return
+		}
+
+		distanceSinceStep += distanceMoved
+		let stepDistance = isCrouching ? crouchStepDistance : standingStepDistance
+		guard distanceSinceStep >= stepDistance else { return }
+		distanceSinceStep = 0
+
+		playStep(on: node, volume: isCrouching ? crouchVolume : standingVolume)
+	}
+
+	private func playStep(on node: SCNNode, volume: Float) {
+		guard let source = audioSource(named: soundName, volume: volume) else { return }
+		let player = SCNAudioPlayer(source: source)
+		player.didFinishPlayback = { [weak node, weak player] in
+			guard let player = player else { return }
+			DispatchQueue.main.async {
+				node?.removeAudioPlayer(player)
+			}
+		}
+		node.addAudioPlayer(player)
+
+		DispatchQueue.main.asyncAfter(deadline: .now() + maxPlaybackDuration) { [weak node, weak player] in
+			guard let player = player else { return }
+			node?.removeAudioPlayer(player)
+		}
+	}
+
+	private func audioSource(named soundName: String, volume: Float) -> SCNAudioSource? {
+		let cacheKey = "\(soundName):\(volume)"
+		if let source = sourceCache[cacheKey] {
+			return source
+		}
+
+		let url = mainDirectory.appendingPathComponent("sounds/" + soundName)
+		guard FileManager.default.fileExists(atPath: url.path),
+			  let source = SCNAudioSource(url: url) else {
+			return nil
+		}
+
+		source.loops = false
+		source.isPositional = true
+		source.shouldStream = false
+		source.volume = volume
+		sourceCache[cacheKey] = source
+		return source
+	}
+
+}
+
+private extension SCNVector3 {
+
+	var horizontalLength: SCNFloat {
+		return sqrt(x * x + z * z)
 	}
 
 }
