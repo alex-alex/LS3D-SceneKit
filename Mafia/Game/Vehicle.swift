@@ -446,6 +446,18 @@ private final class VehicleAudio {
 		let players = ([currentLoopPlayer, currentBrakeLoopPlayer].compactMap { $0 }) + oneShotPlayers
 		for player in players {
 			guard let audioPlayerNode = player.audioNode as? AVAudioPlayerNode else { continue }
+			guard audioPlayerNode.engine != nil else {
+				if player === currentLoopPlayer {
+					currentLoopPlayer = nil
+					currentLoopName = nil
+				}
+				if player === currentBrakeLoopPlayer {
+					currentBrakeLoopPlayer = nil
+					currentBrakeLoopName = nil
+				}
+				oneShotPlayers.removeAll { $0 === player }
+				continue
+			}
 			if isPaused {
 				audioPlayerNode.pause()
 			} else if !audioPlayerNode.isPlaying {
