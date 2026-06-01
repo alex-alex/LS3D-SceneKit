@@ -8,13 +8,21 @@
 
 import Foundation
 
-struct RawRepresentableError: Error {}
+struct RawRepresentableError: Error, CustomStringConvertible {
+	let typeName: String
+	let rawValue: Any
+
+	var description: String {
+		return "Invalid \(typeName) raw value: \(rawValue)"
+	}
+}
 
 public extension RawRepresentable {
 	init(forcedRawValue rawValue: RawValue) throws {
 		guard let x = Self(rawValue: rawValue) else {
-			print("rawValue:", rawValue)
-			throw RawRepresentableError()
+			let error = RawRepresentableError(typeName: String(describing: Self.self), rawValue: rawValue)
+			print(error)
+			throw error
 		}
 		self = x
 	}

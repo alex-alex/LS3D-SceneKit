@@ -28,6 +28,7 @@ enum SceneSectionItem: UInt16 {
 }
 
 enum SceneObjectPart: UInt16 {
+	case padding			= 0x0000
 	case name			= 0x0010
 	case position		= 0x0020
 	case rotation		= 0x0022
@@ -55,6 +56,7 @@ enum SceneObjectPart: UInt16 {
 }
 
 enum ObjectType: UInt32 {
+	case none			= 0
 	case light			= 2
 	case camera			= 3
 	case sound			= 4
@@ -65,6 +67,7 @@ enum ObjectType: UInt32 {
 }
 
 enum ObjectDefinitionType: UInt32 {
+	case none			= 0
 	case ghost			= 1
 	case player			= 2
 	case car			= 4
@@ -257,6 +260,9 @@ final class Scene {
 						let partEndOffset = stream.currentOffset + partSize - 6
 
 						switch partSgn {
+						case .padding:
+							stream.currentOffset += partSize - 6
+
 						case .name:
 							let str: String = try stream.read(maxLength: partSize - 6)
 							objectNode.name = str
@@ -284,7 +290,8 @@ final class Scene {
 							try loadModel(named: "models/" + str, node: objectNode)
 
 						case .type:
-							type = try ObjectType(forcedRawValue: stream.read())
+							let rawType: UInt32 = try stream.read()
+							type = ObjectType(rawValue: rawType) ?? .object
 
 						case .inSector:
 							stream.currentOffset += 6
@@ -329,7 +336,7 @@ final class Scene {
 						stream.currentOffset = partEndOffset
 					}
 
-					if type != .model && type != .object && type != .camera && type != .light {
+					if type != .none && type != .model && type != .object && type != .camera && type != .light {
 		//				print("OBJECT TYPE: \(type) \(objectNode.name)")
 
 						if objectNode.name == "target" {
@@ -343,6 +350,8 @@ final class Scene {
 							box.firstMaterial = SCNMaterial()
 
 							switch type {
+							case .none:
+								box.firstMaterial?.diffuse.contents = SKColor.red
 							case .light:
 								box.firstMaterial?.diffuse.contents = SKColor.yellow
 							case .sound:
@@ -530,7 +539,7 @@ final class Scene {
 		//							print("PED density:", modelDensity)
 								}
 
-							case .empty:
+							case .none, .empty:
 								break
 
 							case .dog:
@@ -806,8 +815,13 @@ final class Scene {
 		}
 
 		isAudioPaused = isPaused
-		for activePlayer in activeAudioPlayers.values {
+		var detachedPlayerIds: [ObjectIdentifier] = []
+		for (playerId, activePlayer) in activeAudioPlayers {
 			guard let audioPlayerNode = activePlayer.player.audioNode as? AVAudioPlayerNode else { continue }
+			guard audioPlayerNode.engine != nil else {
+				detachedPlayerIds.append(playerId)
+				continue
+			}
 			if isPaused {
 				audioPlayerNode.pause()
 				pauseAudioCompletionFallback(for: activePlayer)
@@ -815,6 +829,9 @@ final class Scene {
 				audioPlayerNode.play()
 				rescheduleAudioCompletionFallback(for: activePlayer)
 			}
+		}
+		for playerId in detachedPlayerIds {
+			finishAudioPlayer(playerId)
 		}
 	}
 

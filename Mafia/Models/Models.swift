@@ -13,24 +13,17 @@ import SceneKit
 enum ModelError: Error {
 	case file
 	case geometry
+	case invalidFile(String)
 }
 
 enum FrameType: UInt8 {
+	case visualLegacy	= 0
 	case visual			= 1
-	case light			= 2
-	case camera			= 3
-	case sound			= 4
+	case collision		= 2
 	case sector			= 5
 	case dummy			= 6
 	case target			= 7
-	case user			= 8
-	case model			= 9
 	case joint			= 10
-	case volume			= 11
-	case occluder		= 12
-	case scene			= 13
-	case area			= 14
-	case landscape		= 15
 }
 
 enum VisualType: UInt8 {
@@ -259,14 +252,20 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 
 	}
 
-	guard let stream = InputStream(url: url) else { throw ModelError.file }
+	guard let stream = InputStream(url: url) else {
+		throw ModelError.invalidFile("Could not open model '\(name)' at \(url.path)")
+	}
 	stream.open()
 
 	let str: String = try stream.read(maxLength: 4)
-	guard str == "4DS" else { throw ModelError.file }
+	guard str == "4DS" else {
+		throw ModelError.invalidFile("Invalid 4DS header '\(str)' in model '\(name)' at \(url.path)")
+	}
 
 	let ver: UInt16 = try stream.read()
-	guard ver == 29 else { throw ModelError.file }
+	guard ver == 29 else {
+		throw ModelError.invalidFile("Unsupported 4DS version \(ver) in model '\(name)' at \(url.path)")
+	}
 
 	let _: UInt64 = try stream.read()
 
@@ -335,28 +334,29 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			material.transparencyMode = .aOne
 		}
 
-			if flags.contains(.reflectionTexture) {
-				let ratio: Float = try stream.read()
-				let textureNameLength: UInt8 = try stream.read()
-				let textureName: String = try stream.read(maxLength: Int(textureNameLength))
-				textureNames.append(textureName)
-				let url = mafiaMapURL(named: textureName)
-				#if os(macOS)
-					material.reflective.contents = url.flatMap { NSImage(contentsOf: $0) }
-				#elseif os(iOS)
-					material.reflective.contents = url.flatMap { UIImage(contentsOfFile: $0.path) }
-				#endif
-				material.reflective.intensity = CGFloat(ratio)
-				material.reflective.wrapS = .repeat
-				material.reflective.wrapT = .repeat
-			}
+		if flags.contains(.reflectionTexture) {
+			let ratio: Float = try stream.read()
+			let textureNameLength: UInt8 = try stream.read()
+			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
+			textureNames.append(textureName)
+			let url = mafiaMapURL(named: textureName)
+			#if os(macOS)
+				material.reflective.contents = url.flatMap { NSImage(contentsOf: $0) }
+			#elseif os(iOS)
+				material.reflective.contents = url.flatMap { UIImage(contentsOfFile: $0.path) }
+			#endif
+			material.reflective.intensity = CGFloat(ratio)
+			material.reflective.wrapS = .repeat
+			material.reflective.wrapT = .repeat
+		}
 
-			if flags.contains(.diffuseTexture) {
-				let textureNameLength: UInt8 = try stream.read()
-				let textureName: String = (try stream.read(maxLength: Int(textureNameLength))).lowercased()
-				textureNames.append(textureName)
-				if let url = mafiaMapURL(named: textureName),
-				   let data = try? Data(contentsOf: url) {
+		if flags.contains(.diffuseTexture) {
+			let diffuseTextureNameLength: UInt8 = try stream.read()
+			let diffuseTextureName: String = try stream.read(maxLength: Int(diffuseTextureNameLength))
+			let textureName = diffuseTextureName.lowercased()
+			textureNames.append(textureName)
+			if let url = mafiaMapURL(named: textureName),
+			   let data = try? Data(contentsOf: url) {
 					#if os(macOS)
 					if flags.contains(.colorKey), data.count > 56 {
 						let b = CGFloat(data[54])/255
@@ -392,30 +392,30 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 						}
 					}
 					#endif
-				}
-					material.diffuse.wrapS = .repeat
-					material.diffuse.wrapT = .repeat
-					if flags.contains(.colorKey) {
-						material.blendMode = .alpha
-						material.transparencyMode = .aOne
-					}
-				}
-
-			if flags.contains(.opacityTexture) {
-				let textureNameLength: UInt8 = try stream.read()
-				let textureName: String = try stream.read(maxLength: Int(textureNameLength))
-				textureNames.append(textureName)
-				let url = mafiaMapURL(named: textureName)
-				material.transparencyMode = .rgbZero
-				material.blendMode = flags.contains(.additiveBlend) ? .add : .alpha
-				#if os(macOS)
-					material.transparent.contents = url.flatMap { NSImage(contentsOf: $0)?.inversed }
-				#elseif os(iOS)
-					material.transparent.contents = url.flatMap { UIImage(contentsOfFile: $0.path) }
-				#endif
-				material.transparent.wrapS = .repeat
-				material.transparent.wrapT = .repeat
 			}
+			material.diffuse.wrapS = .repeat
+			material.diffuse.wrapT = .repeat
+			if flags.contains(.colorKey) {
+				material.blendMode = .alpha
+				material.transparencyMode = .aOne
+			}
+		}
+
+		if flags.contains(.opacityTexture) {
+			let textureNameLength: UInt8 = try stream.read()
+			let textureName: String = try stream.read(maxLength: Int(textureNameLength))
+			textureNames.append(textureName)
+			let url = mafiaMapURL(named: textureName)
+			material.transparencyMode = .rgbZero
+			material.blendMode = flags.contains(.additiveBlend) ? .add : .alpha
+			#if os(macOS)
+				material.transparent.contents = url.flatMap { NSImage(contentsOf: $0)?.inversed }
+			#elseif os(iOS)
+				material.transparent.contents = url.flatMap { UIImage(contentsOfFile: $0.path) }
+			#endif
+			material.transparent.wrapS = .repeat
+			material.transparent.wrapT = .repeat
+		}
 
 		if !flags.contains(.diffuseTexture) && !flags.contains(.opacityTexture) {
 			let _: UInt8 = try stream.read()
@@ -449,12 +449,23 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 
 		nodeIds[i] = node
 
-		let frameType = try FrameType(forcedRawValue: stream.read())
+		let frameTypeRawValue: UInt8 = try stream.read()
+		guard let frameType = FrameType(rawValue: frameTypeRawValue) else {
+			throw ModelError.invalidFile(
+				"Invalid FrameType raw value \(frameTypeRawValue) at node \(i) in model '\(name)'"
+			)
+		}
 
 		let visualType: VisualType
 //		let visualFlags: UInt16
-		if frameType == .visual {
-			visualType = try VisualType(forcedRawValue: stream.read())
+		if frameType == .visual || frameType == .visualLegacy {
+			let visualTypeRawValue: UInt8 = try stream.read()
+			guard let parsedVisualType = VisualType(rawValue: visualTypeRawValue) else {
+				throw ModelError.invalidFile(
+					"Invalid VisualType raw value \(visualTypeRawValue) at node \(i) in model '\(name)'"
+				)
+			}
+			visualType = parsedVisualType
 			let _: UInt16 = try stream.read() // visualFlags
 		} else {
 			visualType = .object
@@ -464,9 +475,11 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		let parentId: UInt16 = try stream.read()
 		if parentId == 0 {
 			mainNode.addChildNode(node)
-		} else {
-			guard let parent = nodeIds[Int(parentId - 1)] else { throw ModelError.file }
+		} else if let parent = nodeIds[Int(parentId - 1)] {
 			parent.addChildNode(node)
+		} else {
+			print("Missing parent \(parentId) for node \(i) in model '\(name)'; attaching to root")
+			mainNode.addChildNode(node)
 		}
 
 		node.position = try SCNVector3(stream: stream)
@@ -484,9 +497,9 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 //		print("NODE:", node.name ?? "", "(\(description))")
 
 		switch frameType {
-		case .visual:
+		case .visualLegacy, .visual:
 			switch visualType {
-			case .object:
+			case .object, .litObject:
 				try readObject(stream: stream, node: node, id: i)
 			case .singleMesh:
 				let numLODs = try readObject(stream: stream, node: node, id: i)
@@ -535,6 +548,9 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		case .joint:
 			let (matrix, id) = try readJoint(stream: stream)
 			joints[id] = (node, matrix)
+
+		case .collision:
+			_ = try readObject(stream: stream, node: node, id: i)
 
 		default:
 			assert(true, "other frameType")

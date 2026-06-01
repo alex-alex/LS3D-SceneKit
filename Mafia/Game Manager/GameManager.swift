@@ -74,17 +74,24 @@ class GameManager {
 		let loadingScene = LoadingScene(textId: textId, imageName: imageName)
 		view.overlaySKScene = loadingScene
 		DispatchQueue.global().async {
-			// swiftlint:disable:next force_try
-			self.game = try! Game(missionName: folder) { progress in
-				DispatchQueue.main.async {
-					loadingScene.setProgress(progress)
+			do {
+				let game = try Game(missionName: folder) { progress in
+					DispatchQueue.main.async {
+						loadingScene.setProgress(progress)
+					}
 				}
-			}
-			self.game.onMissionEnded = { [weak self] in
-				self?.loadMissionSelector()
-			}
-			DispatchQueue.main.async {
-				self.game.setup(in: self.view)
+				game.onMissionEnded = { [weak self] in
+					self?.loadMissionSelector()
+				}
+				DispatchQueue.main.async {
+					self.game = game
+					game.setup(in: self.view)
+				}
+			} catch {
+				print("Failed to load mission '\(folder)':", error)
+				DispatchQueue.main.async {
+					self.loadMissionSelector()
+				}
 			}
 		}
 	}

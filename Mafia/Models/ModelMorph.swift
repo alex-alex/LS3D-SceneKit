@@ -11,11 +11,10 @@ import SceneKit
 
 func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
 	let numTargets: UInt8 = try stream.read()
-	let numChannels: UInt8 = try stream.read()
-	let _: UInt8 = try stream.read()
-
 	guard numTargets > 0 else { return }
 
+	let numChannels: UInt8 = try stream.read()
+	let _: UInt8 = try stream.read()
 	let morpher = SCNMorpher()
 
 	for _ in 0 ..< numChannels {
