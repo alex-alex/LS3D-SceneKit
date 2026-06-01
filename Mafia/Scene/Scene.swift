@@ -126,6 +126,22 @@ struct ScriptEventBinding {
 	let eventId: String
 }
 
+struct TrafficCarDefinition {
+	let modelName: String
+	let density: Float
+	let colors: UInt32
+	let isPolice: Bool
+	let gangsterFlags: UInt16
+}
+
+struct TrafficSettings {
+	let outerRadiusToHide: Float
+	let innerRadiusForGeneration: Float
+	let outerRadiusForGeneration: Float
+	let generatedCarCount: Int
+	let cars: [TrafficCarDefinition]
+}
+
 final class Scene {
 
 	var game: Game!
@@ -139,6 +155,7 @@ final class Scene {
 	var weapons: [SCNNode: [Weapon]] = [:]
 	var actions: [Action] = []
 	var environmentLights: [EnvironmentLight] = []
+	var trafficSettings: TrafficSettings?
 	var compassNode: SCNNode?
 	var playerFireEvent: ScriptEventBinding?
 	var playerHornEvent: ScriptEventBinding?
@@ -433,28 +450,39 @@ final class Scene {
 							case .traffic:
 
 								let _: UInt32 = try stream.read()						// 5 (const)
-								let _: Float = try stream.read()						// outerRadiusToHide / 180
-								let _: Float = try stream.read()						// innerRadiusForGener / 150
-								let _: Float = try stream.read()						// outerRadiusForGener / 170
-								let _: UInt32 = try stream.read()						// numOfGeneratedCars /	13
+								let outerRadiusToHide: Float = try stream.read()
+								let innerRadiusForGeneration: Float = try stream.read()
+								let outerRadiusForGeneration: Float = try stream.read()
+								let numOfGeneratedCars: UInt32 = try stream.read()
 								let numOfCarsInDatabase: UInt32 = try stream.read()
+								var cars: [TrafficCarDefinition] = []
 
 								for _ in 0 ..< numOfCarsInDatabase {
-									let _: String = try stream.read(maxLength: 20) // modelName
-		//							print("CAR modelName:", modelName)
+									let modelName: String = try stream.read(maxLength: 20)
 
-									let _: Float = try stream.read() // modelDensity
-		//							print("CAR density:", modelDensity)
+									let modelDensity: Float = try stream.read()
 
-									let _: UInt32 = try stream.read() // colors
-		//							print("CAR colors:", colors)
+									let colors: UInt32 = try stream.read()
 
-									let _: UInt16 = try stream.read() // isPolice
-		//							print("CAR isPolice:", isPolice)
+									let isPolice: UInt16 = try stream.read()
 
-									let _: UInt16 = try stream.read() // gangsterFlags
-		//							print("CAR gangsterFlags:", gangsterFlags)
+									let gangsterFlags: UInt16 = try stream.read()
+									cars.append(TrafficCarDefinition(
+										modelName: modelName,
+										density: modelDensity,
+										colors: colors,
+										isPolice: isPolice > 0,
+										gangsterFlags: gangsterFlags
+									))
 								}
+
+								trafficSettings = TrafficSettings(
+									outerRadiusToHide: outerRadiusToHide,
+									innerRadiusForGeneration: innerRadiusForGeneration,
+									outerRadiusForGeneration: outerRadiusForGeneration,
+									generatedCarCount: Int(numOfGeneratedCars),
+									cars: cars
+								)
 
 							case .pedestrians:
 								stream.currentOffset += 5

@@ -156,9 +156,15 @@ private final class MissionSelectorScene: SKScene {
 	private var labels: [SKLabelNode] = []
 	private var selectedIndex = 0
 	private var firstVisibleIndex = 0
+	private var rowHeight: CGFloat = 30
+	private var firstRowY: CGFloat = 0
 	private let maxVisibleMissions = 18
 	private let titleLabel = SKLabelNode(fontNamed: "Aurora")
 	private let hintLabel = SKLabelNode(fontNamed: "Arial")
+	#if os(iOS)
+	private var lastSwipePoint: CGPoint?
+	private var didSwipe = false
+	#endif
 
 	init(size: CGSize, missions: [MissionEntry], gameManager: GameManager) {
 		self.missions = missions
@@ -175,7 +181,11 @@ private final class MissionSelectorScene: SKScene {
 		titleLabel.horizontalAlignmentMode = .center
 		addChild(titleLabel)
 
+		#if os(iOS)
+		hintLabel.text = "Tap a mission, or swipe to change selection"
+		#else
 		hintLabel.text = "Use arrows and Return, or click a mission"
+		#endif
 		hintLabel.fontColor = SKColor(white: 0.75, alpha: 1)
 		hintLabel.horizontalAlignmentMode = .center
 		addChild(hintLabel)
@@ -205,13 +215,13 @@ private final class MissionSelectorScene: SKScene {
 		hintLabel.fontSize = 14
 		hintLabel.position = CGPoint(x: size.width / 2, y: 24)
 
-		let rowHeight = min(30, max(22, (size.height - 150) / CGFloat(max(1, labels.count))))
+		rowHeight = min(30, max(22, (size.height - 150) / CGFloat(max(1, labels.count))))
 		let x = max(32, size.width * 0.2)
-		let top = size.height - 120
+		firstRowY = size.height - 120
 
 		for (index, label) in labels.enumerated() {
 			label.fontSize = min(18, rowHeight * 0.68)
-			label.position = CGPoint(x: x, y: top - CGFloat(index) * rowHeight)
+			label.position = CGPoint(x: x, y: firstRowY - CGFloat(index) * rowHeight)
 		}
 	}
 
@@ -268,19 +278,64 @@ private final class MissionSelectorScene: SKScene {
 
 	#elseif os(iOS)
 
+	override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+		guard let point = touches.first?.location(in: self) else { return }
+		lastSwipePoint = point
+		didSwipe = false
+	}
+
+	override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+		guard let point = touches.first?.location(in: self),
+			  let lastPoint = lastSwipePoint else { return }
+
+		let deltaY = point.y - lastPoint.y
+		let threshold = max(18, rowHeight * 0.75)
+		if abs(deltaY) >= threshold {
+			moveSelection(by: deltaY > 0 ? 1 : -1)
+			lastSwipePoint = point
+			didSwipe = true
+		}
+	}
+
 	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
 		guard let point = touches.first?.location(in: self) else { return }
+		defer {
+			lastSwipePoint = nil
+			didSwipe = false
+		}
+
+		if didSwipe {
+			return
+		}
+
 		selectMission(at: point)
+	}
+
+	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+		lastSwipePoint = nil
+		didSwipe = false
 	}
 
 	#endif
 
 	private func selectMission(at point: CGPoint) {
-		for (labelIndex, label) in labels.enumerated() where label.contains(point) {
-			selectedIndex = firstVisibleIndex + labelIndex
-			refreshLabels()
-			loadSelectedMission()
-			return
-		}
+		guard let labelIndex = rowIndex(at: point) else { return }
+
+		selectedIndex = firstVisibleIndex + labelIndex
+		refreshLabels()
+		loadSelectedMission()
+	}
+
+	private func rowIndex(at point: CGPoint) -> Int? {
+		guard rowHeight > 0 else { return nil }
+
+		let labelIndex = Int(round((firstRowY - point.y) / rowHeight))
+		guard labels.indices.contains(labelIndex) else { return nil }
+
+		let rowCenterY = firstRowY - CGFloat(labelIndex) * rowHeight
+		guard abs(point.y - rowCenterY) <= rowHeight / 2 else { return nil }
+
+		let missionIndex = firstVisibleIndex + labelIndex
+		return missions.indices.contains(missionIndex) ? labelIndex : nil
 	}
 }

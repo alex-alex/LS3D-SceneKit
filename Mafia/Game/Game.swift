@@ -119,6 +119,7 @@ final class Game: NSObject {
 	private var activeSteal: (vehicle: Vehicle, startedAt: TimeInterval)?
 	private let vehicleStealDuration: TimeInterval = 1.6
 	private var playerPhysicsBodyBeforeVehicle: SCNPhysicsBody?
+	private var trafficManager: TrafficManager?
 
 	init(missionName: String, progressHandler: ((CGFloat) -> Void)? = nil) throws {
 		progressHandler?(0.05)
@@ -164,6 +165,12 @@ final class Game: NSObject {
 		scnScene.rootNode.addChildNode(collisions.node)
 		print("== Loaded Scene Collisions")
 		progressHandler?(0.85)
+
+		let road: Road? = (try? Road(name: "missions/"+missionName)) ?? nil
+		trafficManager = TrafficManager(road: road, trafficSettings: scene.trafficSettings, scene: scnScene)
+		if road != nil {
+			print("== Loaded Road")
+		}
 
 //		let floorNode = SCNNode()
 //		floorNode.opacity = 0
@@ -652,20 +659,29 @@ final class Game: NSObject {
 	}
 
 	private func updateVehicleStealing() {
-		guard let steal = activeSteal else { return }
+		guard let steal = activeSteal else {
+			hud?.updateVehicleStealProgress(0, isVisible: false)
+			return
+		}
+
+		let elapsed = Date.timeIntervalSinceReferenceDate - steal.startedAt
+		hud?.updateVehicleStealProgress(CGFloat(elapsed / vehicleStealDuration), isVisible: true)
+
 		guard isControlPressed(.ACTION),
 			  mode == .walk,
 			  let playerNode = scene.playerNode,
 			  steal.vehicle.node.actionSquaredDistance(to: playerNode.presentation.worldPosition) < actionDistanceSquared else {
 			activeSteal = nil
+			hud?.updateVehicleStealProgress(0, isVisible: false)
 			return
 		}
 
-		guard Date.timeIntervalSinceReferenceDate - steal.startedAt >= vehicleStealDuration,
+		guard elapsed >= vehicleStealDuration,
 			  let carId = vehicleStealId(for: steal.vehicle) else { return }
 
 		stolenVehicleIds.insert(carId)
 		activeSteal = nil
+		hud?.updateVehicleStealProgress(1, isVisible: false)
 		vehicle = steal.vehicle
 		mode = .car
 		hud?.showConsoleText("Car stolen")
@@ -979,6 +995,7 @@ extension Game: SCNSceneRendererDelegate {
 		}
 		updateSkyboxPosition()
 		updateEnvironment(deltaTime: deltaTime)
+		trafficManager?.update(deltaTime: deltaTime, playerPosition: playerReferencePosition())
 
 		#if os(macOS)
 
@@ -1049,6 +1066,10 @@ extension Game: SCNSceneRendererDelegate {
 		}
 
 		updateActionButtonVisibility(at: time)
+	}
+
+	private func playerReferencePosition() -> SCNVector3? {
+		return cameraNode.presentation.worldPosition
 	}
 
 }

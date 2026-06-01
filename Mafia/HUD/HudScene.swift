@@ -26,6 +26,9 @@ final class HudScene: SKScene {
 	var consoleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
+	private var vehicleStealProgressBackground: SKShapeNode!
+	private var vehicleStealProgressFill: SKShapeNode!
+	private var vehicleStealProgressLabel: SKLabelNode!
 	private var healthHudPanel: SKSpriteNode!
 	private var healthValueShadowLabel: SKLabelNode!
 	private var healthValueLabel: SKLabelNode!
@@ -42,6 +45,7 @@ final class HudScene: SKScene {
 	private var inventoryPausedGame = false
 	private var lastSpeedText: String?
 	private var lastPlayerStatusText: String?
+	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
 	private let objectivesActionKey = "objectivesMessage"
@@ -52,6 +56,9 @@ final class HudScene: SKScene {
 			return false
 		#endif
 	}
+	#if os(iOS)
+	private var activeTouchControl: Control?
+	#endif
 	var isInventoryVisible: Bool {
 		return inventoryOverlay?.isHidden == false
 	}
@@ -159,6 +166,7 @@ final class HudScene: SKScene {
 		playerStatusLabel.isHidden = true
 		addChild(playerStatusLabel)
 
+		renderVehicleStealProgress()
 		renderPlayerStatusHud()
 		renderPauseScreen()
 		renderInventoryOverlay()
@@ -187,6 +195,9 @@ final class HudScene: SKScene {
 				  consoleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
+				  vehicleStealProgressBackground != nil,
+				  vehicleStealProgressFill != nil,
+				  vehicleStealProgressLabel != nil,
 				  healthHudPanel != nil,
 				  ammoHudPanel != nil,
 				  pauseOverlay != nil,
@@ -201,6 +212,7 @@ final class HudScene: SKScene {
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
+		layoutVehicleStealProgress()
 		layoutPlayerStatusHud()
 		pauseOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
 		pauseOverlay.path = CGPath(
@@ -253,6 +265,28 @@ final class HudScene: SKScene {
 		}
 	}
 
+	func updateVehicleStealProgress(_ progress: CGFloat, isVisible: Bool) {
+		vehicleStealProgressBackground.isHidden = !isVisible
+		vehicleStealProgressFill.isHidden = !isVisible
+		vehicleStealProgressLabel.isHidden = !isVisible
+		guard isVisible else {
+			lastVehicleStealProgress = -1
+			return
+		}
+
+		let clampedProgress = max(0, min(progress, 1))
+		guard abs(lastVehicleStealProgress - clampedProgress) > 0.01 else { return }
+
+		lastVehicleStealProgress = clampedProgress
+		let width: CGFloat = 180
+		vehicleStealProgressFill.path = CGPath(
+			roundedRect: CGRect(x: -width / 2, y: -6, width: width * clampedProgress, height: 12),
+			cornerWidth: 6,
+			cornerHeight: 6,
+			transform: nil
+		)
+	}
+
 	func showConsoleText(_ text: String) {
 		consoleLabel.removeAction(forKey: consoleActionKey)
 		consoleLabel.text = remappedControlText(text)
@@ -294,6 +328,53 @@ final class HudScene: SKScene {
 		return text
 			.replacingOccurrences(of: "Default: F1 key", with: "Default: O key")
 			.replacingOccurrences(of: "Default: F5", with: "Default: V")
+	}
+
+}
+
+// MARK: - Vehicle Steal Progress
+
+extension HudScene {
+
+	private func renderVehicleStealProgress() {
+		vehicleStealProgressBackground = SKShapeNode(
+			rect: CGRect(x: -90, y: -6, width: 180, height: 12),
+			cornerRadius: 6
+		)
+		vehicleStealProgressBackground.fillColor = SKColor.black.withAlphaComponent(0.55)
+		vehicleStealProgressBackground.strokeColor = SKColor.white.withAlphaComponent(0.7)
+		vehicleStealProgressBackground.lineWidth = 1
+		vehicleStealProgressBackground.zPosition = 900
+		vehicleStealProgressBackground.isHidden = true
+		addChild(vehicleStealProgressBackground)
+
+		vehicleStealProgressFill = SKShapeNode(
+			rect: CGRect(x: -90, y: -6, width: 0, height: 12),
+			cornerRadius: 6
+		)
+		vehicleStealProgressFill.fillColor = SKColor.white
+		vehicleStealProgressFill.strokeColor = SKColor.clear
+		vehicleStealProgressFill.zPosition = 901
+		vehicleStealProgressFill.isHidden = true
+		addChild(vehicleStealProgressFill)
+
+		vehicleStealProgressLabel = SKLabelNode()
+		vehicleStealProgressLabel.fontName = "Arial-BoldMT"
+		vehicleStealProgressLabel.fontSize = 14
+		vehicleStealProgressLabel.fontColor = SKColor.white
+		vehicleStealProgressLabel.text = "Stealing car"
+		vehicleStealProgressLabel.horizontalAlignmentMode = .center
+		vehicleStealProgressLabel.verticalAlignmentMode = .bottom
+		vehicleStealProgressLabel.zPosition = 902
+		vehicleStealProgressLabel.isHidden = true
+		addChild(vehicleStealProgressLabel)
+	}
+
+	private func layoutVehicleStealProgress() {
+		let position = CGPoint(x: size.width / 2, y: 70)
+		vehicleStealProgressBackground.position = position
+		vehicleStealProgressFill.position = position
+		vehicleStealProgressLabel.position = CGPoint(x: position.x, y: position.y + 14)
 	}
 
 }
@@ -780,6 +861,36 @@ extension HudScene {
 		carButton?.isHidden = game.vehicle == nil
 	}
 
+	func handlesTouchControl(at point: CGPoint) -> Bool {
+		guard showsTouchControls else { return false }
+		if isInventoryVisible {
+			return true
+		}
+		return touchControlNode(at: point) != nil
+	}
+
+	private func touchControlNode(at point: CGPoint) -> SKNode? {
+		return nodes(at: point).first { node in
+			isTouchControlNode(node)
+		}
+	}
+
+	private func isTouchControlNode(_ node: SKNode) -> Bool {
+		let controls: [SKNode?] = [
+			actionButton,
+			inventoryButton,
+			reloadButton,
+			dropButton,
+			jumpButton,
+			carButton
+		]
+
+		return controls.contains { control in
+			guard let control = control, !control.isHidden else { return false }
+			return node === control || node.parent === control
+		}
+	}
+
 }
 
 // MARK: - Control
@@ -797,10 +908,11 @@ extension HudScene {
 			return
 		}
 
-		if let node = nodes(at: location).first {
+		if let node = touchControlNode(at: location) {
 			switch node {
 			case actionButton:
-				game.lastControl = .ACTION
+				activeTouchControl = .ACTION
+				game.pressControl(.ACTION)
 				game.actionButtonTapped()
 			case inventoryButton, inventoryButton.children[0]:
 				game.lastControl = .INVENTORY
@@ -838,6 +950,25 @@ extension HudScene {
 				break
 			}
 		}
+	}
+
+	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+		super.touchesEnded(touches, with: event)
+
+		releaseActiveTouchControl()
+	}
+
+	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+		super.touchesCancelled(touches, with: event)
+
+		releaseActiveTouchControl()
+	}
+
+	private func releaseActiveTouchControl() {
+		guard let control = activeTouchControl else { return }
+
+		game.releaseControl(control)
+		activeTouchControl = nil
 	}
 
 	#elseif os(macOS)

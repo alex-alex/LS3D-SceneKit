@@ -21,6 +21,7 @@ class GameViewController: UIViewController {
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
 	var fireGesture: UITapGestureRecognizer!
+	private var isTouchDriving = false
 
 	let motionManager = CMMotionManager()
 	var accelerometer = CMAcceleration()
@@ -57,7 +58,8 @@ class GameViewController: UIViewController {
 			motionManager.startAccelerometerUpdates(to: .main) { data, _ in
 				guard self.gameManager.game?.mode == .car,
 					  let vehicle = self.gameManager.game?.vehicle,
-					  let data = data else { return }
+					  let data = data,
+					  !self.isTouchDriving else { return }
 
 				self.accelerometer.update(with: data.acceleration)
 
@@ -108,6 +110,12 @@ extension GameViewController {
 		if gesture.state == .ended || gesture.state == .cancelled {
 			gesture.setTranslation(.zero, in: view)
 			gameManager.game?.playerController?.setMovement(x: 0, z: 0)
+			if gameManager.game?.mode == .car {
+				gameManager.game?.vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+				gameManager.game?.vehicle?.applyForces()
+			}
+			isTouchDriving = false
+			return
 		}
 
 		let translation = gesture.translation(in: view)
@@ -123,12 +131,11 @@ extension GameViewController {
 			let inputZ = max(-1, min(1, Float(-translation.y) / 50))
 			gameManager.game.playerController?.setMovement(x: inputX, z: inputZ)
 		} else if gameManager.game?.mode == .car, let vehicle = gameManager.game?.vehicle {
-			let impulse = SCNVector3(
-				x: max(-1, min(1, Float(translation.x) / 50)),
-				y: 0,
-				z: max(-1, min(1, Float(-translation.y) / 50))
-			)
-			vehicle.force = CGFloat(impulse.z) * 3000
+			isTouchDriving = true
+			let steering = max(-1, min(1, CGFloat(translation.x) / 50))
+			let throttleInput = max(-1, min(1, CGFloat(-translation.y) / 50))
+			let throttle = throttleInput >= 0 ? throttleInput : throttleInput * 0.55
+			vehicle.updateControls(throttle: throttle, brake: false, steering: steering)
 		}
 	}
 
@@ -144,6 +151,13 @@ extension GameViewController: UIGestureRecognizerDelegate {
 	func gestureRecognizer(
 		_ gestureRecognizer: UIGestureRecognizer,
 		shouldReceive touch: UITouch) -> Bool {
+		guard gameManager.game != nil else { return false }
+
+		if let hud = gameManager.game?.hud,
+		   hud.handlesTouchControl(at: touch.location(in: hud)) {
+			return false
+		}
+
 		if gestureRecognizer == lookGesture {
 			return touch.location(in: view).x > view.frame.size.width / 2
 		} else if gestureRecognizer == walkGesture {
