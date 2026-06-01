@@ -78,6 +78,7 @@ final class HudScene: SKScene {
 	private var walkingBackward = false
 	private var walkingLeft = false
 	private var walkingRight = false
+	private var running = false
 	private var crouching = false
 	private var lastCrouchSidestepTapDirection = 0
 	private var lastCrouchSidestepTapTime: TimeInterval = 0
@@ -1063,6 +1064,9 @@ extension HudScene {
 		case 59, 62: // control
 			setCrouching(true)
 
+		case 56, 60: // shift
+			setRunning(true)
+
 		case 49: // space
 			if game.mode == .walk, game.scene.playerNode != nil {
 				game.playerController?.jump()
@@ -1208,6 +1212,8 @@ extension HudScene {
 				updateWalkingControls()
 			case 59, 62: // control
 				setCrouching(false)
+			case 56, 60: // shift
+				setRunning(false)
 			case 15, 37: // R, L
 				game.releaseControl(.RELOAD)
 			case 34: // I
@@ -1334,6 +1340,7 @@ extension HudScene {
 		walkingBackward = false
 		walkingLeft = false
 		walkingRight = false
+		setRunning(false)
 		resetCrouchSidestepTap()
 		setCrouching(false)
 		game.playerController?.stop()
@@ -1344,13 +1351,22 @@ extension HudScene {
 
 		guard !game.isGamePaused else { return }
 		guard game.mode == .walk, game.scene.playerNode != nil else {
+			setRunning(false)
 			setCrouching(false)
 			return
 		}
 
-		setCrouching(event.modifierFlags
-			.intersection(.deviceIndependentFlagsMask)
-			.contains(.control))
+		let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+		setRunning(flags.contains(.shift))
+		setCrouching(flags.contains(.control))
+	}
+
+	private func setRunning(_ isRunning: Bool) {
+		guard !isRunning || (game.mode == .walk && game.scene.playerNode != nil) else { return }
+		guard running != isRunning else { return }
+
+		running = isRunning
+		game.playerController?.setRunning(isRunning)
 	}
 
 	private func setCrouching(_ isCrouching: Bool) {

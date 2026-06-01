@@ -26,6 +26,7 @@ final class PlayerController {
 	private var horizontalVelocity = SCNVector3Zero
 	private var verticalVelocity: SCNFloat = 0
 	private var requestedCrouching = false
+	private var requestedRunning = false
 	private var standingY: SCNFloat
 	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
@@ -55,6 +56,7 @@ final class PlayerController {
 	}
 
 	private let walkSpeed: SCNFloat = 3.2
+	private let runSpeed: SCNFloat = 6.1
 	private let crouchSpeed: SCNFloat = 1.45
 	private let acceleration: SCNFloat = 14
 	private let stopAcceleration: SCNFloat = 24
@@ -114,7 +116,14 @@ final class PlayerController {
 		requestedCrouching = value
 	}
 
+	func setRunning(_ value: Bool) {
+		stateLock.lock()
+		defer { stateLock.unlock() }
+		requestedRunning = value
+	}
+
 	func stop() {
+		setRunning(false)
 		movement = SCNVector3Zero
 		turn = 0
 		pendingLook = 0
@@ -321,12 +330,23 @@ final class PlayerController {
 	}
 
 	private func walkingAnimationName() -> String? {
-		guard isCrouching else { return standingWalkingAnimationName }
-		return crouchWalkingAnimationCandidates.first { animationExists(named: $0) }
+		if isCrouching {
+			return crouchWalkingAnimationCandidates.first { animationExists(named: $0) }
+		}
+		return standingWalkingAnimationName
 	}
 
 	private var currentMoveSpeed: SCNFloat {
-		return isCrouching ? crouchSpeed : walkSpeed
+		if isCrouching {
+			return crouchSpeed
+		}
+		return requestedRunningValue ? runSpeed : walkSpeed
+	}
+
+	private var requestedRunningValue: Bool {
+		stateLock.lock()
+		defer { stateLock.unlock() }
+		return requestedRunning
 	}
 
 	private func animationExists(named animationName: String) -> Bool {
