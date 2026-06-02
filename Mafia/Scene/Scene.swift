@@ -843,6 +843,10 @@ final class Scene {
 		}
 
 		print("== Loading Difference: \(name)")
+		game?.setLoadBlackoutVisible(true)
+		defer {
+			game?.setLoadBlackoutVisible(false)
+		}
 		let differenceFile = try DifferenceFile(named: name)
 		rootNode.addChildNode(differenceFile.rootNode)
 		loadedDifferenceFiles[key] = differenceFile

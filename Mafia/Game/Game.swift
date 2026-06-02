@@ -27,7 +27,12 @@ final class Game: NSObject {
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
-	var isCutsceneCameraActive = false
+	var isCutsceneCameraActive = false {
+		didSet {
+			guard oldValue != isCutsceneCameraActive else { return }
+			setCutsceneOverlayVisible(isCutsceneCameraActive)
+		}
+	}
 	private let ambientLightNode = SCNNode()
 
 	var mode: Mode = .walk {
@@ -704,7 +709,7 @@ final class Game: NSObject {
 		guard isActionButtonVisible != isVisible else { return }
 
 		isActionButtonVisible = isVisible
-		hud.actionButton.isHidden = !isVisible
+		hud.setActionButtonVisible(isVisible)
 	}
 
 	private func beginVehicleSteal(_ vehicle: Vehicle) {
@@ -799,6 +804,37 @@ final class Game: NSObject {
 		}
 		refreshPlayerStatusHud()
 		scene.startScripts()
+	}
+
+	func setCutsceneOverlayVisible(_ isVisible: Bool) {
+		let update = {
+			self.hud?.setCutsceneOverlayVisible(isVisible)
+			if !isVisible {
+				self.hud?.setActionButtonVisible(self.isActionButtonVisible)
+			}
+		}
+
+		if Thread.isMainThread {
+			update()
+		} else {
+			DispatchQueue.main.async {
+				update()
+			}
+		}
+	}
+
+	func setLoadBlackoutVisible(_ isVisible: Bool) {
+		let update = {
+			self.hud?.setLoadBlackoutVisible(isVisible)
+		}
+
+		if Thread.isMainThread {
+			update()
+		} else {
+			DispatchQueue.main.sync {
+				update()
+			}
+		}
 	}
 
 	func setPaused(_ isPaused: Bool, showsPauseScreen: Bool = true) {
@@ -1176,7 +1212,7 @@ extension Game: SCNSceneRendererDelegate {
 		   let playerNode = scene.playerNode {
 			let p1 = node.presentation.worldPosition
 			let p2 = playerNode.presentation.worldPosition
-			hud.compass.isHidden = false
+			hud.setCompassVisible(true)
 			let target = SCNVector3(x: p1.x - p2.x, y: 0, z: p1.z - p2.z)
 			let referenceNode = mode == .car ? vehicle?.node : playerNode
 			let referenceTransform = referenceNode?.presentation.worldTransform ?? playerNode.presentation.worldTransform
@@ -1188,7 +1224,7 @@ extension Game: SCNSceneRendererDelegate {
 			let forwardAngle = atan2(referenceForward.z, referenceForward.x)
 			hud.compassNeedle.zRotation = CGFloat(targetAngle - forwardAngle + .pi / 2)
 		} else {
-			hud.compass.isHidden = true
+			hud.setCompassVisible(false)
 		}
 
 		updateActionButtonVisibility(at: time)

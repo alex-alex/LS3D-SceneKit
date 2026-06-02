@@ -41,14 +41,20 @@ final class HudScene: SKScene {
 	private var inventoryOverlay: SKShapeNode!
 	private var inventoryTitleLabel: SKLabelNode!
 	private var inventoryHintLabel: SKLabelNode!
+	private var letterboxTopBar: SKShapeNode!
+	private var letterboxBottomBar: SKShapeNode!
+	private var cutsceneFadeOverlay: SKShapeNode!
+	private var loadBlackoutOverlay: SKShapeNode!
 	private var inventoryRows: [(node: SKShapeNode, weapon: Weapon?)] = []
 	private var inventoryPausedGame = false
+	private var isCutsceneOverlayVisible = false
 	private var lastSpeedText: String?
 	private var lastPlayerStatusText: String?
 	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
 	private let objectivesActionKey = "objectivesMessage"
+	private let cutsceneFadeActionKey = "cutsceneFade"
 	private let objectiveLineSpacing: CGFloat = 24
 	private var showsTouchControls: Bool {
 		#if os(iOS)
@@ -168,6 +174,7 @@ final class HudScene: SKScene {
 		renderPlayerStatusHud()
 		renderPauseScreen()
 		renderInventoryOverlay()
+		renderCinematicOverlays()
 
 		scaleMode = .resizeFill
 		isHidden = false
@@ -200,7 +207,11 @@ final class HudScene: SKScene {
 				  healthHudPanel != nil,
 				  ammoHudPanel != nil,
 				  pauseOverlay != nil,
-				  inventoryOverlay != nil else { return }
+				  inventoryOverlay != nil,
+				  letterboxTopBar != nil,
+				  letterboxBottomBar != nil,
+				  cutsceneFadeOverlay != nil,
+				  loadBlackoutOverlay != nil else { return }
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 104)
@@ -221,6 +232,7 @@ final class HudScene: SKScene {
 		pauseTitleLabel.position = CGPoint(x: 0, y: 20)
 		pauseHintLabel.position = CGPoint(x: 0, y: -24)
 		layoutInventoryOverlay()
+		layoutCinematicOverlays()
 
 		layoutTouchButtons()
 	}
@@ -228,7 +240,7 @@ final class HudScene: SKScene {
 	func updateVehicleSpeed(_ speed: CGFloat, vehicleSpeed: CGFloat, force: CGFloat, isVisible: Bool) {
 		if wasSpeedVisible != isVisible {
 			wasSpeedVisible = isVisible
-			speedLabel.isHidden = !isVisible
+			speedLabel.isHidden = !isGameplayHudVisible(isVisible)
 		}
 		guard isVisible else { return }
 
@@ -244,7 +256,7 @@ final class HudScene: SKScene {
 
 	func updatePlayerStatus(health: Int, weapon: Weapon?) {
 		updatePlayerStatusHud(health: health, weapon: weapon)
-		crosshairNode.isHidden = weapon?.isFirearm != true
+		crosshairNode.isHidden = !isGameplayHudVisible(weapon?.isFirearm == true)
 
 		let weaponText: String
 		if let weapon = weapon {
@@ -266,9 +278,10 @@ final class HudScene: SKScene {
 	}
 
 	func updateVehicleStealProgress(_ progress: CGFloat, isVisible: Bool, label: String = "Stealing car") {
-		vehicleStealProgressBackground.isHidden = !isVisible
-		vehicleStealProgressFill.isHidden = !isVisible
-		vehicleStealProgressLabel.isHidden = !isVisible
+		let isHudVisible = isGameplayHudVisible(isVisible)
+		vehicleStealProgressBackground.isHidden = !isHudVisible
+		vehicleStealProgressFill.isHidden = !isHudVisible
+		vehicleStealProgressLabel.isHidden = !isHudVisible
 		vehicleStealProgressLabel.text = label
 		guard isVisible else {
 			lastVehicleStealProgress = -1
@@ -291,7 +304,7 @@ final class HudScene: SKScene {
 	func showConsoleText(_ text: String) {
 		consoleLabel.removeAction(forKey: consoleActionKey)
 		consoleLabel.text = remappedControlText(text)
-		consoleLabel.alpha = 1
+		consoleLabel.alpha = isCutsceneOverlayVisible ? 0 : 1
 		consoleLabel.run(
 			SKAction.sequence([
 				SKAction.wait(forDuration: 4),
@@ -306,8 +319,8 @@ final class HudScene: SKScene {
 		objectivesNode.removeAllChildren()
 		let texts = objectives.compactMap { TextDb.get($0).map(remappedControlText) }
 		let hasObjectives = !texts.isEmpty
-		objectivesNode.isHidden = !hasObjectives
-		objectivesNode.alpha = hasObjectives ? 1 : 0
+		objectivesNode.isHidden = !isGameplayHudVisible(hasObjectives)
+		objectivesNode.alpha = isGameplayHudVisible(hasObjectives) ? 1 : 0
 		guard hasObjectives else { return }
 
 		let startY = CGFloat(texts.count - 1) * objectiveLineSpacing / 2
@@ -343,6 +356,136 @@ final class HudScene: SKScene {
 		return text
 			.replacingOccurrences(of: "Default: F1 key", with: "Default: O key")
 			.replacingOccurrences(of: "Default: F5", with: "Default: V")
+	}
+
+	private func isGameplayHudVisible(_ requestedVisibility: Bool) -> Bool {
+		return requestedVisibility && !isCutsceneOverlayVisible
+	}
+
+	func setActionButtonVisible(_ isVisible: Bool) {
+		actionButton.isHidden = !isGameplayHudVisible(isVisible)
+	}
+
+	func setCompassVisible(_ isVisible: Bool) {
+		compass.isHidden = !isGameplayHudVisible(isVisible)
+	}
+
+	func setCutsceneOverlayVisible(_ isVisible: Bool) {
+		guard isCutsceneOverlayVisible != isVisible else { return }
+
+		isCutsceneOverlayVisible = isVisible
+		letterboxTopBar.isHidden = !isVisible
+		letterboxBottomBar.isHidden = !isVisible
+
+		if isVisible {
+			compass.isHidden = true
+			actionButton.isHidden = true
+			speedLabel.isHidden = true
+			playerStatusLabel.isHidden = true
+			crosshairNode.isHidden = true
+			vehicleStealProgressBackground.isHidden = true
+			vehicleStealProgressFill.isHidden = true
+			vehicleStealProgressLabel.isHidden = true
+			healthHudPanel.isHidden = true
+			ammoHudPanel.isHidden = true
+			objectivesNode.isHidden = true
+			consoleLabel.alpha = 0
+			inventoryButton?.isHidden = true
+			reloadButton?.isHidden = true
+			dropButton?.isHidden = true
+			jumpButton?.isHidden = true
+			playCutsceneFadeIn()
+		} else {
+			cutsceneFadeOverlay.removeAction(forKey: cutsceneFadeActionKey)
+			cutsceneFadeOverlay.isHidden = true
+			cutsceneFadeOverlay.alpha = 0
+			healthHudPanel.isHidden = false
+			speedLabel.isHidden = !wasSpeedVisible
+			objectivesNode.isHidden = objectivesNode.children.isEmpty
+			consoleLabel.alpha = consoleLabel.hasActions() ? 1 : 0
+			layoutTouchButtons()
+		}
+	}
+
+	func setLoadBlackoutVisible(_ isVisible: Bool) {
+		loadBlackoutOverlay.isHidden = !isVisible
+	}
+
+}
+
+// MARK: - Cinematic Overlays
+
+extension HudScene {
+
+	private func renderCinematicOverlays() {
+		letterboxTopBar = SKShapeNode()
+		letterboxTopBar.fillColor = SKColor.black
+		letterboxTopBar.strokeColor = SKColor.clear
+		letterboxTopBar.zPosition = 950
+		letterboxTopBar.isHidden = true
+		addChild(letterboxTopBar)
+
+		letterboxBottomBar = SKShapeNode()
+		letterboxBottomBar.fillColor = SKColor.black
+		letterboxBottomBar.strokeColor = SKColor.clear
+		letterboxBottomBar.zPosition = 950
+		letterboxBottomBar.isHidden = true
+		addChild(letterboxBottomBar)
+
+		cutsceneFadeOverlay = SKShapeNode()
+		cutsceneFadeOverlay.fillColor = SKColor.black
+		cutsceneFadeOverlay.strokeColor = SKColor.clear
+		cutsceneFadeOverlay.zPosition = 975
+		cutsceneFadeOverlay.alpha = 0
+		cutsceneFadeOverlay.isHidden = true
+		addChild(cutsceneFadeOverlay)
+
+		loadBlackoutOverlay = SKShapeNode()
+		loadBlackoutOverlay.fillColor = SKColor.black
+		loadBlackoutOverlay.strokeColor = SKColor.clear
+		loadBlackoutOverlay.zPosition = 2000
+		loadBlackoutOverlay.isHidden = true
+		addChild(loadBlackoutOverlay)
+	}
+
+	private func layoutCinematicOverlays() {
+		let barHeight = max(48, size.height * 0.12)
+		letterboxBottomBar.path = CGPath(
+			rect: CGRect(x: 0, y: 0, width: size.width, height: barHeight),
+			transform: nil
+		)
+		letterboxBottomBar.position = .zero
+
+		letterboxTopBar.path = CGPath(
+			rect: CGRect(x: 0, y: 0, width: size.width, height: barHeight),
+			transform: nil
+		)
+		letterboxTopBar.position = CGPoint(x: 0, y: size.height - barHeight)
+
+		cutsceneFadeOverlay.path = CGPath(
+			rect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
+			transform: nil
+		)
+		cutsceneFadeOverlay.position = .zero
+
+		loadBlackoutOverlay.path = CGPath(
+			rect: CGRect(x: 0, y: 0, width: size.width, height: size.height),
+			transform: nil
+		)
+		loadBlackoutOverlay.position = .zero
+	}
+
+	private func playCutsceneFadeIn() {
+		cutsceneFadeOverlay.removeAction(forKey: cutsceneFadeActionKey)
+		cutsceneFadeOverlay.isHidden = false
+		cutsceneFadeOverlay.alpha = 1
+		cutsceneFadeOverlay.run(
+			SKAction.sequence([
+				SKAction.fadeOut(withDuration: 0.55),
+				SKAction.hide()
+			]),
+			withKey: cutsceneFadeActionKey
+		)
 	}
 
 }
@@ -565,9 +708,10 @@ extension HudScene {
 	private func updatePlayerStatusHud(health: Int, weapon: Weapon?) {
 		healthValueLabel.text = "\(max(0, health))"
 		healthValueShadowLabel.text = healthValueLabel.text
+		healthHudPanel.isHidden = isCutsceneOverlayVisible
 
 		let ammoText: String
-		if let weapon = weapon, weapon.isFirearm {
+		if let weapon = weapon, weapon.isFirearm, !isCutsceneOverlayVisible {
 			ammoText = weapon.clipAmmo == -1 ? "INF" : "\(max(0, weapon.clipAmmo))/\(max(0, weapon.restAmmo))"
 			ammoHudPanel.isHidden = false
 		} else {
@@ -886,6 +1030,12 @@ extension HudScene {
 			jumpButton?.isHidden = true
 			return
 		}
+
+		let isVisible = !isCutsceneOverlayVisible
+		inventoryButton?.isHidden = !isVisible
+		reloadButton?.isHidden = !isVisible
+		dropButton?.isHidden = !isVisible
+		jumpButton?.isHidden = !isVisible
 	}
 
 	func handlesTouchControl(at point: CGPoint) -> Bool {
