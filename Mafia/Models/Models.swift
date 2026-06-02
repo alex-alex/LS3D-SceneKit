@@ -277,8 +277,8 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		material.name = "material_\(i)"
 		var textureNames: [String] = []
 		material.cullMode = .front
-		material.lightingModel = .constant
-		material.isLitPerPixel = false
+		material.lightingModel = .lambert
+		material.isLitPerPixel = true
 		material.writesToDepthBuffer = true
 		material.readsFromDepthBuffer = true
 		let isTransparentMaterial = flags.contains(.colorKey) ||
@@ -290,6 +290,11 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			material.isDoubleSided = true
 		}
 
+		if isTransparentMaterial {
+			material.lightingModel = .constant
+			material.isLitPerPixel = false
+		}
+
 		if flags.contains(.additiveBlend) {
 			material.blendMode = .add
 		}
@@ -298,15 +303,10 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			material.diffuse.mipFilter = .linear
 		}
 
-		let ambientR: Float = try stream.read()
-		let ambientG: Float = try stream.read()
-		let ambientB: Float = try stream.read()
-		material.ambient.contents = SKColor(
-			red: CGFloat(ambientR),
-			green: CGFloat(ambientG),
-			blue: CGFloat(ambientB),
-			alpha: 1
-		)
+		let _: Float = try stream.read() // ambientR
+		let _: Float = try stream.read() // ambientG
+		let _: Float = try stream.read() // ambientB
+		material.ambient.contents = SKColor.white
 
 		let diffuseR: Float = try stream.read()
 		let diffuseG: Float = try stream.read()

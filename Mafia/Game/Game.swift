@@ -144,6 +144,7 @@ final class Game: NSObject {
 	private let maxFreeCameraPitch: SCNFloat = .pi / 2 - 0.01
 	private let fogBlendSpeed: CGFloat = 0.4
 	private let ambientBlendSpeed: CGFloat = 0.9
+	private let outdoorAmbientPowerMultiplier: CGFloat = 3
 	private var stealEnabledVehicleIds: Set<Int> = []
 	private var stealVehicleNodes: [Int: SCNNode] = [:]
 	private var stolenVehicleIds: Set<Int> = []
@@ -542,7 +543,8 @@ final class Game: NSObject {
 			sectorNodes: &environmentSectorNodes,
 			missingSectorNames: &missingEnvironmentSectorNames
 		) {
-			let targetColor = ambient.color.multiplied(by: ambient.power)
+			let ambientPower = ambient.power * (ambient.isOutdoorLight ? outdoorAmbientPowerMultiplier : 1)
+			let targetColor = ambient.color.multiplied(by: ambientPower)
 			ambientLightNode.light?.color = (ambientLightNode.light?.color as? SKColor ?? .black).lerped(to: targetColor, amount: ambientBlend)
 			ambientLightNode.light?.intensity = 100
 		}
@@ -1131,6 +1133,13 @@ private extension Array where Element == EnvironmentLight {
 		}
 		sectorNodes[name] = sectorNode
 		return sectorNode
+	}
+}
+
+private extension EnvironmentLight {
+	var isOutdoorLight: Bool {
+		guard let sectorName else { return true }
+		return sectorName.caseInsensitiveCompare("Primary Sector") == .orderedSame
 	}
 }
 

@@ -11,8 +11,41 @@ import SceneKit
 
 extension CGImage {
 	func removeColor(_ color: CGColor) -> CGImage? {
-		let comps = color.components ?? [0, 0, 0]
-		return copy(maskingColorComponents: [comps[0], comps[0], comps[1], comps[1], comps[2], comps[2]])
+		guard let context = CGContext(
+			data: nil,
+			width: width,
+			height: height,
+			bitsPerComponent: 8,
+			bytesPerRow: width * 4,
+			space: CGColorSpaceCreateDeviceRGB(),
+			bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+		), let data = context.data else {
+			return nil
+		}
+
+		context.draw(self, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+		let components = color.components ?? [0, 0, 0]
+		let keyRed = componentByte(components, at: 0)
+		let keyGreen = componentByte(components, at: 1)
+		let keyBlue = componentByte(components, at: 2)
+		let tolerance = 4
+		let pixels = data.bindMemory(to: UInt8.self, capacity: width * height * 4)
+
+		for offset in stride(from: 0, to: width * height * 4, by: 4) {
+			if abs(Int(pixels[offset]) - Int(keyRed)) <= tolerance &&
+				abs(Int(pixels[offset + 1]) - Int(keyGreen)) <= tolerance &&
+				abs(Int(pixels[offset + 2]) - Int(keyBlue)) <= tolerance {
+				pixels[offset + 3] = 0
+			}
+		}
+
+		return context.makeImage()
+	}
+
+	private func componentByte(_ components: [CGFloat], at index: Int) -> UInt8 {
+		let value = components.indices.contains(index) ? components[index] : 0
+		return UInt8(max(0, min(255, value * 255)))
 	}
 }
 

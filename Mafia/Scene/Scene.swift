@@ -2841,12 +2841,14 @@ final class Scene {
 		far: CGFloat,
 		sectorName: String?
 	) {
+		let pointLightIntensityScale: CGFloat = 650
+
 		switch type {
 		case .point:
 			objectNode.light = SCNLight()
 			objectNode.light?.type = .omni
 			objectNode.light?.color = color
-			objectNode.light?.intensity = power * 100
+			objectNode.light?.intensity = power * pointLightIntensityScale
 			objectNode.light?.attenuationStartDistance = near
 			objectNode.light?.attenuationEndDistance = far
 
