@@ -165,6 +165,19 @@ final class PlayerController {
 		lookYaw = normalizedAngle(yaw - baseHeading)
 	}
 
+	func turnTowardCameraYaw(_ cameraYaw: SCNFloat, deltaTime: TimeInterval) -> SCNFloat {
+		let horizontalInput = sqrt(movement.x * movement.x + movement.z * movement.z)
+		guard horizontalInput > 0.01 else { return 0 }
+
+		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
+		let yawOffset = normalizedAngle(cameraYaw)
+		let maxStep = turnSpeed * dt
+		let appliedYaw = max(-maxStep, min(maxStep, yawOffset))
+
+		lookYaw = normalizedAngle(lookYaw + appliedYaw)
+		return appliedYaw
+	}
+
 	func update(deltaTime: TimeInterval) {
 		applyPendingCrouchChange()
 		guard let body = node.physicsBody else { return }

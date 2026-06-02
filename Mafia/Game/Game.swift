@@ -104,6 +104,7 @@ final class Game: NSObject {
 	private var carCameraReverseYaw: SCNFloat = 0
 	private var smoothedCarCameraPosition: SCNVector3?
 	private var smoothedCarCameraYaw: SCNFloat?
+	private var walkCameraYaw: SCNFloat = 0
 	private var skyboxNodes: [(node: SCNNode, offset: SCNVector3)] = []
 	private let skyboxFallbackNode = SCNNode()
 	private var lastActionButtonUpdateTime: TimeInterval = 0
@@ -325,6 +326,7 @@ final class Game: NSObject {
 			cameraContainer.eulerAngles = SCNVector3Zero
 			cameraNode.position = SCNVector3(x: 0, y: 1.25, z: -2.8)
 			cameraNode.eulerAngles = SCNVector3(x: 0.15, y: .pi, z: .pi)
+			walkCameraYaw = 0
 			elevation = 0
 		} else {
 			cameraContainer.position = freeCameraPosition
@@ -349,7 +351,9 @@ final class Game: NSObject {
 		switch mode {
 		case .walk:
 			guard scene.playerNode != nil else { return }
-			playerController?.look(deltaX: -deltaX, deltaY: deltaY)
+			walkCameraYaw = normalizedAngle(walkCameraYaw - deltaX)
+			playerController?.look(deltaX: 0, deltaY: deltaY)
+			cameraContainer.eulerAngles.y = walkCameraYaw
 		case .car:
 			carCameraYaw = normalizedAngle(carCameraYaw - deltaX)
 			carCameraPitch = max(minCarCameraPitch, min(maxCarCameraPitch, carCameraPitch + deltaY))
@@ -1094,11 +1098,15 @@ extension Game: SCNSceneRendererDelegate {
 		}
 
 		if mode == .walk {
+			if let playerController = playerController {
+				let appliedYaw = playerController.turnTowardCameraYaw(walkCameraYaw, deltaTime: deltaTime)
+				walkCameraYaw = normalizedAngle(walkCameraYaw - appliedYaw)
+			}
 			playerController?.update(deltaTime: deltaTime)
 			updateWalkCameraHeight(deltaTime: deltaTime)
 			cameraContainer.eulerAngles = SCNVector3(
 				x: playerController?.cameraPitch ?? 0,
-				y: 0,
+				y: walkCameraYaw,
 				z: 0
 			)
 		} else if mode == .car && vehicle != nil {
