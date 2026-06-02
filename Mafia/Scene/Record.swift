@@ -114,7 +114,7 @@ final class Record {
 	let speechEvents: [RecordSpeechEvent]
 	let animationEvents: [RecordAnimationEvent]
 	let targetLinks: [RecordTargetLink]
-	let frameCount: Int
+	let headerKey: Int
 	let payloadOffset: Int
 
 	convenience init(name: String) throws {
@@ -137,7 +137,7 @@ final class Record {
 			header.append(value)
 		}
 
-		frameCount = Int(header[0])
+		headerKey = Int(header[0])
 
 		stream.currentOffset = 12
 		let modelsCount = header[3]

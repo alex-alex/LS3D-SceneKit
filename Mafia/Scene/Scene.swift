@@ -1009,7 +1009,7 @@ final class Scene {
 		let record = try Record(name: name)
 		loadedRecords[key] = record
 		print(
-			"== Loaded Record: \(record.name) frames=\(record.frameCount) " +
+			"== Loaded Record: \(record.name) header=\(record.headerKey) " +
 			"animations=\(record.animations.count) models=\(record.modelBindings.count) " +
 			"cameraKeys=\(record.cameraKeyframes.count) events=\(record.timedEvents.count) " +
 			"speech=\(record.speechEvents.count) animationEvents=\(record.animationEvents.count) " +
@@ -1058,7 +1058,7 @@ final class Scene {
 					case .success(let record):
 						self.loadedRecords[key] = record
 						print(
-							"== Loaded Record: \(record.name) frames=\(record.frameCount) " +
+							"== Loaded Record: \(record.name) header=\(record.headerKey) " +
 							"animations=\(record.animations.count) models=\(record.modelBindings.count) " +
 							"cameraKeys=\(record.cameraKeyframes.count) events=\(record.timedEvents.count) " +
 							"speech=\(record.speechEvents.count) animationEvents=\(record.animationEvents.count) " +
@@ -1818,10 +1818,15 @@ final class Scene {
 			return try? loadAnimation(named: "anims/" + animationName).1
 		}
 		let lastEventTime = record.timedEvents.map(\.time).max() ?? 0
+		let lastSpeechTime = record.speechEvents.map(\.time).max() ?? 0
+		let lastCameraTime = record.cameraKeyframes.map(\.time).max() ?? 0
+		let lastAnimationEventTime = record.animationEvents.map(\.time).max() ?? 0
 		return [
-			TimeInterval(record.frameCount) / 100.0,
+			lastCameraTime,
 			durations.max() ?? 0,
-			lastEventTime
+			lastAnimationEventTime,
+			lastEventTime,
+			lastSpeechTime
 		].max() ?? 0
 	}
 

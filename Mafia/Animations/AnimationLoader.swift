@@ -166,6 +166,19 @@ class Animation {
 		}
 	}
 
+	func apply(elapsedTime: TimeInterval, to node: SCNNode) {
+		let tick = CGFloat(elapsedTime / CGFloat(Animation.frameDuration))
+		if let position = Animation.interpolatedVector(keys: positionKeys, values: positions, at: tick) {
+			node.position = position
+		}
+		if let scale = Animation.interpolatedVector(keys: scaleKeys, values: scales, at: tick) {
+			node.scale = scale
+		}
+		if let rotation = Animation.interpolatedQuaternion(keys: rotationKeys, values: rotations, at: tick) {
+			node.orientation = rotation
+		}
+	}
+
 	func applyInitialPose(to node: SCNNode) {
 		if let firstPositionKey = positionKeys.first,
 		   let position = positions[firstPositionKey] {
@@ -391,20 +404,31 @@ func playAnimation(
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
 	let (animations, duration) = try loadAnimation(named: name)
-	var matchedAnimations = 0
-	for animation in animations {
-		let node = animationTargetNode(named: animation.name, in: node)
-		if node != nil {
-			matchedAnimations += 1
+	let matchedAnimations = animations.compactMap { animation -> (animation: Animation, node: SCNNode)? in
+		guard let targetNode = animationTargetNode(named: animation.name, in: node) else { return nil }
+		return (animation, targetNode)
+	}
+	if duration > 0, !matchedAnimations.isEmpty {
+		let action = SCNAction.customAction(duration: duration) { _, elapsedTime in
+			for matchedAnimation in matchedAnimations {
+				matchedAnimation.animation.apply(
+					elapsedTime: TimeInterval(elapsedTime),
+					to: matchedAnimation.node
+				)
+			}
 		}
 		if `repeat` {
-			node?.runAction(SCNAction.repeatForever(animation.action), forKey: animationKey)
+			node.runAction(SCNAction.repeatForever(action), forKey: animationKey)
 		} else {
-			node?.runAction(animation.action, forKey: animationKey)
+			node.runAction(action, forKey: animationKey)
+		}
+	} else {
+		for matchedAnimation in matchedAnimations {
+			matchedAnimation.animation.applyInitialPose(to: matchedAnimation.node)
 		}
 //		if name == "anims/walk1.5ds" { print(node?.name); print("animationKeys:", node?.animationKeys) }
 	}
-	if matchedAnimations == 0 {
+	if matchedAnimations.isEmpty {
 		print("Animation target missing: \(name) root=\(node.name ?? "unnamed") tracks=\(animations.count)")
 	}
 	node.runAction(SCNAction.wait(duration: duration), completionHandler: completionHandler)
@@ -421,6 +445,7 @@ func animationMatchCount(named name: String, in node: SCNNode) throws -> Int {
 func stopAnimation(named name: String, in node: SCNNode, animationKey: String) throws {
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("stopAnimation") }
+	node.removeAction(forKey: animationKey)
 	let (animations, _) = try loadAnimation(named: name)
 	for animation in animations {
 		let node = animationTargetNode(named: animation.name, in: node)
