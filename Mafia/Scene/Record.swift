@@ -28,8 +28,7 @@ struct RecordModelBinding {
 private struct RecordModelBindingMetadata {
 	let sourceName: String
 	let targetName: String
-	let sampleOffset: Int
-	let sampleStride: Int
+	let chunkSizes: [Int]
 	let durationMilliseconds: Int
 	let sampleDataLength: Int
 	let sampleDataOffset: Int
@@ -108,6 +107,7 @@ struct RecordAnimationEvent {
 	let animationId: Int
 	let trackId: Int
 	let time: TimeInterval
+	let animationStartOffset: TimeInterval
 	let packedTrackId: UInt32
 	let interpolationKind: UInt32
 	let position: SCNVector3
@@ -177,21 +177,28 @@ final class Record {
 		for _ in 0 ..< modelsCount {
 			let sourceName: String = try stream.read(maxLength: 36, encoding: .windowsCP1250)
 			let targetName: String = try stream.read(maxLength: 36, encoding: .windowsCP1250)
-			let sampleOffset: UInt32 = try stream.read()
-			let sampleStride: UInt32 = try stream.read()
-			stream.currentOffset += 12
-			let durationMilliseconds: UInt32 = try stream.read()
-			stream.currentOffset += 4
-			let sampleDataLength: UInt32 = try stream.read()
-			let sampleDataOffset: UInt32 = try stream.read()
+			let chunkSize0: UInt32 = try stream.read()
+			let chunkSize1: UInt32 = try stream.read()
+			let chunkSize2: UInt32 = try stream.read()
+			let chunkSize3: UInt32 = try stream.read()
+			let chunkSizes: [Int] = [
+				Int(chunkSize0),
+				Int(chunkSize1),
+				Int(chunkSize2),
+				Int(chunkSize3)
+			]
+			let _: UInt32 = try stream.read()
+			let deactivationMilliseconds: UInt32 = try stream.read()
+			let _: UInt32 = try stream.read()
+			let streamLength: UInt32 = try stream.read()
+			let streamOffset: UInt32 = try stream.read()
 			bindingMetadata.append(RecordModelBindingMetadata(
 				sourceName: sourceName,
 				targetName: targetName,
-				sampleOffset: Int(sampleOffset),
-				sampleStride: Int(sampleStride),
-				durationMilliseconds: Int(durationMilliseconds),
-				sampleDataLength: Int(sampleDataLength),
-				sampleDataOffset: Int(sampleDataOffset)
+				chunkSizes: chunkSizes,
+				durationMilliseconds: Int(deactivationMilliseconds),
+				sampleDataLength: Int(streamLength),
+				sampleDataOffset: Int(streamOffset)
 			))
 		}
 
@@ -220,8 +227,8 @@ final class Record {
 		)
 		animationEvents = Record.readAnimationEvents(
 			url: url,
-			offset: payloadOffset,
-			endOffset: payloadOffset + Int(header[2]),
+			payloadOffset: payloadOffset,
+			metadata: bindingMetadata,
 			animationCount: loadedAnimations.count
 		)
 		targetLinks = Record.readTargetLinks(url: url, finalBlockSize: Int(header[8]))
@@ -590,74 +597,21 @@ final class Record {
 
 	private static func readAnimationEvents(
 		url: URL,
-		offset: Int,
-		endOffset: Int,
+		payloadOffset: Int,
+		metadata: [RecordModelBindingMetadata],
 		animationCount: Int
 	) -> [RecordAnimationEvent] {
 		guard animationCount > 0,
-			  let data = try? Data(contentsOf: url),
-			  offset >= 0,
-			  endOffset <= data.count,
-			  offset + 36 <= endOffset else {
+			  let data = try? Data(contentsOf: url) else {
 			return []
 		}
 
-		let trackStarts = data.readAnimationTrackStarts(offset: offset, endOffset: endOffset)
-		var events: [(offset: Int, event: RecordAnimationEvent)] = []
-		for currentOffset in stride(from: offset, through: endOffset - 36, by: 4) {
-			guard let event = data.readAnimationEvent(
-				at: currentOffset,
+		return metadata.enumerated().flatMap { index, metadata in
+			data.readBindingAnimationEvents(
+				metadata: metadata,
+				payloadOffset: payloadOffset,
+				bindingIndex: index,
 				animationCount: animationCount
-			) else {
-				continue
-			}
-			events.append((currentOffset, event))
-			if let chainedEvent = data.readChainedAnimationEvent(
-				at: currentOffset + 40,
-				from: event,
-				animationCount: animationCount
-			) {
-				events.append((currentOffset + 40, chainedEvent))
-			}
-		}
-		for currentOffset in stride(from: offset, through: endOffset - 44, by: 4) {
-			guard let event = data.readExtendedAnimationEvent(
-				at: currentOffset,
-				animationCount: animationCount
-			) else {
-				continue
-			}
-			events.append((currentOffset, event))
-			if let chainedEvent = data.readChainedAnimationEvent(
-				at: currentOffset + 44,
-				from: event,
-				animationCount: animationCount
-			) {
-				events.append((currentOffset + 44, chainedEvent))
-			}
-		}
-		let eventOffsets = Set(events.map(\.offset))
-		for trackStart in trackStarts {
-			guard let event = data.readTrackStartAnimationEvent(
-				at: trackStart,
-				animationCount: animationCount
-			),
-				  !eventOffsets.contains(trackStart + 44) else {
-				continue
-			}
-			events.append((trackStart + 44, event))
-		}
-
-		return events.map { offset, event in
-			let trackId = trackStarts.lastIndex { $0 <= offset } ?? -1
-			return RecordAnimationEvent(
-				animationId: event.animationId,
-				trackId: trackId,
-				time: event.time,
-				packedTrackId: event.packedTrackId,
-				interpolationKind: event.interpolationKind,
-				position: event.position,
-				orientationVector: event.orientationVector
 			)
 		}.sorted {
 			if $0.animationId == $1.animationId {
@@ -870,10 +824,64 @@ private extension Data {
 		payloadOffset: Int,
 		bindingIndex: Int
 	) -> [RecordAnimationEvent] {
-		guard metadata.sampleOffset >= 0,
-			  metadata.sampleStride >= 40,
-			  metadata.sampleDataOffset >= 0,
-			  metadata.sampleDataLength >= metadata.sampleStride else {
+		let trackId = -bindingIndex - 1
+		let animationId = -bindingIndex - 1
+		return readTransformChunks(metadata: metadata, payloadOffset: payloadOffset).map { chunk in
+			RecordAnimationEvent(
+				animationId: animationId,
+				trackId: trackId,
+				time: chunk.time,
+				animationStartOffset: 0,
+				packedTrackId: 0,
+				interpolationKind: chunk.type,
+				position: chunk.position,
+				orientationVector: chunk.orientationVector
+			)
+		}.sorted { $0.time < $1.time }
+	}
+
+	func readBindingAnimationEvents(
+		metadata: RecordModelBindingMetadata,
+		payloadOffset: Int,
+		bindingIndex: Int,
+		animationCount: Int
+	) -> [RecordAnimationEvent] {
+		return readTransformChunks(metadata: metadata, payloadOffset: payloadOffset).compactMap { chunk in
+			guard let auxiliary = chunk.auxiliary,
+				  auxiliary & 0x400 != 0 else {
+				return nil
+			}
+
+			let animationId = Int(auxiliary & 0x3ff)
+			guard animationId < animationCount else { return nil }
+			return RecordAnimationEvent(
+				animationId: animationId,
+				trackId: bindingIndex,
+				time: chunk.time,
+				animationStartOffset: chunk.animationStartOffset,
+				packedTrackId: auxiliary,
+				interpolationKind: chunk.type,
+				position: chunk.position,
+				orientationVector: chunk.orientationVector
+			)
+		}
+	}
+
+	private struct RecordTransformChunk {
+		let time: TimeInterval
+		let type: UInt32
+		let position: SCNVector3
+		let orientationVector: SCNVector3
+		let auxiliary: UInt32?
+		let animationStartOffset: TimeInterval
+	}
+
+	private func readTransformChunks(
+		metadata: RecordModelBindingMetadata,
+		payloadOffset: Int
+	) -> [RecordTransformChunk] {
+		guard metadata.sampleDataOffset >= 0,
+			  metadata.sampleDataLength >= 8 else {
 			return []
 		}
 
@@ -884,40 +892,42 @@ private extension Data {
 			return []
 		}
 
-		let trackId = -bindingIndex - 1
-		let animationId = -bindingIndex - 1
 		let durationMilliseconds = Swift.max(0, metadata.durationMilliseconds)
-		var events: [RecordAnimationEvent] = []
-		var recordOffset = dataStart
-		while recordOffset + metadata.sampleOffset + 32 <= dataEnd {
-			let sampleOffset = recordOffset + metadata.sampleOffset
-			let time = readUInt32(at: sampleOffset)
-			let interpolationKind = readUInt32(at: sampleOffset + 4)
-			guard interpolationKind == 1 || interpolationKind == 2,
-				  durationMilliseconds == 0 || time <= durationMilliseconds else {
-				recordOffset += metadata.sampleStride
+		var chunks: [RecordTransformChunk] = []
+		var offset = dataStart + 8
+		while offset + 8 <= dataEnd {
+			let time = readUInt32(at: offset)
+			let type = readUInt32(at: offset + 4)
+			guard type < metadata.chunkSizes.count else { break }
+			let chunkSize = metadata.chunkSizes[Int(type)]
+			guard chunkSize >= 40,
+				  offset + chunkSize <= dataEnd else {
+				break
+			}
+			guard durationMilliseconds == 0 || time <= durationMilliseconds else {
+				offset += chunkSize
 				continue
 			}
 
 			let values = [
-				readFloat(at: sampleOffset + 8),
-				readFloat(at: sampleOffset + 12),
-				readFloat(at: sampleOffset + 16),
-				readFloat(at: sampleOffset + 20),
-				readFloat(at: sampleOffset + 24),
-				readFloat(at: sampleOffset + 28)
+				readFloat(at: offset + 8),
+				readFloat(at: offset + 12),
+				readFloat(at: offset + 16),
+				readFloat(at: offset + 20),
+				readFloat(at: offset + 24),
+				readFloat(at: offset + 28),
+				readFloat(at: offset + 32)
 			]
 			guard values.allSatisfy({ $0.isFinite && abs($0) < 100_000 }) else {
-				recordOffset += metadata.sampleStride
+				offset += chunkSize
 				continue
 			}
 
-			events.append(RecordAnimationEvent(
-				animationId: animationId,
-				trackId: trackId,
+			let auxiliary = chunkSize >= 40 ? readUInt32(at: offset + 36) : nil
+			let rawAnimationOffset = chunkSize >= 44 ? readUInt32(at: offset + 40) & 0xfff : 0
+			chunks.append(RecordTransformChunk(
 				time: TimeInterval(time) / 1000.0,
-				packedTrackId: 0,
-				interpolationKind: interpolationKind,
+				type: type,
 				position: SCNVector3(
 					x: SCNFloat(values[0]),
 					y: SCNFloat(values[1]),
@@ -927,11 +937,13 @@ private extension Data {
 					x: SCNFloat(values[3]),
 					y: SCNFloat(values[4]),
 					z: SCNFloat(values[5])
-				)
+				),
+				auxiliary: auxiliary,
+				animationStartOffset: TimeInterval(rawAnimationOffset) * 0.04
 			))
-			recordOffset += metadata.sampleStride
+			offset += chunkSize
 		}
-		return events.sorted { $0.time < $1.time }
+		return chunks
 	}
 
 	func readTrackStartAnimationEvent(at offset: Int, animationCount: Int) -> RecordAnimationEvent? {
@@ -960,15 +972,16 @@ private extension Data {
 			z: SCNFloat(readFloat(at: offset + positionOffset + 20))
 		)
 
-		return RecordAnimationEvent(
-			animationId: animationId,
-			trackId: -1,
-			time: 0,
-			packedTrackId: packedTrackId,
-			interpolationKind: 1,
-			position: position,
-			orientationVector: orientationVector
-		)
+			return RecordAnimationEvent(
+				animationId: animationId,
+				trackId: -1,
+				time: 0,
+				animationStartOffset: 0,
+				packedTrackId: packedTrackId,
+				interpolationKind: 1,
+				position: position,
+				orientationVector: orientationVector
+			)
 	}
 
 	func animationTrackStartPositionOffset(at offset: Int) -> Int? {
@@ -1060,15 +1073,16 @@ private extension Data {
 			return nil
 		}
 
-		return RecordAnimationEvent(
-			animationId: animationId,
-			trackId: -1,
-			time: TimeInterval(time) / 1000.0,
-			packedTrackId: packedTrackId,
-			interpolationKind: interpolationKind,
-			position: position,
-			orientationVector: orientationVector
-		)
+			return RecordAnimationEvent(
+				animationId: animationId,
+				trackId: -1,
+				time: TimeInterval(time) / 1000.0,
+				animationStartOffset: 0,
+				packedTrackId: packedTrackId,
+				interpolationKind: interpolationKind,
+				position: position,
+				orientationVector: orientationVector
+			)
 	}
 
 	func readExtendedAnimationEvent(at offset: Int, animationCount: Int) -> RecordAnimationEvent? {
@@ -1116,15 +1130,16 @@ private extension Data {
 			return nil
 		}
 
-		return RecordAnimationEvent(
-			animationId: animationId,
-			trackId: -1,
-			time: TimeInterval(time) / 1000.0,
-			packedTrackId: packedTrackId,
-			interpolationKind: interpolationKind,
-			position: position,
-			orientationVector: orientationVector
-		)
+			return RecordAnimationEvent(
+				animationId: animationId,
+				trackId: -1,
+				time: TimeInterval(time) / 1000.0,
+				animationStartOffset: 0,
+				packedTrackId: packedTrackId,
+				interpolationKind: interpolationKind,
+				position: position,
+				orientationVector: orientationVector
+			)
 	}
 
 	func readChainedAnimationEvent(
@@ -1153,15 +1168,16 @@ private extension Data {
 			return nil
 		}
 
-		return RecordAnimationEvent(
-			animationId: animationId,
-			trackId: -1,
-			time: baseEvent.time,
-			packedTrackId: packedTrackId,
-			interpolationKind: baseEvent.interpolationKind,
-			position: baseEvent.position,
-			orientationVector: baseEvent.orientationVector
-		)
+			return RecordAnimationEvent(
+				animationId: animationId,
+				trackId: -1,
+				time: baseEvent.time,
+				animationStartOffset: baseEvent.animationStartOffset,
+				packedTrackId: packedTrackId,
+				interpolationKind: baseEvent.interpolationKind,
+				position: baseEvent.position,
+				orientationVector: baseEvent.orientationVector
+			)
 	}
 
 	func isRecordAnimationPackedId(_ packedTrackId: UInt32, animationCount: Int) -> Bool {

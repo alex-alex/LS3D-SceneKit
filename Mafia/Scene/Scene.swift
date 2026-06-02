@@ -1326,23 +1326,23 @@ final class Scene {
 					orientationDistance: target.orientationDistance,
 					matches: animationRoot.matches
 				))
-			} catch {
-				if let positionDuration = positionDuration {
-					let startTime = recordAnimationStartTime(
-						events: target.timingEvents,
-						matching: target.event,
-						duration: positionDuration
-					) ?? target.event.time
-					playRecordPositionAnimation(
-						named: positionAnimationPath,
-						in: target.node,
-						recordName: record.name,
-						animationKey: "record:\(record.name):position:\(animation.id)",
-						after: max(0, startTime)
-					)
-					positionAnimationNodeIds.insert(ObjectIdentifier(target.node))
-					startedPositionAnimations += 1
-				} else {
+				} catch {
+					if let positionDuration = positionDuration {
+						let startTime = recordAnimationStartTime(
+							events: target.timingEvents,
+							matching: target.event,
+							duration: positionDuration
+						) ?? target.event.time
+						playRecordPositionAnimation(
+							named: positionAnimationPath,
+							in: target.node,
+							recordName: record.name,
+							animationKey: "record:\(record.name):position:\(animation.id)",
+							after: max(0, startTime)
+						)
+						positionAnimationNodeIds.insert(ObjectIdentifier(target.node))
+						startedPositionAnimations += 1
+					} else {
 					appendRecordTransformPlayback(
 						targetNode: target.node,
 						events: transformEvents,
@@ -1371,48 +1371,48 @@ final class Scene {
 			}
 		}
 
-		for playback in resolvedAnimations {
-			let animationDelay = max(0, playback.startTime)
-			let animationKey = "record:\(record.name):\(playback.animation.id)"
-			do {
-				try playRecordAnimation(
-					named: playback.animationPath,
-					in: playback.targetNode,
-					recordName: record.name,
-					animationKey: animationKey,
-					after: animationDelay
-				)
-				startedAnimations += 1
-				let positionAnimationPath = recordPositionAnimationPath(for: playback.animationPath)
-				if positionAnimationExists(named: positionAnimationPath) {
-					playRecordPositionAnimation(
-						named: positionAnimationPath,
+			for playback in resolvedAnimations {
+				let animationDelay = max(0, playback.startTime)
+				let animationKey = "record:\(record.name):\(playback.animation.id)"
+				do {
+					try playRecordAnimation(
+						named: playback.animationPath,
 						in: playback.targetNode,
 						recordName: record.name,
-						animationKey: animationKey + ":position",
+						animationKey: animationKey,
 						after: animationDelay
 					)
-					positionAnimationNodeIds.insert(ObjectIdentifier(playback.targetNode))
-					startedPositionAnimations += 1
+					startedAnimations += 1
+					let positionAnimationPath = recordPositionAnimationPath(for: playback.animationPath)
+					if positionAnimationExists(named: positionAnimationPath) {
+						playRecordPositionAnimation(
+							named: positionAnimationPath,
+							in: playback.targetNode,
+							recordName: record.name,
+							animationKey: animationKey + ":position",
+							after: animationDelay
+						)
+						positionAnimationNodeIds.insert(ObjectIdentifier(playback.targetNode))
+						startedPositionAnimations += 1
+					}
+					print(
+						"== Record Animation target: \(playback.animation.name) -> \(playback.targetNode.name ?? "unnamed") " +
+						"binding=\(playback.binding.map { "\($0.sourceName)/\($0.targetName)" } ?? "exact-node") " +
+						"matches=\(playback.matches) " +
+						"source=\(playback.source) " +
+						"track=\(playback.trackId) " +
+						"event=\(String(format: "0x%04x", playback.matchEvent.packedTrackId)) " +
+						"eventTime=\(String(format: "%.2fs", playback.matchEvent.time)) " +
+						"startTime=\(String(format: "%.2fs", playback.startTime)) " +
+						"posD=\(String(format: "%.3f", playback.positionDistance)) " +
+						"rotD=\(String(format: "%.3f", playback.orientationDistance)) " +
+						"delay=\(String(format: "%.2f", animationDelay))s"
+					)
+				} catch {
+					skippedAnimations += 1
+					print("== Record Animation failed: \(playback.animation.name) \(error)")
 				}
-				print(
-					"== Record Animation target: \(playback.animation.name) -> \(playback.targetNode.name ?? "unnamed") " +
-					"binding=\(playback.binding.map { "\($0.sourceName)/\($0.targetName)" } ?? "exact-node") " +
-					"matches=\(playback.matches) " +
-					"source=\(playback.source) " +
-					"track=\(playback.trackId) " +
-					"event=\(String(format: "0x%04x", playback.matchEvent.packedTrackId)) " +
-					"eventTime=\(String(format: "%.2fs", playback.matchEvent.time)) " +
-					"startTime=\(String(format: "%.2fs", playback.startTime)) " +
-					"posD=\(String(format: "%.3f", playback.positionDistance)) " +
-					"rotD=\(String(format: "%.3f", playback.orientationDistance)) " +
-					"delay=\(String(format: "%.2f", animationDelay))s"
-				)
-			} catch {
-				skippedAnimations += 1
-				print("== Record Animation failed: \(playback.animation.name) \(error)")
 			}
-		}
 		print(
 			"== Record Animations started: \(startedAnimations) " +
 			"position=\(startedPositionAnimations) skipped=\(skippedAnimations)"
@@ -1470,14 +1470,10 @@ final class Scene {
 		} else {
 			matchedEvents = animationEvents
 		}
-		let eventTimes = (matchedEvents.isEmpty ? animationEvents : matchedEvents).map(\.time)
-		guard let firstTime = eventTimes.min() else { return nil }
-		guard duration > 0,
-			  let lastTime = eventTimes.max(),
-			  lastTime >= duration else {
-			return firstTime
-		}
-		return lastTime - duration
+		let events = matchedEvents.isEmpty ? animationEvents : matchedEvents
+		return events
+			.map { max(0, $0.time - $0.animationStartOffset) }
+			.min()
 	}
 
 	private func playRecordAnimation(
@@ -1600,6 +1596,9 @@ final class Scene {
 				guard let excludedRoot = excludedRoot else { return true }
 				return !node.isInHierarchy(of: excludedRoot)
 			}
+		if let dottedNode = recordDottedNode(named: name, in: candidates) {
+			return dottedNode
+		}
 		if let exactNode = candidates.first(where: { $0.name == name }) {
 			return exactNode
 		}
@@ -1613,6 +1612,31 @@ final class Scene {
 		return candidates.first { node in
 			node.name?.lowercased().hasPrefix(lowercasedName) == true
 		}
+	}
+
+	private func recordDottedNode(named name: String, in candidates: [SCNNode]) -> SCNNode? {
+		let parts = name.split(separator: ".", maxSplits: 1).map(String.init)
+		guard parts.count == 2 else { return nil }
+
+		let parentName = parts[0]
+		let childName = parts[1]
+		for parentNode in candidates where recordNodeName(parentNode.name, matches: parentName) {
+			if let childNode = parentNode.mafiaChildNode(named: childName, recursively: true) {
+				return childNode
+			}
+		}
+		return nil
+	}
+
+	private func recordNodeName(_ candidate: String?, matches name: String) -> Bool {
+		guard let candidate = candidate?.lowercased(),
+			  !candidate.isEmpty else {
+			return false
+		}
+		let name = name.lowercased()
+		return candidate == name ||
+			(candidate.count >= 16 && candidate.hasPrefix(name)) ||
+			(name.count >= 16 && name.hasPrefix(candidate))
 	}
 
 	private func appendRecordTransformPlayback(

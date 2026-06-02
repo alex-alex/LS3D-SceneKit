@@ -219,9 +219,6 @@ extension Script {
 		let mode = args[0].getValueOrVarValue(vars: vars)
 		switch mode {
 		case 0:
-			guard commandBlockDepth > 0 else {
-				fatalError("commandblock 0 without matching commandblock 1")
-			}
 			if commandBlockDepth == 1 && pendingCommandBlockAsyncOperations > 0 {
 				isWaitingForCommandBlockAsyncOperations = true
 				return
