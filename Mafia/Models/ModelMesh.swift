@@ -62,13 +62,11 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 		var boneWeights: [Float] = []
 		var boneIndices: [UInt8] = []
 
-		func appendBoneWeight(primaryBone: Int) {
-			boneWeights.append(1)
+		func appendBoneWeight(primaryBone: Int, secondaryBone: Int = 0, primaryWeight: Float = 1) {
+			boneWeights.append(primaryWeight)
+			boneWeights.append(1 - primaryWeight)
 			boneIndices.append(UInt8(primaryBone))
-		}
-
-		for _ in 0 ..< nonWeightedVertCount {
-			appendBoneWeight(primaryBone: 0)
+			boneIndices.append(UInt8(secondaryBone))
 		}
 
 		for bone in 0 ..< numBones {
@@ -80,7 +78,7 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 			}
 
 			let weightsCount: UInt32 = try stream.read()
-			let _: UInt32 = try stream.read() // paired bone ID for blended vertices
+			let parentBoneId: UInt32 = try stream.read()
 
 			let _ = try SCNVector3(stream: stream) // bMin
 			let _ = try SCNVector3(stream: stream) // bMax
@@ -98,12 +96,21 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 			}
 
 			for _ in 0 ..< weightsCount {
-				let _: Float = try stream.read()
-				appendBoneWeight(primaryBone: Int(bone))
+				let weight: Float = try stream.read()
+				appendBoneWeight(
+					primaryBone: Int(bone),
+					secondaryBone: Int(parentBoneId),
+					primaryWeight: weight
+				)
 			}
 		}
 
-		let remaining = vertexSource.vectorCount - boneWeights.count
+		for _ in 0 ..< nonWeightedVertCount {
+			appendBoneWeight(primaryBone: 0)
+		}
+
+		let skinningVertexCount = boneWeights.count / 2
+		let remaining = vertexSource.vectorCount - skinningVertexCount
 		if lod == 0 {
 //			print("remaining:", remaining)
 		}
@@ -116,24 +123,24 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 		let boneWeightsSource = SCNGeometrySource(
 			data: boneWeightsData,
 			semantic: .boneWeights,
-			vectorCount: boneWeights.count,
+			vectorCount: boneWeights.count / 2,
 			usesFloatComponents: true,
-			componentsPerVector: 1,
+			componentsPerVector: 2,
 			bytesPerComponent: MemoryLayout<Float>.size,
 			dataOffset: 0,
-			dataStride: MemoryLayout<Float>.size
+			dataStride: MemoryLayout<Float>.size * 2
 		)
 
 		let boneIndicesData = Data(bytes: boneIndices, count: boneIndices.count * MemoryLayout<UInt8>.size)
 		let boneIndicesSource = SCNGeometrySource(
 			data: boneIndicesData,
 			semantic: .boneIndices,
-			vectorCount: boneIndices.count,
+			vectorCount: boneIndices.count / 2,
 			usesFloatComponents: false,
-			componentsPerVector: 1,
+			componentsPerVector: 2,
 			bytesPerComponent: MemoryLayout<UInt8>.size,
 			dataOffset: 0,
-			dataStride: MemoryLayout<UInt8>.size
+			dataStride: MemoryLayout<UInt8>.size * 2
 		)
 
 		let mesh = SingleMesh(
