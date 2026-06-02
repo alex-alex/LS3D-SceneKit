@@ -22,6 +22,7 @@ extension Script {
 		case "car_muststeal":			car_muststeal(command.1)
 		case "car_repair":				car_repair(command.1)
 		case "car_setspeed":			car_setspeed(command.1)
+		case "cleardifferences":		cleardifferences(command.1)
 //		"commandblock"
 		case "compareownerwithex":		compareownerwithex(command.1)
 		case "console_addtext":			console_addtext(command.1)
@@ -63,12 +64,16 @@ extension Script {
 		case "iscarusable":				iscarusable(command.1)
 		case "label":					noop()
 		case "let":						`let`(command.1)
+		case "loaddifferences":			loaddifferences(command.1)
 		case "mission_objectives":		mission_objectives(command.1)
 		case "mission_objectivesclear":	mission_objectivesclear(command.1)
 		case "person_playanim":			person_playanim(command.1)
 		case "person_stopanim":			person_stopanim(command.1)
 		case "player_lockcontrols":		noop()
 		case "pm_showsymbol":			noop()
+		case "recload":					recload(command.1, full: false)
+		case "recloadfull":				recload(command.1, full: true)
+		case "recunload":				recunload(command.1)
 		case "return":					`return`(command.1)
 		case "return!":					`return`(command.1)
 		case "rnd":						rnd(command.1)
@@ -187,6 +192,12 @@ extension Script {
 			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
 			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
 		}
+		next()
+	}
+
+	private func cleardifferences(_ args: [Argument]) {
+		print(">>> cleardifferences")
+		scene.clearDifferenceFiles()
 		next()
 	}
 
@@ -612,6 +623,17 @@ extension Script {
 		next()
 	}
 
+	private func loaddifferences(_ args: [Argument]) {
+		let name = args[0].getString()
+		print(">>> loaddifferences \(name)")
+		do {
+			try scene.loadDifferenceFile(named: name)
+		} catch {
+			print("Failed to load differences '\(name)':", error)
+		}
+		next()
+	}
+
 	private func mission_objectives(_ args: [Argument]) {
 		let txtId = args[0].getValueOrVarValue(vars: vars)
 		if txtId >= 0 {
@@ -642,6 +664,47 @@ extension Script {
 	private func person_stopanim(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		node(forScriptId: actorId)?.removeAllAnimations()
+		next()
+	}
+
+	private func recload(_ args: [Argument], full: Bool) {
+		let name = args[0].getString()
+		print(">>> \(full ? "recloadfull" : "recload") \(name)")
+		do {
+			let record = try scene.loadRecord(named: name, full: full)
+			let duration = scene.estimatedRecordDuration(record)
+			print("== Record script wait: \(String(format: "%.2f", duration))s")
+			scene.setCutsceneScriptsPaused(true, except: [self])
+			guard duration > 0 else {
+				scene.setCutsceneScriptsPaused(false)
+				next()
+				return
+			}
+			waitForCutscene(secondsRemaining: duration, lastTick: Date.timeIntervalSinceReferenceDate)
+		} catch {
+			print("Failed to load record '\(name)':", error)
+			next()
+		}
+	}
+
+	private func waitForCutscene(secondsRemaining: TimeInterval, lastTick: TimeInterval) {
+		let interval: TimeInterval = 0.1
+		queue.asyncAfter(deadline: .now() + interval) {
+			let now = Date.timeIntervalSinceReferenceDate
+			let elapsed = self.scene.game.isGamePaused ? 0 : now - lastTick
+			let remaining = secondsRemaining - elapsed
+			guard remaining > 0 else {
+				self.scene.setCutsceneScriptsPaused(false)
+				self.next()
+				return
+			}
+			self.waitForCutscene(secondsRemaining: remaining, lastTick: now)
+		}
+	}
+
+	private func recunload(_ args: [Argument]) {
+		print(">>> recunload")
+		scene.unloadRecords()
 		next()
 	}
 

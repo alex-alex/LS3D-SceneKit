@@ -95,6 +95,7 @@ extension Script {
 		case "car_muststeal":			return getArgs_car_muststeal(scanner)
 		case "car_repair":				return getArgs_car_repair(scanner)
 		case "car_setspeed":			return getArgs_car_setspeed(scanner)
+		case "cleardifferences":		return []
 		case "compareownerwithex":		return getArgs_compareownerwithex(scanner)
 		case "console_addtext":			return getArgs_console_addtext(scanner)
 		case "createweaponfromframe":	return getArgs_createweaponfromframe(scanner)
@@ -127,10 +128,14 @@ extension Script {
 		case "ifplayerstealcar":		return getArgs_ifplayerstealcar(scanner)
 		case "iscarusable":				return getArgs_iscarusable(scanner)
 		case "let":						return getArgs_let(scanner)
+		case "loaddifferences":			return getArgs_loaddifferences(scanner)
 		case "mission_objectives":		return getArgs_mission_objectives(scanner)
 		case "person_playanim":			return getArgs_person_playanim(scanner)
 		case "person_stopanim":			return getArgs_person_stopanim(scanner)
 		case "rnd":						return getArgs_rnd(scanner)
+		case "recload":					return getArgs_recload(scanner)
+		case "recloadfull":				return getArgs_recload(scanner)
+		case "recunload":				return []
 		case "setcompass":				return getArgs_setcompass(scanner)
 		case "setevent":				return getArgs_setevent(scanner)
 		case "setplayerfireevent":		return getArgs_setplayerevent(scanner)
@@ -372,6 +377,11 @@ extension Script {
 		return [.variable(var1), arg2, .label(op), scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_loaddifferences(_ scanner: Scanner) -> [Argument] {
+		guard let name = scanString(scanner) else { fatalError() }
+		return [.string(name)]
+	}
+
 	private func getArgs_mission_objectives(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
@@ -392,6 +402,11 @@ extension Script {
 
 	private func getArgs_rnd(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_recload(_ scanner: Scanner) -> [Argument] {
+		guard let name = scanString(scanner) else { fatalError() }
+		return [.string(name)]
 	}
 
 	private func getArgs_setcompass(_ scanner: Scanner) -> [Argument] {

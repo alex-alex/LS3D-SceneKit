@@ -27,6 +27,7 @@ final class Game: NSObject {
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
 	let cameraNode = SCNNode()
+	var isCutsceneCameraActive = false
 	private let ambientLightNode = SCNNode()
 
 	var mode: Mode = .walk {
@@ -343,7 +344,7 @@ final class Game: NSObject {
 	}
 
 	func look(deltaX: SCNFloat, deltaY: SCNFloat) {
-		guard !isGamePaused else { return }
+		guard !isGamePaused, !isCutsceneCameraActive else { return }
 
 		switch mode {
 		case .walk:
@@ -1085,6 +1086,12 @@ extension Game: SCNSceneRendererDelegate {
 
 		let deltaTime = lastUpdateTime.map { time - $0 } ?? 0
 		lastUpdateTime = time
+
+		if isCutsceneCameraActive {
+			updateSkyboxPosition()
+			updateEnvironment(deltaTime: deltaTime)
+			return
+		}
 
 		if mode == .walk {
 			playerController?.update(deltaTime: deltaTime)

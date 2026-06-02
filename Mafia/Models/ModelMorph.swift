@@ -10,58 +10,130 @@ import Foundation
 import SceneKit
 
 func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
-	let numTargets: UInt8 = try stream.read()
-	guard numTargets > 0 else { return }
+	let frameCount: UInt8 = try stream.read()
+	guard frameCount > 0 else { return }
 
-	let numChannels: UInt8 = try stream.read()
+	let lodCount: UInt8 = try stream.read()
 	let _: UInt8 = try stream.read()
+
+	guard let baseGeometry = node.geometry,
+		  let baseVertices = baseGeometry.vectors(for: .vertex) else {
+		try skipMorphPayload(stream: stream, frameCount: Int(frameCount), lodCount: Int(lodCount))
+		return
+	}
+	let baseNormals = baseGeometry.vectors(for: .normal)
 	let morpher = SCNMorpher()
 
-	for _ in 0 ..< numChannels {
-		let numVerts: UInt16 = try stream.read()
+	for lod in 0 ..< lodCount {
+		let vertexCount: UInt16 = try stream.read()
+		var frameVertices = Array(
+			repeating: [SCNVector3](),
+			count: Int(frameCount)
+		)
+		var frameNormals = Array(
+			repeating: [SCNVector3](),
+			count: Int(frameCount)
+		)
 
-		var vertices: [SCNVector3] = []
-		var normals: [SCNVector3] = []
-		var vertIndices: [[CInt]] = []
-
-		if numVerts > 0 {
-			for _ in 0 ..< numVerts {
-				for _ in 0 ..< numTargets {
-					let pointPosition = try SCNVector3(stream: stream)
-					vertices.append(pointPosition)
-
-					let normal = try SCNVector3(stream: stream)
-					normals.append(normal)
+		for _ in 0 ..< vertexCount {
+			for frame in 0 ..< Int(frameCount) {
+				let normal = try SCNVector3(stream: stream)
+				let pointPosition = try SCNVector3(stream: stream)
+				if lod == 0 {
+					frameNormals[frame].append(normal)
+					frameVertices[frame].append(pointPosition)
 				}
-			}
-
-			let unknown: UInt8 = try stream.read()
-
-			if unknown != 0 {
-				var _vertIndices: [CInt] = []
-				for _ in 0 ..< numVerts {
-					let vertIndice: UInt16 = try stream.read()
-					_vertIndices.append(CInt(vertIndice))
-				}
-				vertIndices.append(_vertIndices)
 			}
 		}
 
-		let geometrySources = [
-			SCNGeometrySource(vertices: vertices),
-			SCNGeometrySource(normals: normals)
-		]
+		if frameCount > 0, vertexCount > 0 {
+			let _: UInt8 = try stream.read()
+		}
 
-		let geometryElements = vertIndices.map({ SCNGeometryElement(indices: $0, primitiveType: .triangles) })
+		var vertexLinks: [Int] = []
+		for _ in 0 ..< vertexCount {
+			let vertexLink: UInt16 = try stream.read()
+			if lod == 0 {
+				vertexLinks.append(Int(vertexLink))
+			}
+		}
 
-		let geometry = SCNGeometry(sources: geometrySources, elements: geometryElements)
-//		_geometry.materials = meshMaterials
-		morpher.targets.append(geometry)
+		guard lod == 0 else { continue }
+
+		for frame in 0 ..< Int(frameCount) {
+			var vertices = baseVertices
+			var normals = baseNormals ?? []
+			for (index, vertexLink) in vertexLinks.enumerated() where vertexLink < vertices.count {
+				vertices[vertexLink] = frameVertices[frame][index]
+				if !normals.isEmpty, vertexLink < normals.count {
+					normals[vertexLink] = frameNormals[frame][index]
+				}
+			}
+
+			var geometrySources = [SCNGeometrySource(vertices: vertices)]
+			if !normals.isEmpty {
+				geometrySources.append(SCNGeometrySource(normals: normals))
+			}
+			let geometry = SCNGeometry(sources: geometrySources, elements: baseGeometry.allGeometryElements)
+			geometry.materials = baseGeometry.materials
+			morpher.targets.append(geometry)
+		}
 	}
 
 	for _ in 0 ..< 10 {
 		let _: Float = try stream.read()
 	}
 
+	for index in 0 ..< morpher.targets.count {
+		morpher.setWeight(0, forTargetAt: index)
+	}
 	node.morpher = morpher
+}
+
+private func skipMorphPayload(stream: InputStream, frameCount: Int, lodCount: Int) throws {
+	for _ in 0 ..< lodCount {
+		let vertexCount: UInt16 = try stream.read()
+		stream.currentOffset += frameCount * Int(vertexCount) * 24
+		if frameCount > 0, vertexCount > 0 {
+			stream.currentOffset += 1
+		}
+		stream.currentOffset += Int(vertexCount) * 2
+	}
+
+	stream.currentOffset += 40
+}
+
+private extension SCNGeometry {
+	var allGeometryElements: [SCNGeometryElement] {
+		return (0 ..< elementCount).map { element(at: $0) }
+	}
+
+	func vectors(for semantic: SCNGeometrySource.Semantic) -> [SCNVector3]? {
+		guard let source = sources(for: semantic).first,
+			  source.componentsPerVector >= 3,
+			  source.usesFloatComponents,
+			  source.bytesPerComponent == MemoryLayout<Float>.size else {
+			return nil
+		}
+
+		let data = source.data
+		return (0 ..< source.vectorCount).map { index in
+			let offset = source.dataOffset + index * source.dataStride
+			return SCNVector3(
+				x: SCNFloat(data.float32(at: offset)),
+				y: SCNFloat(data.float32(at: offset + source.bytesPerComponent)),
+				z: SCNFloat(data.float32(at: offset + source.bytesPerComponent * 2))
+			)
+		}
+	}
+}
+
+private extension Data {
+	func float32(at offset: Int) -> Float {
+		let value = UInt32(self[offset]) |
+			UInt32(self[offset + 1]) << 8 |
+			UInt32(self[offset + 2]) << 16 |
+			UInt32(self[offset + 3]) << 24
+		return Float(bitPattern: value)
+	}
 }

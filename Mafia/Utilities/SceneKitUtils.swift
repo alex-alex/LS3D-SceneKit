@@ -169,6 +169,8 @@ private var doorDataKey: UInt8 = 0
 private var actionsEnabledKey: UInt8 = 0
 private var humanEnergyKey: UInt8 = 0
 private var vehicleModelNameKey: UInt8 = 0
+private var recordSourcePositionKey: UInt8 = 0
+private var recordSourceOrientationVectorKey: UInt8 = 0
 
 final class DoorData {
 	let open1: UInt8
@@ -230,6 +232,42 @@ extension SCNNode {
 		}
 		set {
 			associateObject(self, key: &vehicleModelNameKey, value: NSString(string: newValue ?? ""))
+		}
+	}
+
+	var recordSourcePosition: SCNVector3? {
+		get {
+			return (objc_getAssociatedObject(self, &recordSourcePositionKey) as? NSValue)?.scnVector3Value
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(
+					self,
+					&recordSourcePositionKey,
+					NSValue(scnVector3: newValue),
+					.OBJC_ASSOCIATION_RETAIN
+				)
+			} else {
+				objc_setAssociatedObject(self, &recordSourcePositionKey, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
+		}
+	}
+
+	var recordSourceOrientationVector: SCNVector3? {
+		get {
+			return (objc_getAssociatedObject(self, &recordSourceOrientationVectorKey) as? NSValue)?.scnVector3Value
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(
+					self,
+					&recordSourceOrientationVectorKey,
+					NSValue(scnVector3: newValue),
+					.OBJC_ASSOCIATION_RETAIN
+				)
+			} else {
+				objc_setAssociatedObject(self, &recordSourceOrientationVectorKey, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
 		}
 	}
 

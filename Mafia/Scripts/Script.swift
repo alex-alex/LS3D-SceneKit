@@ -199,9 +199,7 @@ final class Script {
 			return next()
 		}
 
-		if node.name == "root" {
-			print(">>>", command)
-		}
+		print(">>> [\(node.name ?? "unnamed")] \(command.0) \(command.1)")
 
 		performCommand(command: command)
 	}

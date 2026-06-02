@@ -163,6 +163,21 @@ class Animation {
 		}
 	}
 
+	func applyInitialPose(to node: SCNNode) {
+		if let firstPositionKey = positions.keys.min(),
+		   let position = positions[firstPositionKey] {
+			node.position = position
+		}
+		if let firstScaleKey = scales.keys.min(),
+		   let scale = scales[firstScaleKey] {
+			node.scale = scale
+		}
+		if let firstRotationKey = rotations.keys.min(),
+		   let rotation = rotations[firstRotationKey] {
+			node.orientation = rotation
+		}
+	}
+
 	private static func interpolatedVector(keys: [Int], values: [Int: SCNVector3], at tick: CGFloat) -> SCNVector3? {
 		guard let firstKey = keys.first else { return nil }
 		guard tick >= CGFloat(firstKey) else { return nil }
@@ -330,6 +345,19 @@ func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	return (animations, Double(timerMax)/25)
 }
 
+func animationDuration(named name: String) throws -> TimeInterval {
+	let (_, duration) = try loadAnimation(named: name)
+	return duration
+}
+
+func applyAnimationInitialPose(named name: String, in node: SCNNode) throws {
+	let (animations, _) = try loadAnimation(named: name)
+	for animation in animations {
+		guard let targetNode = animationTargetNode(named: animation.name, in: node) else { continue }
+		animation.applyInitialPose(to: targetNode)
+	}
+}
+
 func playAnimation(
 	named name: String,
 	in node: SCNNode,
@@ -339,8 +367,12 @@ func playAnimation(
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
 	let (animations, duration) = try loadAnimation(named: name)
+	var matchedAnimations = 0
 	for animation in animations {
-		let node = node.childNode(withName: animation.name, recursively: true)
+		let node = animationTargetNode(named: animation.name, in: node)
+		if node != nil {
+			matchedAnimations += 1
+		}
 		if `repeat` {
 			node?.runAction(SCNAction.repeatForever(animation.action), forKey: animationKey)
 		} else {
@@ -348,8 +380,18 @@ func playAnimation(
 		}
 //		if name == "anims/walk1.5ds" { print(node?.name); print("animationKeys:", node?.animationKeys) }
 	}
+	if matchedAnimations == 0 {
+		print("Animation target missing: \(name) root=\(node.name ?? "unnamed") tracks=\(animations.count)")
+	}
 	node.runAction(SCNAction.wait(duration: duration), completionHandler: completionHandler)
 //	if name == "anims/walk1.5ds" { print("===============") }
+}
+
+func animationMatchCount(named name: String, in node: SCNNode) throws -> Int {
+	let (animations, _) = try loadAnimation(named: name)
+	return animations.reduce(0) { count, animation in
+		count + (animationTargetNode(named: animation.name, in: node) == nil ? 0 : 1)
+	}
 }
 
 func stopAnimation(named name: String, in node: SCNNode, animationKey: String) throws {
@@ -357,9 +399,16 @@ func stopAnimation(named name: String, in node: SCNNode, animationKey: String) t
 //	if name == "anims/walk1.5ds" { print("stopAnimation") }
 	let (animations, _) = try loadAnimation(named: name)
 	for animation in animations {
-		let node = node.childNode(withName: animation.name, recursively: true)
+		let node = animationTargetNode(named: animation.name, in: node)
 //		if name == "anims/walk1.5ds" { print(node?.name); print("actionKeys:", node?.actionKeys) }
 		node?.removeAction(forKey: animationKey)
 	}
 //	if name == "anims/walk1.5ds" { print("===============") }
+}
+
+private func animationTargetNode(named name: String, in rootNode: SCNNode) -> SCNNode? {
+	if rootNode.name?.lowercased() == name.lowercased() {
+		return rootNode
+	}
+	return rootNode.mafiaChildNode(named: name, recursively: true)
 }

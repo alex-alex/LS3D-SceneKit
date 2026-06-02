@@ -472,7 +472,7 @@ private final class FootstepAudio {
 	private let crouchStepDistance: SCNFloat = 1.45
 	private let standingVolume: Float = 0.42
 	private let crouchVolume: Float = 0.22
-	private let soundName = "03c_stepsd.wav"
+	private let soundName = "07b_chuzeTomdrevo.wav"
 	private let maxPlaybackDuration: TimeInterval = 1
 
 	private var distanceSinceStep: SCNFloat = 0
