@@ -122,7 +122,9 @@ enum ScriptCommandName: String {
 	case setevent
 	case setplayerfireevent
 	case setplayerhornevent
+	case subtitleAdd = "subtitle_add"
 	case wait
+	case zatmyse
 	case unknown
 }
 

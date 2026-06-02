@@ -23,6 +23,7 @@ final class HudScene: SKScene {
 	var jumpButton: SKShapeNode!
 	var objectivesNode: SKNode!
 	var consoleLabel: SKLabelNode!
+	var subtitleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
 	private var crosshairNode: SKNode!
@@ -53,6 +54,7 @@ final class HudScene: SKScene {
 	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
+	private let subtitleActionKey = "subtitleMessage"
 	private let objectivesActionKey = "objectivesMessage"
 	private let cutsceneFadeActionKey = "cutsceneFade"
 	private let objectiveLineSpacing: CGFloat = 24
@@ -147,7 +149,20 @@ final class HudScene: SKScene {
 		consoleLabel.numberOfLines = 0
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
 		consoleLabel.alpha = 0
+		consoleLabel.zPosition = 2100
 		addChild(consoleLabel)
+
+		subtitleLabel = SKLabelNode()
+		subtitleLabel.fontName = "Arial"
+		subtitleLabel.fontSize = 22
+		subtitleLabel.fontColor = SKColor.white
+		subtitleLabel.horizontalAlignmentMode = .center
+		subtitleLabel.verticalAlignmentMode = .center
+		subtitleLabel.numberOfLines = 0
+		subtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
+		subtitleLabel.alpha = 0
+		subtitleLabel.zPosition = 2100
+		addChild(subtitleLabel)
 
 		speedLabel = SKLabelNode()
 		speedLabel.fontName = "Arial"
@@ -198,6 +213,7 @@ final class HudScene: SKScene {
 				  actionButton != nil,
 				  objectivesNode != nil,
 				  consoleLabel != nil,
+				  subtitleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
 				  crosshairNode != nil,
@@ -218,6 +234,8 @@ final class HudScene: SKScene {
 		objectivesNode.position = CGPoint(x: size.width/2, y: size.height/2)
 		consoleLabel.position = CGPoint(x: 24, y: size.height-24)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
+		subtitleLabel.position = CGPoint(x: size.width / 2, y: size.height / 2)
+		subtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
@@ -311,6 +329,19 @@ final class HudScene: SKScene {
 				SKAction.fadeOut(withDuration: 0.35)
 			]),
 			withKey: consoleActionKey
+		)
+	}
+
+	func showSubtitleText(_ text: String) {
+		subtitleLabel.removeAction(forKey: subtitleActionKey)
+		subtitleLabel.text = remappedControlText(text)
+		subtitleLabel.alpha = 1
+		subtitleLabel.run(
+			SKAction.sequence([
+				SKAction.wait(forDuration: 4),
+				SKAction.fadeOut(withDuration: 0.35)
+			]),
+			withKey: subtitleActionKey
 		)
 	}
 
@@ -409,6 +440,25 @@ final class HudScene: SKScene {
 
 	func setLoadBlackoutVisible(_ isVisible: Bool) {
 		loadBlackoutOverlay.isHidden = !isVisible
+		loadBlackoutOverlay.alpha = isVisible ? 1 : 0
+	}
+
+	func setScriptBlackoutVisible(_ isVisible: Bool, immediate: Bool) {
+		loadBlackoutOverlay.removeAllActions()
+		let wasHidden = loadBlackoutOverlay.isHidden
+		loadBlackoutOverlay.isHidden = false
+		if immediate {
+			loadBlackoutOverlay.alpha = isVisible ? 1 : 0
+			loadBlackoutOverlay.isHidden = !isVisible
+			return
+		}
+
+		if isVisible && wasHidden {
+			loadBlackoutOverlay.alpha = 0
+		}
+		let fade = isVisible ? SKAction.fadeIn(withDuration: 0.5) : SKAction.fadeOut(withDuration: 0.5)
+		let actions = isVisible ? [fade] : [fade, SKAction.hide()]
+		loadBlackoutOverlay.run(SKAction.sequence(actions))
 	}
 
 }
@@ -444,6 +494,7 @@ extension HudScene {
 		loadBlackoutOverlay.fillColor = SKColor.black
 		loadBlackoutOverlay.strokeColor = SKColor.clear
 		loadBlackoutOverlay.zPosition = 2000
+		loadBlackoutOverlay.alpha = 0
 		loadBlackoutOverlay.isHidden = true
 		addChild(loadBlackoutOverlay)
 	}
@@ -476,12 +527,23 @@ extension HudScene {
 	}
 
 	private func playCutsceneFadeIn() {
+		if !loadBlackoutOverlay.isHidden, loadBlackoutOverlay.alpha > 0 {
+			loadBlackoutOverlay.removeAllActions()
+			loadBlackoutOverlay.run(
+				SKAction.sequence([
+					SKAction.fadeOut(withDuration: 2.0),
+					SKAction.hide()
+				])
+			)
+			return
+		}
+
 		cutsceneFadeOverlay.removeAction(forKey: cutsceneFadeActionKey)
 		cutsceneFadeOverlay.isHidden = false
 		cutsceneFadeOverlay.alpha = 1
 		cutsceneFadeOverlay.run(
 			SKAction.sequence([
-				SKAction.fadeOut(withDuration: 0.55),
+				SKAction.fadeOut(withDuration: 2.0),
 				SKAction.hide()
 			]),
 			withKey: cutsceneFadeActionKey
@@ -921,7 +983,7 @@ extension HudScene {
 		pauseOverlay = SKShapeNode(rectOf: size)
 		pauseOverlay.fillColor = SKColor.black.withAlphaComponent(0.68)
 		pauseOverlay.strokeColor = SKColor.clear
-		pauseOverlay.zPosition = 1000
+		pauseOverlay.zPosition = 2200
 		pauseOverlay.isHidden = true
 		addChild(pauseOverlay)
 

@@ -837,6 +837,34 @@ final class Game: NSObject {
 		}
 	}
 
+	func setScriptBlackoutVisible(_ isVisible: Bool, immediate: Bool) {
+		let update = {
+			self.hud?.setScriptBlackoutVisible(isVisible, immediate: immediate)
+		}
+
+		if Thread.isMainThread {
+			update()
+		} else {
+			DispatchQueue.main.async {
+				update()
+			}
+		}
+	}
+
+	func showSubtitleText(_ text: String) {
+		let update = {
+			self.hud?.showSubtitleText(text)
+		}
+
+		if Thread.isMainThread {
+			update()
+		} else {
+			DispatchQueue.main.async {
+				update()
+			}
+		}
+	}
+
 	func setPaused(_ isPaused: Bool, showsPauseScreen: Bool = true) {
 		let pauseStateChanged = isGamePaused != isPaused
 		if pauseStateChanged {

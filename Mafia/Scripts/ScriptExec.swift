@@ -81,7 +81,9 @@ extension Script {
 		case .setevent:					setevent(command.args)
 		case .setplayerfireevent:		setplayerfireevent(command.args)
 		case .setplayerhornevent:		setplayerhornevent(command.args)
+		case .subtitleAdd:				subtitle_add(command.args)
 		case .wait:						wait(command.args)
+		case .zatmyse:					zatmyse(command.args)
 		case .unknown:					noop(); // print("UNKNOWN COMMAND: \(command.rawName)")
 		}
 	}
@@ -629,10 +631,10 @@ extension Script {
 	private func loaddifferences(_ args: [Argument]) {
 		let name = args[0].getString()
 		print(">>> loaddifferences \(name)")
-		do {
-			try scene.loadDifferenceFile(named: name)
-		} catch {
-			print("Failed to load differences '\(name)':", error)
+		scene.loadDifferenceFileAsync(named: name) { result in
+			if case .failure(let error) = result {
+				print("Failed to load differences '\(name)':", error)
+			}
 		}
 		next()
 	}
@@ -673,20 +675,25 @@ extension Script {
 	private func recload(_ args: [Argument], full: Bool) {
 		let name = args[0].getString()
 		print(">>> \(full ? "recloadfull" : "recload") \(name)")
-		do {
-			let record = try scene.loadRecord(named: name, full: full)
-			let duration = scene.estimatedRecordDuration(record)
-			print("== Record script wait: \(String(format: "%.2f", duration))s")
-			scene.setCutsceneScriptsPaused(true, except: [self])
-			guard duration > 0 else {
-				scene.setCutsceneScriptsPaused(false)
-				next()
-				return
+		scene.loadRecordAsync(named: name, full: full) { result in
+			self.queue.async {
+				switch result {
+				case .success(let record):
+					let duration = self.scene.estimatedRecordDuration(record)
+					print("== Record script wait: \(String(format: "%.2f", duration))s")
+					self.scene.setCutsceneScriptsPaused(true, except: [self])
+					guard duration > 0 else {
+						self.scene.setCutsceneScriptsPaused(false)
+						self.next()
+						return
+					}
+					self.waitForCutscene(secondsRemaining: duration, lastTick: Date.timeIntervalSinceReferenceDate)
+
+				case .failure(let error):
+					print("Failed to load record '\(name)':", error)
+					self.next()
+				}
 			}
-			waitForCutscene(secondsRemaining: duration, lastTick: Date.timeIntervalSinceReferenceDate)
-		} catch {
-			print("Failed to load record '\(name)':", error)
-			next()
 		}
 	}
 
@@ -780,9 +787,23 @@ extension Script {
 		next()
 	}
 
+	private func subtitle_add(_ args: [Argument]) {
+		let txtId = args[0].getValueOrVarValue(vars: vars)
+		let text = TextDb.get(txtId) ?? "\(txtId)"
+		scene.game.showSubtitleText(text)
+		next()
+	}
+
 	private func wait(_ args: [Argument]) {
 		let delay = args[0].getValueOrVarValue(vars: vars)
 		queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: next)
+	}
+
+	private func zatmyse(_ args: [Argument]) {
+		let isVisible = args[0].getValueOrVarValue(vars: vars) == 1
+		let isImmediate = args.count > 1 && args[1].getValueOrVarValue(vars: vars) == 1
+		scene.game.setScriptBlackoutVisible(isVisible, immediate: isImmediate)
+		next()
 	}
 
 	private func findNode(named name: String) -> SCNNode? {

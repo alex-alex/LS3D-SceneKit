@@ -214,6 +214,15 @@ private struct RecordAnimationTargetMatch {
 	let orientationDistance: SCNFloat
 }
 
+private struct PendingRecordLoad {
+	let full: Bool
+	let completion: (Result<Record, Swift.Error>) -> Void
+}
+
+private struct PendingDifferenceLoad {
+	let completion: (Result<DifferenceFile, Swift.Error>) -> Void
+}
+
 private let recordCameraNearPlane: Double = 0.01
 
 struct TrafficCarDefinition {
@@ -260,9 +269,13 @@ final class Scene {
 	private var pendingHumanEnergyByName: [String: Float] = [:]
 	private var activeAudioPlayers: [ObjectIdentifier: ActiveAudioPlayer] = [:]
 	private var loadedDifferenceFiles: [String: DifferenceFile] = [:]
+	private let differenceLoadQueue = DispatchQueue(label: "difference.load", qos: .userInitiated)
+	private var pendingDifferenceLoads: [String: [PendingDifferenceLoad]] = [:]
 	private var loadedDifferenceScriptNames = Set<String>()
 	private var replacedScriptsByDifferenceName: [String: Script] = [:]
 	private var loadedRecords: [String: Record] = [:]
+	private let recordLoadQueue = DispatchQueue(label: "record.load", qos: .userInitiated)
+	private var pendingRecordLoads: [String: [PendingRecordLoad]] = [:]
 	private var activeRecordNames = Set<String>()
 	private var recordCameraRestore: (
 		parent: SCNNode?,
@@ -868,22 +881,68 @@ final class Scene {
 
 	@discardableResult
 	func loadDifferenceFile(named name: String) throws -> DifferenceFile {
-		let lowercasedName = name.lowercased()
-		let key = lowercasedName.hasSuffix(".chg") ? String(lowercasedName.dropLast(4)) : lowercasedName
+		let key = differenceKey(for: name)
 		if let differenceFile = loadedDifferenceFiles[key] {
 			print("== Difference already loaded: \(name)")
 			return differenceFile
 		}
 
 		print("== Loading Difference: \(name)")
-		game?.setLoadBlackoutVisible(true)
 		let differenceFile: DifferenceFile
 		do {
 			differenceFile = try DifferenceFile(named: name)
 		} catch {
-			game?.setLoadBlackoutVisible(false)
 			throw error
 		}
+		attachDifferenceFile(differenceFile, key: key)
+		printLoadedDifference(differenceFile)
+		return differenceFile
+	}
+
+	func loadDifferenceFileAsync(
+		named name: String,
+		completion: @escaping (Result<DifferenceFile, Swift.Error>) -> Void
+	) {
+		DispatchQueue.main.async {
+			let key = self.differenceKey(for: name)
+			if let differenceFile = self.loadedDifferenceFiles[key] {
+				print("== Difference already loaded: \(name)")
+				completion(.success(differenceFile))
+				return
+			}
+
+			let pendingLoad = PendingDifferenceLoad(completion: completion)
+			if self.pendingDifferenceLoads[key] != nil {
+				self.pendingDifferenceLoads[key]?.append(pendingLoad)
+				return
+			}
+			self.pendingDifferenceLoads[key] = [pendingLoad]
+
+			print("== Loading Difference async: \(name)")
+			self.differenceLoadQueue.async {
+				let result = Result { try DifferenceFile(named: name) }
+				DispatchQueue.main.async {
+					let pendingLoads = self.pendingDifferenceLoads.removeValue(forKey: key) ?? []
+					guard !pendingLoads.isEmpty else { return }
+					switch result {
+					case .success(let differenceFile):
+						self.attachDifferenceFile(differenceFile, key: key)
+						self.printLoadedDifference(differenceFile)
+						for pendingLoad in pendingLoads {
+							pendingLoad.completion(.success(differenceFile))
+						}
+
+					case .failure(let error):
+						for pendingLoad in pendingLoads {
+							pendingLoad.completion(.failure(error))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private func attachDifferenceFile(_ differenceFile: DifferenceFile, key: String) {
 		rootNode.addChildNode(differenceFile.rootNode)
 		loadedDifferenceFiles[key] = differenceFile
 		for script in differenceFile.scripts.values {
@@ -893,16 +952,34 @@ final class Scene {
 			scripts[script.name] = Script(script: script.source, scene: self, node: differenceFile.rootNode)
 			loadedDifferenceScriptNames.insert(script.name)
 		}
+	}
+
+	private func printLoadedDifference(_ differenceFile: DifferenceFile) {
 		print(
 			"== Loaded Difference: \(differenceFile.name) " +
 			"nodes=\(differenceFile.rootNode.childNodes.count) scripts=\(differenceFile.scripts.count)"
 		)
-		return differenceFile
+	}
+
+	private func differenceKey(for name: String) -> String {
+		let lowercasedName = name.lowercased()
+		return lowercasedName.hasSuffix(".chg") ? String(lowercasedName.dropLast(4)) : lowercasedName
 	}
 
 	func clearDifferenceFiles() {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.clearDifferenceFiles()
+			}
+			return
+		}
+
 		print("== Clearing Differences: \(loadedDifferenceFiles.count)")
-		game?.setLoadBlackoutVisible(false)
+		let cancelledLoads = pendingDifferenceLoads.values.flatMap { $0 }
+		pendingDifferenceLoads.removeAll()
+		for pendingLoad in cancelledLoads {
+			pendingLoad.completion(.failure(SceneError()))
+		}
 		for differenceFile in loadedDifferenceFiles.values {
 			differenceFile.rootNode.removeFromParentNode()
 		}
@@ -921,8 +998,7 @@ final class Scene {
 
 	@discardableResult
 	func loadRecord(named name: String, full: Bool = false) throws -> Record {
-		let lowercasedName = name.lowercased()
-		let key = lowercasedName.hasSuffix(".rep") ? String(lowercasedName.dropLast(4)) : lowercasedName
+		let key = recordKey(for: name)
 		if let record = loadedRecords[key] {
 			print("== Record already loaded: \(name)")
 			playRecord(record, full: full)
@@ -943,11 +1019,131 @@ final class Scene {
 		return record
 	}
 
+	func loadRecordAsync(
+		named name: String,
+		full: Bool = false,
+		completion: @escaping (Result<Record, Swift.Error>) -> Void
+	) {
+		DispatchQueue.main.async {
+			let key = self.recordKey(for: name)
+			if let record = self.loadedRecords[key] {
+				print("== Record already loaded: \(name)")
+				self.waitForPendingDifferenceLoads { result in
+					switch result {
+					case .success:
+						self.playRecord(record, full: full)
+						completion(.success(record))
+
+					case .failure(let error):
+						completion(.failure(error))
+					}
+				}
+				return
+			}
+
+			let pendingLoad = PendingRecordLoad(full: full, completion: completion)
+			if self.pendingRecordLoads[key] != nil {
+				self.pendingRecordLoads[key]?.append(pendingLoad)
+				return
+			}
+			self.pendingRecordLoads[key] = [pendingLoad]
+
+			print("== Loading Record async: \(name)")
+			self.recordLoadQueue.async {
+				let result = Result { try Record(name: name) }
+				DispatchQueue.main.async {
+					let pendingLoads = self.pendingRecordLoads.removeValue(forKey: key) ?? []
+					guard !pendingLoads.isEmpty else { return }
+					switch result {
+					case .success(let record):
+						self.loadedRecords[key] = record
+						print(
+							"== Loaded Record: \(record.name) frames=\(record.frameCount) " +
+							"animations=\(record.animations.count) models=\(record.modelBindings.count) " +
+							"cameraKeys=\(record.cameraKeyframes.count) events=\(record.timedEvents.count) " +
+							"speech=\(record.speechEvents.count) animationEvents=\(record.animationEvents.count) " +
+							"targetLinks=\(record.targetLinks.count)"
+						)
+						self.waitForPendingDifferenceLoads { result in
+							switch result {
+							case .success:
+								for pendingLoad in pendingLoads {
+									self.playRecord(record, full: pendingLoad.full)
+									pendingLoad.completion(.success(record))
+								}
+
+							case .failure(let error):
+								for pendingLoad in pendingLoads {
+									pendingLoad.completion(.failure(error))
+								}
+							}
+						}
+
+					case .failure(let error):
+						for pendingLoad in pendingLoads {
+							pendingLoad.completion(.failure(error))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	private func waitForPendingDifferenceLoads(completion: @escaping (Result<Void, Swift.Error>) -> Void) {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.waitForPendingDifferenceLoads(completion: completion)
+			}
+			return
+		}
+
+		let pendingKeys = Array(pendingDifferenceLoads.keys)
+		guard !pendingKeys.isEmpty else {
+			completion(.success(()))
+			return
+		}
+
+		var remainingLoads = pendingKeys.count
+		var firstError: Swift.Error?
+		let finishOne: (Result<DifferenceFile, Swift.Error>) -> Void = { result in
+			if case .failure(let error) = result, firstError == nil {
+				firstError = error
+			}
+			remainingLoads -= 1
+			guard remainingLoads == 0 else { return }
+			if let firstError = firstError {
+				completion(.failure(firstError))
+			} else {
+				completion(.success(()))
+			}
+		}
+
+		for key in pendingKeys {
+			pendingDifferenceLoads[key]?.append(PendingDifferenceLoad(completion: finishOne))
+		}
+	}
+
+	private func recordKey(for name: String) -> String {
+		let lowercasedName = name.lowercased()
+		return lowercasedName.hasSuffix(".rep") ? String(lowercasedName.dropLast(4)) : lowercasedName
+	}
+
 	func unloadRecords() {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.unloadRecords()
+			}
+			return
+		}
+
 		print("== Unloading Records: \(loadedRecords.count)")
-		game?.setLoadBlackoutVisible(false)
 		stopRecordPlayback()
+		let cancelledLoads = pendingRecordLoads.values.flatMap { $0 }
 		loadedRecords.removeAll()
+		pendingRecordLoads.removeAll()
+		for pendingLoad in cancelledLoads {
+			pendingLoad.completion(.failure(SceneError()))
+		}
 	}
 
 	private func playRecord(_ record: Record, full: Bool) {
@@ -961,7 +1157,6 @@ final class Scene {
 		let differenceRoots = loadedDifferenceFiles.values.map { $0.rootNode }
 		guard !differenceRoots.isEmpty else {
 			print("== Record Playback skipped: no differences loaded for \(record.name)")
-			game?.setLoadBlackoutVisible(false)
 			return
 		}
 
@@ -1634,7 +1829,6 @@ final class Scene {
 		guard let game = game,
 			  record.cameraKeyframes.count > 1 else {
 			print("== Record Camera skipped: keys=\(record.cameraKeyframes.count)")
-			game?.setLoadBlackoutVisible(false)
 			return
 		}
 
@@ -1650,7 +1844,6 @@ final class Scene {
 			)
 		}
 
-		game.isCutsceneCameraActive = true
 		cameraContainer.removeFromParentNode()
 		game.scnScene.rootNode.addChildNode(cameraContainer)
 		cameraContainer.transform = recordCameraRestore?.transform ?? cameraContainer.transform
@@ -1685,7 +1878,7 @@ final class Scene {
 		if let fieldOfView = firstKeyframe.fieldOfView {
 			game.cameraNode.camera?.fieldOfView = fieldOfView
 		}
-		game.setLoadBlackoutVisible(false)
+		game.isCutsceneCameraActive = true
 
 		cameraContainer.runAction(SCNAction.customAction(duration: duration) { node, elapsedTime in
 			let time = TimeInterval(elapsedTime)
@@ -1724,10 +1917,10 @@ final class Scene {
 		}
 		activeRecordSoundSchedules.removeAll()
 		game?.cameraContainer.removeAllActions()
+		game?.isCutsceneCameraActive = false
 		if let restore = recordCameraRestore,
 		   let game = game {
 			let cameraContainer = game.cameraContainer
-			game.isCutsceneCameraActive = false
 			cameraContainer.removeFromParentNode()
 			restore.parent?.addChildNode(cameraContainer)
 			cameraContainer.transform = restore.transform

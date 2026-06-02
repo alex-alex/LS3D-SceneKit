@@ -140,7 +140,9 @@ extension Script {
 		case "setevent":				return getArgs_setevent(scanner)
 		case "setplayerfireevent":		return getArgs_setplayerevent(scanner)
 		case "setplayerhornevent":		return getArgs_setplayerevent(scanner)
+		case "subtitle_add":			return getArgs_subtitle_add(scanner)
 		case "wait":					return getArgs_wait(scanner)
+		case "zatmyse":					return getArgs_zatmyse(scanner)
 		default:						return []
 		}
 	}
@@ -421,8 +423,16 @@ extension Script {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner))]
 	}
 
+	private func getArgs_subtitle_add(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_wait(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_zatmyse(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(0)]
 	}
 
 	// ----
