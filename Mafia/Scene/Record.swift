@@ -11,6 +11,7 @@ import SceneKit
 
 private let recordCameraRollScale: Float = 0.1
 private let recordCameraMaximumRoll: Float = .pi / 18
+private let recordCameraCutTimeEpsilon: TimeInterval = 0.005
 
 struct RecordAnimation {
 	let id: Int
@@ -229,22 +230,113 @@ final class Record {
 		from chunks: [RecordCameraChunk]
 	) -> [RecordCameraPositionSample] {
 		var samples: [RecordCameraPositionSample] = []
-		var pendingCutMarker = false
+		var pendingCutTime: TimeInterval?
+		var pendingIncomingControlChunk: RecordCameraChunk?
+		var pendingOutgoingControlTime: TimeInterval?
 
 		for chunk in chunks {
 			switch chunk.kind {
 			case 1:
+				if let cutTime = pendingCutTime,
+				   let controlChunk = pendingIncomingControlChunk,
+				   abs(cutTime - chunk.time) <= 0.001,
+				   abs(cutTime - controlChunk.time) <= 0.001,
+				   samples.last.map({ controlChunk.time >= $0.time + 0.001 }) ?? true {
+					samples.append(RecordCameraPositionSample(
+						time: controlChunk.time,
+						position: controlChunk.position,
+						roll: controlChunk.roll,
+						fieldOfView: controlChunk.fieldOfView,
+						hasCutMarker: false
+					))
+					samples.append(RecordCameraPositionSample(
+						time: cutTime + recordCameraCutTimeEpsilon,
+						position: chunk.position,
+						roll: chunk.roll,
+						fieldOfView: chunk.fieldOfView,
+						hasCutMarker: true
+					))
+					pendingCutTime = nil
+					pendingIncomingControlChunk = nil
+					pendingOutgoingControlTime = nil
+					continue
+				}
+
+				if let cutTime = pendingCutTime,
+				   cutTime < chunk.time - 0.001 {
+					if let controlChunk = pendingIncomingControlChunk,
+					   abs(cutTime - controlChunk.time) <= 0.001,
+					   samples.last.map({ controlChunk.time > $0.time + 0.001 }) ?? true {
+						samples.append(RecordCameraPositionSample(
+							time: controlChunk.time,
+							position: controlChunk.position,
+							roll: controlChunk.roll,
+							fieldOfView: controlChunk.fieldOfView,
+							hasCutMarker: false
+						))
+					}
+					samples.append(RecordCameraPositionSample(
+						time: cutTime + recordCameraCutTimeEpsilon,
+						position: chunk.position,
+						roll: chunk.roll,
+						fieldOfView: chunk.fieldOfView,
+						hasCutMarker: true
+					))
+					pendingCutTime = nil
+					pendingIncomingControlChunk = nil
+					pendingOutgoingControlTime = nil
+					continue
+				}
+
+				if let previousSample = samples.last,
+				   previousSample.hasCutMarker,
+				   chunk.time <= previousSample.time + 0.002 {
+					pendingCutTime = nil
+					pendingIncomingControlChunk = nil
+					pendingOutgoingControlTime = nil
+					continue
+				}
+
+				if let controlChunk = pendingIncomingControlChunk,
+				   let cutTime = pendingCutTime,
+				   abs(cutTime - controlChunk.time) <= 0.001,
+				   samples.last.map({ controlChunk.time > $0.time + 0.001 }) ?? true,
+				   controlChunk.time < chunk.time - 0.001 {
+					samples.append(RecordCameraPositionSample(
+						time: controlChunk.time,
+						position: controlChunk.position,
+						roll: controlChunk.roll,
+						fieldOfView: controlChunk.fieldOfView,
+						hasCutMarker: false
+					))
+				}
+
+				let hasCutMarker = cameraHasResetControl(
+					at: chunk.time,
+					previousTime: samples.last?.time,
+					cutTime: pendingCutTime,
+					incomingControlTime: pendingIncomingControlChunk?.time,
+					outgoingControlTime: pendingOutgoingControlTime
+				)
 				samples.append(RecordCameraPositionSample(
 					time: chunk.time,
 					position: chunk.position,
 					roll: chunk.roll,
 					fieldOfView: chunk.fieldOfView,
-					hasCutMarker: pendingCutMarker
+					hasCutMarker: hasCutMarker
 				))
-				pendingCutMarker = false
+				pendingCutTime = nil
+				pendingIncomingControlChunk = nil
+				pendingOutgoingControlTime = nil
 
 			case 2:
-				pendingCutMarker = !samples.isEmpty
+				pendingCutTime = chunk.time
+
+			case 4:
+				pendingIncomingControlChunk = chunk
+
+			case 8:
+				pendingOutgoingControlTime = chunk.time
 
 			default:
 				break
@@ -258,20 +350,101 @@ final class Record {
 		from chunks: [RecordCameraFocusChunk]
 	) -> [RecordCameraFocusSample] {
 		var samples: [RecordCameraFocusSample] = []
-		var pendingCutMarker = false
+		var pendingCutTime: TimeInterval?
+		var pendingIncomingControlChunk: RecordCameraFocusChunk?
+		var pendingOutgoingControlTime: TimeInterval?
 
 		for chunk in chunks {
 			switch chunk.kind {
 			case 1:
+				if let cutTime = pendingCutTime,
+				   let controlChunk = pendingIncomingControlChunk,
+				   abs(cutTime - chunk.time) <= 0.001,
+				   abs(cutTime - controlChunk.time) <= 0.001,
+				   samples.last.map({ controlChunk.time >= $0.time + 0.001 }) ?? true {
+					samples.append(RecordCameraFocusSample(
+						time: controlChunk.time,
+						position: controlChunk.position,
+						hasCutMarker: false
+					))
+					samples.append(RecordCameraFocusSample(
+						time: cutTime + recordCameraCutTimeEpsilon,
+						position: chunk.position,
+						hasCutMarker: true
+					))
+					pendingCutTime = nil
+					pendingIncomingControlChunk = nil
+					pendingOutgoingControlTime = nil
+					continue
+				}
+
+				if let cutTime = pendingCutTime,
+				   cutTime < chunk.time - 0.001 {
+					if let controlChunk = pendingIncomingControlChunk,
+					   abs(cutTime - controlChunk.time) <= 0.001,
+					   samples.last.map({ controlChunk.time > $0.time + 0.001 }) ?? true {
+						samples.append(RecordCameraFocusSample(
+							time: controlChunk.time,
+							position: controlChunk.position,
+							hasCutMarker: false
+						))
+					}
+					samples.append(RecordCameraFocusSample(
+						time: cutTime + recordCameraCutTimeEpsilon,
+						position: chunk.position,
+						hasCutMarker: true
+					))
+					pendingCutTime = nil
+					pendingIncomingControlChunk = nil
+					pendingOutgoingControlTime = nil
+					continue
+				}
+
+				if let previousSample = samples.last,
+				   previousSample.hasCutMarker,
+				   chunk.time <= previousSample.time + 0.002 {
+					pendingCutTime = nil
+					pendingIncomingControlChunk = nil
+					pendingOutgoingControlTime = nil
+					continue
+				}
+
+				if let controlChunk = pendingIncomingControlChunk,
+				   let cutTime = pendingCutTime,
+				   abs(cutTime - controlChunk.time) <= 0.001,
+				   samples.last.map({ controlChunk.time > $0.time + 0.001 }) ?? true,
+				   controlChunk.time < chunk.time - 0.001 {
+					samples.append(RecordCameraFocusSample(
+						time: controlChunk.time,
+						position: controlChunk.position,
+						hasCutMarker: false
+					))
+				}
+
+				let hasCutMarker = cameraHasResetControl(
+					at: chunk.time,
+					previousTime: samples.last?.time,
+					cutTime: pendingCutTime,
+					incomingControlTime: pendingIncomingControlChunk?.time,
+					outgoingControlTime: pendingOutgoingControlTime
+				)
 				samples.append(RecordCameraFocusSample(
 					time: chunk.time,
 					position: chunk.position,
-					hasCutMarker: pendingCutMarker
+					hasCutMarker: hasCutMarker
 				))
-				pendingCutMarker = false
+				pendingCutTime = nil
+				pendingIncomingControlChunk = nil
+				pendingOutgoingControlTime = nil
 
 			case 2:
-				pendingCutMarker = !samples.isEmpty
+				pendingCutTime = chunk.time
+
+			case 4:
+				pendingIncomingControlChunk = chunk
+
+			case 8:
+				pendingOutgoingControlTime = chunk.time
 
 			default:
 				break
@@ -337,7 +510,11 @@ final class Record {
 
 		return RecordCameraFocusSample(
 			time: time,
-			position: recordLerpVector(from.position, to.position, SCNFloat(bounds.progress)),
+			position: recordLerpVector(
+				from.position,
+				to.position,
+				SCNFloat(bounds.progress)
+			),
 			hasCutMarker: false
 		)
 	}
@@ -937,6 +1114,34 @@ private func recordLerpAngle(_ start: SCNFloat, _ end: SCNFloat, _ amount: SCNFl
 		delta += fullTurn
 	}
 	return start + delta * clampedAmount
+}
+
+private func cameraHasResetControl(
+	at time: TimeInterval,
+	previousTime: TimeInterval?,
+	cutTime: TimeInterval?,
+	incomingControlTime: TimeInterval?,
+	outgoingControlTime: TimeInterval?
+) -> Bool {
+	guard let previousTime = previousTime,
+		  time > previousTime + 0.001 else {
+		return false
+	}
+
+	if let cutTime = cutTime,
+	   abs(cutTime - time) <= 0.001 {
+		return true
+	}
+
+	if let cutTime = cutTime,
+	   let incomingControlTime = incomingControlTime,
+	   cutTime > previousTime + 0.001,
+	   cutTime < time - 0.001,
+	   incomingControlTime > time + 0.001 {
+		return true
+	}
+
+	return outgoingControlTime.map { $0 <= previousTime + 0.001 } ?? false
 }
 
 private func recordSampleBounds(

@@ -203,6 +203,38 @@ private struct RecordAnimationPlayback {
 	let matches: Int
 }
 
+private final class RecordTransformPlayback {
+	let targetNode: SCNNode
+	var eventByKey: [String: RecordAnimationEvent] = [:]
+	var sources = Set<String>()
+
+	init(targetNode: SCNNode) {
+		self.targetNode = targetNode
+	}
+
+	func append(events: [RecordAnimationEvent], source: String) {
+		for event in events {
+			let key = [
+				String(event.animationId),
+				String(event.trackId),
+				String(format: "%.3f", event.time),
+				String(event.packedTrackId)
+			].joined(separator: ":")
+			eventByKey[key] = event
+		}
+		sources.insert(source)
+	}
+
+	var sortedEvents: [RecordAnimationEvent] {
+		return eventByKey.values.sorted {
+			if $0.time == $1.time {
+				return $0.animationId < $1.animationId
+			}
+			return $0.time < $1.time
+		}
+	}
+}
+
 private struct RecordAnimationTargetMatch {
 	let node: SCNNode
 	let binding: RecordModelBinding?
@@ -224,6 +256,7 @@ private struct PendingDifferenceLoad {
 }
 
 private let recordCameraNearPlane: Double = 0.01
+private let recordFaceAnimationTimeTolerance: TimeInterval = 0.35
 
 struct TrafficCarDefinition {
 	let modelName: String
@@ -1176,6 +1209,7 @@ final class Scene {
 		var startedAnimations = 0
 		var skippedAnimations = 0
 		var resolvedAnimations: [RecordAnimationPlayback] = []
+		var resolvedTransformPlaybacks: [ObjectIdentifier: RecordTransformPlayback] = [:]
 		for animation in record.animations {
 			let animationName = animation.name.replacingOccurrences(
 				of: ".i3d",
@@ -1192,6 +1226,15 @@ final class Scene {
 				print("== Record Animation skipped: no decoded REC target \(animation.id) \(animation.name)")
 				continue
 			}
+			let transformEvents = recordTransformEvents(for: target, record: record)
+			if isRecordVehicleTarget(target) {
+				appendRecordTransformPlayback(
+					targetNode: target.node,
+					events: transformEvents,
+					source: target.source,
+					to: &resolvedTransformPlaybacks
+				)
+			}
 
 			do {
 				let duration = try animationDuration(named: animationPath)
@@ -1200,14 +1243,20 @@ final class Scene {
 					in: target.node
 				)
 				guard animationRoot.matches > 0 else {
+					appendRecordTransformPlayback(
+						targetNode: target.node,
+						events: transformEvents,
+						source: target.source,
+						to: &resolvedTransformPlaybacks
+					)
 					skippedAnimations += 1
 					print("== Record Animation skipped: no skeleton target \(animation.id) \(animation.name)")
 					continue
-					}
-					let startTime = recordAnimationStartTime(
-						events: target.timingEvents,
-						matching: target.event,
-						duration: duration
+				}
+				let startTime = recordAnimationStartTime(
+					events: target.timingEvents,
+					matching: target.event,
+					duration: duration
 				) ?? target.event.time
 				resolvedAnimations.append(RecordAnimationPlayback(
 					animation: animation,
@@ -1224,6 +1273,12 @@ final class Scene {
 					matches: animationRoot.matches
 				))
 			} catch {
+				appendRecordTransformPlayback(
+					targetNode: target.node,
+					events: transformEvents,
+					source: target.source,
+					to: &resolvedTransformPlaybacks
+				)
 				skippedAnimations += 1
 				print("== Record Animation failed: \(animation.name) \(error)")
 			}
@@ -1276,6 +1331,26 @@ final class Scene {
 			}
 		}
 		print("== Record Animations started: \(startedAnimations) skipped=\(skippedAnimations)")
+		var startedTransforms = 0
+		let recordDuration = estimatedRecordDuration(record)
+		for transformPlayback in resolvedTransformPlaybacks.values {
+			let events = transformPlayback.sortedEvents
+			guard !events.isEmpty else { continue }
+			playRecordTransform(
+				transformPlayback,
+				recordName: record.name,
+				duration: recordDuration
+			)
+			startedTransforms += 1
+			print(
+				"== Record Transform target: \(transformPlayback.targetNode.name ?? "unnamed") " +
+				"keys=\(events.count) " +
+				"sources=\(transformPlayback.sources.sorted().joined(separator: ",")) " +
+				"first=\(String(format: "%.2fs", events.first?.time ?? 0)) " +
+				"last=\(String(format: "%.2fs", events.last?.time ?? 0))"
+			)
+		}
+		print("== Record Transforms started: \(startedTransforms)")
 		playRecordCamera(record)
 		playRecordSpeech(record, animations: resolvedAnimations)
 		playRecordSounds(record)
@@ -1342,6 +1417,124 @@ final class Scene {
 		for childNode in node.childNodes {
 			stopRecordAnimationActions(in: childNode, recordName: recordName, keeping: animationKey)
 		}
+	}
+
+	private func recordTransformEvents(
+		for target: RecordAnimationTargetMatch,
+		record: Record
+	) -> [RecordAnimationEvent] {
+		if target.trackId >= 0 {
+			let trackEvents = record.animationEvents.filter { $0.trackId == target.trackId }
+			if !trackEvents.isEmpty {
+				return trackEvents
+			}
+		}
+		return target.timingEvents
+	}
+
+	private func isRecordVehicleTarget(_ target: RecordAnimationTargetMatch) -> Bool {
+		return target.binding?.targetName.lowercased().hasPrefix("car") == true
+	}
+
+	private func appendRecordTransformPlayback(
+		targetNode: SCNNode,
+		events: [RecordAnimationEvent],
+		source: String,
+		to playbacks: inout [ObjectIdentifier: RecordTransformPlayback]
+	) {
+		guard !events.isEmpty else { return }
+		let targetIdentifier = ObjectIdentifier(targetNode)
+		let playback = playbacks[targetIdentifier] ?? RecordTransformPlayback(targetNode: targetNode)
+		playback.append(events: events, source: source)
+		playbacks[targetIdentifier] = playback
+	}
+
+	private func playRecordTransform(
+		_ playback: RecordTransformPlayback,
+		recordName: String,
+		duration: TimeInterval
+	) {
+		let events = playback.sortedEvents
+		guard !events.isEmpty else { return }
+
+		let actionKey = "record:\(recordName):transform:\(ObjectIdentifier(playback.targetNode).hashValue)"
+		playback.targetNode.removeAction(forKey: actionKey)
+		Self.applyRecordTransform(events: events, at: 0, to: playback.targetNode)
+		let actionDuration = max(duration, events.last?.time ?? 0)
+		guard actionDuration > 0 else { return }
+		playback.targetNode.runAction(
+			SCNAction.customAction(duration: actionDuration) { node, elapsedTime in
+				Self.applyRecordTransform(events: events, at: TimeInterval(elapsedTime), to: node)
+			},
+			forKey: actionKey
+		)
+	}
+
+	private static func applyRecordTransform(
+		events: [RecordAnimationEvent],
+		at time: TimeInterval,
+		to node: SCNNode
+	) {
+		guard let firstEvent = events.first else { return }
+		guard time > firstEvent.time else {
+			applyRecordTransform(event: firstEvent, to: node)
+			return
+		}
+
+		var previousEvent = firstEvent
+		for nextEvent in events.dropFirst() {
+			guard time > nextEvent.time else {
+				let span = nextEvent.time - previousEvent.time
+				let progress = span <= 0 ? 1 : CGFloat((time - previousEvent.time) / span)
+				applyRecordTransform(
+					from: previousEvent,
+					to: nextEvent,
+					progress: progress,
+					node: node
+				)
+				return
+			}
+			previousEvent = nextEvent
+		}
+
+		applyRecordTransform(event: previousEvent, to: node)
+	}
+
+	private static func applyRecordTransform(event: RecordAnimationEvent, to node: SCNNode) {
+		node.position = event.position
+		node.orientation = recordOrientation(from: event.orientationVector, fallback: node.orientation)
+	}
+
+	private static func applyRecordTransform(
+		from startEvent: RecordAnimationEvent,
+		to endEvent: RecordAnimationEvent,
+		progress: CGFloat,
+		node: SCNNode
+	) {
+		let amount = SCNFloat(max(0, min(1, progress)))
+		node.position = SCNVector3(
+			x: startEvent.position.x + (endEvent.position.x - startEvent.position.x) * amount,
+			y: startEvent.position.y + (endEvent.position.y - startEvent.position.y) * amount,
+			z: startEvent.position.z + (endEvent.position.z - startEvent.position.z) * amount
+		)
+		let orientationVector = SCNVector3(
+			x: startEvent.orientationVector.x + (endEvent.orientationVector.x - startEvent.orientationVector.x) * amount,
+			y: startEvent.orientationVector.y + (endEvent.orientationVector.y - startEvent.orientationVector.y) * amount,
+			z: startEvent.orientationVector.z + (endEvent.orientationVector.z - startEvent.orientationVector.z) * amount
+		)
+		node.orientation = recordOrientation(from: orientationVector, fallback: node.orientation)
+	}
+
+	private static func recordOrientation(
+		from vector: SCNVector3,
+		fallback: SCNQuaternion
+	) -> SCNQuaternion {
+		return SCNQuaternion(
+			x: vector.y,
+			y: vector.z,
+			z: fallback.z,
+			w: -vector.x
+		)
 	}
 
 	private func recordAnimationRoot(
@@ -1449,6 +1642,11 @@ final class Scene {
 			)
 		}
 
+		func positionTolerance(for binding: RecordModelBinding?) -> SCNFloat {
+			guard let targetName = binding?.targetName.lowercased() else { return 1.0 }
+			return targetName.hasPrefix("car") ? 80.0 : 1.0
+		}
+
 		let directAnimationEvents = record.animationEvents.filter { $0.animationId == animation.id }
 		let animationEvents: [RecordAnimationEvent]
 		let sourcePrefix: String
@@ -1518,7 +1716,7 @@ final class Scene {
 		}
 
 		if let bestLinkedCandidate = bestLinkedCandidate,
-		   bestLinkedCandidate.positionDistance <= 1.0,
+		   bestLinkedCandidate.positionDistance <= positionTolerance(for: bestLinkedCandidate.binding),
 		   bestLinkedCandidate.orientationDistance <= 0.15 {
 			return RecordAnimationTargetMatch(
 				node: bestLinkedCandidate.targetNode,
@@ -1572,7 +1770,7 @@ final class Scene {
 		}
 
 		guard let bestCandidate = bestCandidate,
-			  bestCandidate.positionDistance <= 1.0,
+			  bestCandidate.positionDistance <= positionTolerance(for: bestCandidate.binding),
 			  bestCandidate.orientationDistance <= 0.15 else {
 			return nil
 		}
@@ -1595,10 +1793,13 @@ final class Scene {
 		let groupedEvents = Dictionary(grouping: events.filter { $0.trackId >= 0 }, by: \.trackId)
 		guard !groupedEvents.isEmpty else { return events }
 
-		return groupedEvents.values.compactMap { trackEvents in
-			trackEvents.max { lhs, rhs in
-				lhs.time < rhs.time
+		return groupedEvents.values.flatMap { trackEvents in
+			trackEvents
+		}.sorted {
+			if $0.trackId == $1.trackId {
+				return $0.time < $1.time
 			}
+			return $0.trackId < $1.trackId
 		}
 	}
 
@@ -1722,11 +1923,93 @@ final class Scene {
 					in: speechTarget,
 					after: event.time
 				)
+			} else {
+				logRecordFaceAnimationTargetFailure(for: event, animations: animations)
 			}
 			scheduledCount += 1
 		}
 
 		print("== Record Speech scheduled: \(scheduledCount)")
+	}
+
+	private func logRecordFaceAnimationTargetFailure(
+		for event: RecordSpeechEvent,
+		animations: [RecordAnimationPlayback]
+	) {
+		let faceFileName = String(format: "%08d.dat", event.soundId)
+		guard hasFaceAnimation(soundId: event.soundId) else {
+			print(
+				"== Record Face Animation failed: missing \(faceFileName) " +
+				"speech=\(event.soundId) time=\(String(format: "%.2f", event.time))s"
+			)
+			return
+		}
+
+		let morpherAnimations = animations.filter { hasFaceAnimationTarget(in: $0.targetNode) }
+		let activeAnimations = animations.filter {
+			recordFaceAnimationContains(event.time, in: $0, tolerance: 0)
+		}
+		let activeMorpherAnimations = morpherAnimations.filter {
+			recordFaceAnimationContains(event.time, in: $0, tolerance: recordFaceAnimationTimeTolerance)
+		}
+		let activeAnimationDescriptions = activeAnimations
+			.prefix(3)
+			.map { playback in
+				recordFaceAnimationTargetDescription(playback, at: event.time)
+			}
+			.joined(separator: "; ")
+		let nearestMorpherAnimations = morpherAnimations
+			.sorted {
+				recordFaceAnimationDistance(from: event.time, to: $0) <
+					recordFaceAnimationDistance(from: event.time, to: $1)
+			}
+			.prefix(3)
+			.map { playback in
+				recordFaceAnimationTargetDescription(playback, at: event.time)
+			}
+			.joined(separator: "; ")
+		print(
+			"== Record Face Animation failed: no target \(faceFileName) " +
+			"speech=\(event.soundId) time=\(String(format: "%.2f", event.time))s " +
+			"activeAnimations=\(activeAnimations.count) active=[\(activeAnimationDescriptions)] " +
+			"morphTargets=\(morpherAnimations.count) activeMorphTargets=\(activeMorpherAnimations.count) " +
+			"nearest=[\(nearestMorpherAnimations)]"
+		)
+	}
+
+	private func recordFaceAnimationDistance(
+		from time: TimeInterval,
+		to playback: RecordAnimationPlayback
+	) -> TimeInterval {
+		let endTime = playback.startTime + playback.duration
+		if time < playback.startTime {
+			return playback.startTime - time
+		}
+		if time > endTime {
+			return time - endTime
+		}
+		return 0
+	}
+
+	private func recordFaceAnimationContains(
+		_ time: TimeInterval,
+		in playback: RecordAnimationPlayback,
+		tolerance: TimeInterval
+	) -> Bool {
+		return time >= playback.startTime - tolerance &&
+			time <= playback.startTime + playback.duration + tolerance
+	}
+
+	private func recordFaceAnimationTargetDescription(
+		_ playback: RecordAnimationPlayback,
+		at time: TimeInterval
+	) -> String {
+		let endTime = playback.startTime + playback.duration
+		return "\(playback.animation.name)->\(playback.targetNode.name ?? "unnamed") " +
+			"start=\(String(format: "%.2f", playback.startTime))s " +
+			"end=\(String(format: "%.2f", endTime))s " +
+			"delta=\(String(format: "%.2f", recordFaceAnimationDistance(from: time, to: playback)))s " +
+			"track=\(playback.trackId)"
 	}
 
 	private func recordSpeechTarget(
@@ -1736,8 +2019,11 @@ final class Scene {
 		guard hasFaceAnimation(soundId: event.soundId) else { return nil }
 		let activeAnimations = animations.filter {
 			hasFaceAnimationTarget(in: $0.targetNode) &&
-				event.time >= $0.startTime &&
-				event.time <= $0.startTime + $0.duration
+				recordFaceAnimationContains(
+					event.time,
+					in: $0,
+					tolerance: recordFaceAnimationTimeTolerance
+				)
 		}
 		return activeAnimations
 			.sorted {
