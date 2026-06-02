@@ -113,6 +113,9 @@ class Animation {
 	let rotations: [Int: SCNQuaternion]
 	let scales: [Int: SCNVector3]
 	let positions: [Int: SCNVector3]
+	private let rotationKeys: [Int]
+	private let scaleKeys: [Int]
+	private let positionKeys: [Int]
 
 	var lastScale: SCNVector3?
 
@@ -127,12 +130,12 @@ class Animation {
 		self.rotations = rotations
 		self.scales = scales
 		self.positions = positions
+		self.rotationKeys = rotations.keys.sorted()
+		self.scaleKeys = scales.keys.sorted()
+		self.positionKeys = positions.keys.sorted()
 	}
 
 	var action: SCNAction {
-		let positionKeys = positions.keys.sorted()
-		let scaleKeys = scales.keys.sorted()
-		let rotationKeys = rotations.keys.sorted()
 		let duration = TimeInterval(timerMax) * Animation.frameDuration
 
 		guard duration > 0 else {
@@ -151,28 +154,28 @@ class Animation {
 
 		return SCNAction.customAction(duration: duration) { node, elapsedTime in
 			let tick = CGFloat(elapsedTime / CGFloat(Animation.frameDuration))
-			if let position = Animation.interpolatedVector(keys: positionKeys, values: self.positions, at: tick) {
+			if let position = Animation.interpolatedVector(keys: self.positionKeys, values: self.positions, at: tick) {
 				node.position = position
 			}
-			if let scale = Animation.interpolatedVector(keys: scaleKeys, values: self.scales, at: tick) {
+			if let scale = Animation.interpolatedVector(keys: self.scaleKeys, values: self.scales, at: tick) {
 				node.scale = scale
 			}
-			if let rotation = Animation.interpolatedQuaternion(keys: rotationKeys, values: self.rotations, at: tick) {
+			if let rotation = Animation.interpolatedQuaternion(keys: self.rotationKeys, values: self.rotations, at: tick) {
 				node.orientation = rotation
 			}
 		}
 	}
 
 	func applyInitialPose(to node: SCNNode) {
-		if let firstPositionKey = positions.keys.min(),
+		if let firstPositionKey = positionKeys.first,
 		   let position = positions[firstPositionKey] {
 			node.position = position
 		}
-		if let firstScaleKey = scales.keys.min(),
+		if let firstScaleKey = scaleKeys.first,
 		   let scale = scales[firstScaleKey] {
 			node.scale = scale
 		}
-		if let firstRotationKey = rotations.keys.min(),
+		if let firstRotationKey = rotationKeys.first,
 		   let rotation = rotations[firstRotationKey] {
 			node.orientation = rotation
 		}
@@ -273,6 +276,14 @@ class Animation {
 	}
 }
 
+private struct LoadedAnimation {
+	let animations: [Animation]
+	let duration: TimeInterval
+}
+
+private let loadedAnimationsLock = NSLock()
+private var loadedAnimationsByName: [String: LoadedAnimation] = [:]
+
 func readAnimation(stream: InputStream, timerMax: Int, nameOffset: UInt32, animOffset: UInt32) throws -> Animation {
 	let startOffset = stream.currentOffset
 
@@ -312,10 +323,19 @@ func readAnimation(stream: InputStream, timerMax: Int, nameOffset: UInt32, animO
 }
 
 func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
-	let url = mainDirectory.appendingPathComponent(name.lowercased())
+	let key = name.lowercased()
+	loadedAnimationsLock.lock()
+	if let cachedAnimation = loadedAnimationsByName[key] {
+		loadedAnimationsLock.unlock()
+		return (cachedAnimation.animations, cachedAnimation.duration)
+	}
+	loadedAnimationsLock.unlock()
+
+	let url = mainDirectory.appendingPathComponent(key)
 
 	guard let stream = InputStream(url: url) else { throw AnimationError.file }
 	stream.open()
+	defer { stream.close() }
 
 	let str: String = try stream.read(maxLength: 4)
 	guard str == "5DS" else { throw AnimationError.file }
@@ -342,7 +362,11 @@ func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 		)
 	}
 
-	return (animations, Double(timerMax)/25)
+	let duration = Double(timerMax) / 25
+	loadedAnimationsLock.lock()
+	loadedAnimationsByName[key] = LoadedAnimation(animations: animations, duration: duration)
+	loadedAnimationsLock.unlock()
+	return (animations, duration)
 }
 
 func animationDuration(named name: String) throws -> TimeInterval {

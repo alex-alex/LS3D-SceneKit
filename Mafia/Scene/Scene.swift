@@ -1109,16 +1109,52 @@ final class Scene {
 		for animationPath: String,
 		in targetNode: SCNNode
 	) throws -> (node: SCNNode, matches: Int) {
-		var bestNode = targetNode
-		var bestMatches = try animationMatchCount(named: animationPath, in: targetNode)
-		for childNode in targetNode.flattenedChildNodes {
-			let matches = try animationMatchCount(named: animationPath, in: childNode)
-			if matches > bestMatches {
-				bestNode = childNode
-				bestMatches = matches
-			}
+		let (animations, _) = try loadAnimation(named: animationPath)
+		let animationNameCounts = Dictionary(
+			grouping: animations.map { $0.name.lowercased() },
+			by: { $0 }
+		).mapValues { $0.count }
+		var best = (node: targetNode, matches: 0, order: 0)
+		var order = 0
+		_ = recordAnimationSubtreeMatchCount(
+			in: targetNode,
+			animationNameCounts: animationNameCounts,
+			best: &best,
+			order: &order
+		)
+		return (node: best.node, matches: best.matches)
+	}
+
+	private func recordAnimationSubtreeMatchCount(
+		in node: SCNNode,
+		animationNameCounts: [String: Int],
+		best: inout (node: SCNNode, matches: Int, order: Int),
+		order: inout Int
+	) -> (names: Set<String>, matches: Int) {
+		let nodeOrder = order
+		order += 1
+		var subtreeNames = Set<String>()
+		for childNode in node.childNodes {
+			let childMatches = recordAnimationSubtreeMatchCount(
+				in: childNode,
+				animationNameCounts: animationNameCounts,
+				best: &best,
+				order: &order
+			)
+			subtreeNames.formUnion(childMatches.names)
 		}
-		return (bestNode, bestMatches)
+		if let name = node.name?.lowercased(),
+		   animationNameCounts[name] != nil {
+			subtreeNames.insert(name)
+		}
+
+		let matches = subtreeNames.reduce(0) { count, name in
+			count + (animationNameCounts[name] ?? 0)
+		}
+		if matches > best.matches || (matches == best.matches && nodeOrder < best.order) {
+			best = (node, matches, nodeOrder)
+		}
+		return (subtreeNames, matches)
 	}
 
 	private func recordAnimationTarget(
