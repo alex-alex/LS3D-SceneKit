@@ -22,6 +22,17 @@ struct RecordModelBinding {
 	let sourceName: String
 	let targetName: String
 	let extraName: String
+	let transformEvents: [RecordAnimationEvent]
+}
+
+private struct RecordModelBindingMetadata {
+	let sourceName: String
+	let targetName: String
+	let sampleOffset: Int
+	let sampleStride: Int
+	let durationMilliseconds: Int
+	let sampleDataLength: Int
+	let sampleDataOffset: Int
 }
 
 struct RecordCameraKeyframe {
@@ -78,11 +89,19 @@ struct RecordTimedEvent {
 
 struct RecordSpeechEvent {
 	let time: TimeInterval
+	let channelId: UInt32
 	let soundId: Int
+	let speakerFrameName: String?
 
 	var fileName: String {
 		return String(format: "%08d.wav", soundId)
 	}
+}
+
+private enum RecordDialogChunk {
+	case binding(time: TimeInterval, channelId: UInt32, frameName: String)
+	case speech(time: TimeInterval, channelId: UInt32, soundId: Int)
+	case ignored
 }
 
 struct RecordAnimationEvent {
@@ -154,21 +173,45 @@ final class Record {
 			loadedAnimations.append(RecordAnimation(id: Int(rawId), name: animationName))
 		}
 
-		var loadedModelBindings: [RecordModelBinding] = []
+		var bindingMetadata: [RecordModelBindingMetadata] = []
 		for _ in 0 ..< modelsCount {
 			let sourceName: String = try stream.read(maxLength: 36, encoding: .windowsCP1250)
 			let targetName: String = try stream.read(maxLength: 36, encoding: .windowsCP1250)
-			let extraName: String = try stream.read(maxLength: 36, encoding: .windowsCP1250)
-			loadedModelBindings.append(RecordModelBinding(
+			let sampleOffset: UInt32 = try stream.read()
+			let sampleStride: UInt32 = try stream.read()
+			stream.currentOffset += 12
+			let durationMilliseconds: UInt32 = try stream.read()
+			stream.currentOffset += 4
+			let sampleDataLength: UInt32 = try stream.read()
+			let sampleDataOffset: UInt32 = try stream.read()
+			bindingMetadata.append(RecordModelBindingMetadata(
 				sourceName: sourceName,
 				targetName: targetName,
-				extraName: extraName
+				sampleOffset: Int(sampleOffset),
+				sampleStride: Int(sampleStride),
+				durationMilliseconds: Int(durationMilliseconds),
+				sampleDataLength: Int(sampleDataLength),
+				sampleDataOffset: Int(sampleDataOffset)
 			))
 		}
 
+		let loadedPayloadOffset = stream.currentOffset
+		let recordData = try? Data(contentsOf: url)
+		let loadedModelBindings = bindingMetadata.enumerated().map { index, metadata in
+			RecordModelBinding(
+				sourceName: metadata.sourceName,
+				targetName: metadata.targetName,
+				extraName: "",
+				transformEvents: recordData?.readBindingTransformEvents(
+					metadata: metadata,
+					payloadOffset: loadedPayloadOffset,
+					bindingIndex: index
+				) ?? []
+			)
+		}
 		animations = loadedAnimations
 		modelBindings = loadedModelBindings
-		payloadOffset = stream.currentOffset
+		payloadOffset = loadedPayloadOffset
 		cameraKeyframes = Record.readCameraKeyframes(
 			url: url,
 			offset: payloadOffset + Int(header[2]),
@@ -183,7 +226,7 @@ final class Record {
 		)
 		targetLinks = Record.readTargetLinks(url: url, finalBlockSize: Int(header[8]))
 		timedEvents = Record.readTimedEvents(url: url)
-		speechEvents = Record.readSpeechEvents(url: url)
+		speechEvents = Record.readSpeechEvents(url: url, modelBindings: loadedModelBindings)
 	}
 
 	private static func readCameraKeyframes(
@@ -659,27 +702,51 @@ final class Record {
 		return links
 	}
 
-	private static func readSpeechEvents(url: URL) -> [RecordSpeechEvent] {
+	private static func readSpeechEvents(
+		url: URL,
+		modelBindings: [RecordModelBinding]
+	) -> [RecordSpeechEvent] {
 		guard let data = try? Data(contentsOf: url) else { return [] }
 		guard data.count >= 36 else { return [] }
 
 		let entrySize = 36
 		var acceptedOffsets = Set<Int>()
+		var frameNameByChannelId: [UInt32: String] = [:]
+		let validFrameNames = Set(
+			modelBindings
+				.flatMap { [$0.sourceName, $0.targetName] }
+				.map { $0.lowercased() }
+		)
 		var events: [RecordSpeechEvent] = []
 
 		for startOffset in stride(from: 0, through: data.count - entrySize, by: 4) {
-			var run: [(offset: Int, event: RecordSpeechEvent)] = []
+			var run: [(offset: Int, chunk: RecordDialogChunk)] = []
 			var currentOffset = startOffset
 			while currentOffset + entrySize <= data.count,
-				  let event = data.readSpeechEvent(at: currentOffset) {
-				run.append((currentOffset, event))
+				  let chunk = data.readDialogChunk(
+					at: currentOffset,
+					validFrameNames: validFrameNames
+				  ) {
+				run.append((currentOffset, chunk))
 				currentOffset += entrySize
 			}
 
 			guard run.count >= 3 else { continue }
-			for (offset, event) in run where !acceptedOffsets.contains(offset) {
+			for (offset, chunk) in run where !acceptedOffsets.contains(offset) {
 				acceptedOffsets.insert(offset)
-				events.append(event)
+				switch chunk {
+				case let .binding(_, channelId, frameName):
+					frameNameByChannelId[channelId] = frameName
+				case let .speech(time, channelId, soundId):
+					events.append(RecordSpeechEvent(
+						time: time,
+						channelId: channelId,
+						soundId: soundId,
+						speakerFrameName: frameNameByChannelId[channelId]
+					))
+				case .ignored:
+					break
+				}
 			}
 		}
 
@@ -796,6 +863,75 @@ private extension Data {
 			}
 		}
 		return starts
+	}
+
+	func readBindingTransformEvents(
+		metadata: RecordModelBindingMetadata,
+		payloadOffset: Int,
+		bindingIndex: Int
+	) -> [RecordAnimationEvent] {
+		guard metadata.sampleOffset >= 0,
+			  metadata.sampleStride >= 40,
+			  metadata.sampleDataOffset >= 0,
+			  metadata.sampleDataLength >= metadata.sampleStride else {
+			return []
+		}
+
+		let dataStart = payloadOffset + metadata.sampleDataOffset
+		let dataEnd = dataStart + metadata.sampleDataLength
+		guard dataStart >= 0,
+			  dataEnd <= count else {
+			return []
+		}
+
+		let trackId = -bindingIndex - 1
+		let animationId = -bindingIndex - 1
+		let durationMilliseconds = Swift.max(0, metadata.durationMilliseconds)
+		var events: [RecordAnimationEvent] = []
+		var recordOffset = dataStart
+		while recordOffset + metadata.sampleOffset + 32 <= dataEnd {
+			let sampleOffset = recordOffset + metadata.sampleOffset
+			let time = readUInt32(at: sampleOffset)
+			let interpolationKind = readUInt32(at: sampleOffset + 4)
+			guard interpolationKind == 1 || interpolationKind == 2,
+				  durationMilliseconds == 0 || time <= durationMilliseconds else {
+				recordOffset += metadata.sampleStride
+				continue
+			}
+
+			let values = [
+				readFloat(at: sampleOffset + 8),
+				readFloat(at: sampleOffset + 12),
+				readFloat(at: sampleOffset + 16),
+				readFloat(at: sampleOffset + 20),
+				readFloat(at: sampleOffset + 24),
+				readFloat(at: sampleOffset + 28)
+			]
+			guard values.allSatisfy({ $0.isFinite && abs($0) < 100_000 }) else {
+				recordOffset += metadata.sampleStride
+				continue
+			}
+
+			events.append(RecordAnimationEvent(
+				animationId: animationId,
+				trackId: trackId,
+				time: TimeInterval(time) / 1000.0,
+				packedTrackId: 0,
+				interpolationKind: interpolationKind,
+				position: SCNVector3(
+					x: SCNFloat(values[0]),
+					y: SCNFloat(values[1]),
+					z: SCNFloat(values[2])
+				),
+				orientationVector: SCNVector3(
+					x: SCNFloat(values[3]),
+					y: SCNFloat(values[4]),
+					z: SCNFloat(values[5])
+				)
+			))
+			recordOffset += metadata.sampleStride
+		}
+		return events.sorted { $0.time < $1.time }
 	}
 
 	func readTrackStartAnimationEvent(at offset: Int, animationCount: Int) -> RecordAnimationEvent? {
@@ -1047,28 +1183,67 @@ private extension Data {
 		return false
 	}
 
-	func readSpeechEvent(at offset: Int) -> RecordSpeechEvent? {
+	func readDialogChunk(
+		at offset: Int,
+		validFrameNames: Set<String>
+	) -> RecordDialogChunk? {
 		let time = readUInt32(at: offset)
-		let marker = readUInt32(at: offset + 4)
-		let soundId = readUInt32(at: offset + 8)
+		let channelId = readUInt32(at: offset + 4)
+		let dialogId = readUInt32(at: offset + 8)
 
-		guard time <= 3_600_000,
-			  marker <= 1,
-			  soundId >= 1_000_000,
-			  soundId <= 99_999_999 else {
+		guard time <= 3_600_000 else {
 			return nil
 		}
 
-		let fileName = String(format: "%08d.wav", Int(soundId))
+		if dialogId == 1 {
+			let frameName = readString(at: offset + 12, maxLength: 24, encoding: .windowsCP1250)
+			guard validFrameNames.contains(frameName.lowercased()) else { return nil }
+			return .binding(
+				time: TimeInterval(time) / 1000.0,
+				channelId: channelId,
+				frameName: frameName
+			)
+		}
+
+		if dialogId == 0 || dialogId == UInt32.max {
+			return .ignored
+		}
+
+		guard dialogId >= 1_000_000,
+			  dialogId <= 99_999_999 else {
+			return nil
+		}
+
+		let fileName = String(format: "%08d.wav", Int(dialogId))
 		let url = mainDirectory.appendingPathComponent("sounds/" + fileName)
 		guard FileManager.default.fileExists(atPath: url.path) else {
 			return nil
 		}
 
-		return RecordSpeechEvent(
+		return .speech(
 			time: TimeInterval(time) / 1000.0,
-			soundId: Int(soundId)
+			channelId: channelId,
+			soundId: Int(dialogId)
 		)
+	}
+
+	func readString(
+		at offset: Int,
+		maxLength: Int,
+		encoding: String.Encoding = .utf8
+	) -> String {
+		guard offset >= 0,
+			  maxLength > 0,
+			  offset + maxLength <= count else {
+			return ""
+		}
+
+		var bytes = Array(self[offset ..< offset + maxLength])
+		if let terminatorIndex = bytes.firstIndex(of: 0) {
+			bytes.removeSubrange(terminatorIndex...)
+		}
+		guard !bytes.isEmpty else { return "" }
+		return String(data: Data(bytes), encoding: encoding) ?? ""
 	}
 
 	func readTargetLinkName(at offset: Int, entryIndex: Int, entryCount: Int) -> String? {

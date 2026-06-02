@@ -204,7 +204,7 @@ class Animation {
 				guard let previousValue = values[previousKey],
 					  let nextValue = values[key] else { return values[key] }
 				let t = CGFloat(key == previousKey ? 1 : (tick - CGFloat(previousKey)) / CGFloat(key - previousKey))
-				return lerp(previousValue, nextValue, t)
+				return lerp(previousValue, nextValue, smoothstep(t))
 			}
 			previousKey = key
 		}
@@ -222,12 +222,17 @@ class Animation {
 				guard let previousValue = values[previousKey],
 					  let nextValue = values[key] else { return values[key] }
 				let t = CGFloat(key == previousKey ? 1 : (tick - CGFloat(previousKey)) / CGFloat(key - previousKey))
-				return slerp(previousValue, nextValue, t)
+				return slerp(previousValue, nextValue, smoothstep(t))
 			}
 			previousKey = key
 		}
 
 		return values[previousKey]
+	}
+
+	private static func smoothstep(_ t: CGFloat) -> CGFloat {
+		let amount = max(0, min(1, t))
+		return amount * amount * (3 - 2 * amount)
 	}
 
 	private static func lerp(_ start: SCNVector3, _ end: SCNVector3, _ t: CGFloat) -> SCNVector3 {

@@ -30,6 +30,7 @@ final class Game: NSObject {
 	var isCutsceneCameraActive = false {
 		didSet {
 			guard oldValue != isCutsceneCameraActive else { return }
+			trafficManager?.isEnabled = !isCutsceneCameraActive
 			setCutsceneOverlayVisible(isCutsceneCameraActive)
 		}
 	}
@@ -210,6 +211,7 @@ final class Game: NSObject {
 
 		let road: Road? = (try? Road(name: "missions/"+missionName)) ?? nil
 		trafficManager = TrafficManager(road: road, trafficSettings: scene.trafficSettings, scene: scnScene)
+		trafficManager?.isEnabled = !isCutsceneCameraActive
 		if road != nil {
 			print("== Loaded Road")
 		}
@@ -1280,7 +1282,7 @@ extension Game {
 			})!
 			scene.actions.remove(at: index)
 
-			script.next()
+			script.completeActionWait()
 
 		case .weapon(let node, let weapon):
 			node.isHidden = true

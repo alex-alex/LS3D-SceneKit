@@ -23,7 +23,7 @@ extension Script {
 		case .carRepair:				car_repair(command.args)
 		case .carSetspeed:				car_setspeed(command.args)
 		case .cleardifferences:			cleardifferences(command.args)
-//		"commandblock"
+		case .commandblock:				commandblock(command.args)
 		case .compareownerwithex:		compareownerwithex(command.args)
 		case .consoleAddtext:			console_addtext(command.args)
 		case .createweaponfromframe:		createweaponfromframe(command.args)
@@ -73,6 +73,7 @@ extension Script {
 		case .pmShowsymbol:				noop()
 		case .recload:					recload(command.args, full: false)
 		case .recloadfull:				recload(command.args, full: true)
+		case .recwaitforend:			recwaitforend(command.args)
 		case .recunload:				recunload(command.args)
 		case .`return`:					`return`(command.args)
 		case .returnBang:				`return`(command.args)
@@ -97,7 +98,7 @@ extension Script {
 				return
 			}
 
-			if !self.executingEvent, let eventId = self.dequeueEventId() {
+			if !self.executingEvent, self.commandBlockDepth == 0, let eventId = self.dequeueEventId() {
 				self.currentEventId = eventId
 				self.lineBeforeEvent = self.currentLine
 				if let currentEventId = self.currentEventId,
@@ -118,6 +119,9 @@ extension Script {
 	func goto(label: String) {
 		if label == "-1" { return next() }
 		guard let line = labels[label] else {
+			if commandBlockDepth > 0 {
+				fatalError("Unknown label '\(label)' in commandblock")
+			}
 			next()
 			return
 		}
@@ -200,6 +204,62 @@ extension Script {
 	private func cleardifferences(_ args: [Argument]) {
 		scene.clearDifferenceFiles()
 		next()
+	}
+
+	private func commandblock(_ args: [Argument]) {
+		let mode = args[0].getValueOrVarValue(vars: vars)
+		switch mode {
+		case 0:
+			guard commandBlockDepth > 0 else {
+				fatalError("commandblock 0 without matching commandblock 1")
+			}
+			if commandBlockDepth == 1 && pendingCommandBlockAsyncOperations > 0 {
+				isWaitingForCommandBlockAsyncOperations = true
+				return
+			}
+			commandBlockDepth -= 1
+
+		case 1:
+			commandBlockDepth += 1
+
+		default:
+			fatalError("Unsupported commandblock value \(mode)")
+		}
+		next()
+	}
+
+	private var isExecutingCommandBlock: Bool {
+		return commandBlockDepth > 0
+	}
+
+	private func beginCommandBlockAsyncOperation() -> Bool {
+		guard isExecutingCommandBlock else { return false }
+		pendingCommandBlockAsyncOperations += 1
+		return true
+	}
+
+	private func finishCommandBlockAsyncOperation() {
+		queue.async {
+			guard self.pendingCommandBlockAsyncOperations > 0 else { return }
+			self.pendingCommandBlockAsyncOperations -= 1
+			guard self.isWaitingForCommandBlockAsyncOperations,
+				  self.pendingCommandBlockAsyncOperations == 0 else {
+				return
+			}
+			self.isWaitingForCommandBlockAsyncOperations = false
+			self.commandBlockDepth -= 1
+			self.next()
+		}
+	}
+
+	func completeActionWait() {
+		queue.async {
+			if self.isExecutingCommandBlock || self.isWaitingForCommandBlockAsyncOperations {
+				self.finishCommandBlockAsyncOperation()
+			} else {
+				self.next()
+			}
+		}
 	}
 
 	private func compareownerwithex(_ args: [Argument]) {
@@ -290,12 +350,16 @@ extension Script {
 	}
 
 	private func detector_waitforuse(_ args: [Argument]) {
+		let waitsForCommandBlock = beginCommandBlockAsyncOperation()
 		if args.count > 0 {
 			let txtId = args[0].getValueOrVarValue(vars: vars)
 			let str = TextDb.get(txtId)
 			scene.actions.append(.action(self, str))
 		} else {
 			scene.actions.append(.action(self, nil))
+		}
+		if waitsForCommandBlock {
+			next()
 		}
 	}
 
@@ -518,13 +582,21 @@ extension Script {
 		   let source = SCNAudioSource(url: url) {
 			source.isPositional = false
 			source.load()
+			let waitsForCommandBlock = beginCommandBlockAsyncOperation()
 			DispatchQueue.main.async {
 				if let actor = self.node(forScriptId: actorId) {
 					try? playFaceAnimation(soundName: soundId, in: actor)
 				}
 				self.scene.playAudio(source, url: url, on: self.scene.rootNode) {
-					self.next()
+					if waitsForCommandBlock {
+						self.finishCommandBlockAsyncOperation()
+					} else {
+						self.next()
+					}
 				}
+			}
+			if waitsForCommandBlock {
+				next()
 			}
 		} else {
 			next()
@@ -629,9 +701,13 @@ extension Script {
 
 	private func loaddifferences(_ args: [Argument]) {
 		let name = args[0].getString()
+		let waitsForCommandBlock = beginCommandBlockAsyncOperation()
 		scene.loadDifferenceFileAsync(named: name) { result in
 			if case .failure(let error) = result {
 				print("Failed to load differences '\(name)':", error)
+			}
+			if waitsForCommandBlock {
+				self.finishCommandBlockAsyncOperation()
 			}
 		}
 		next()
@@ -672,29 +748,55 @@ extension Script {
 
 	private func recload(_ args: [Argument], full: Bool) {
 		let name = args[0].getString()
+		let waitsForCommandBlock = beginCommandBlockAsyncOperation()
 		scene.loadRecordAsync(named: name, full: full) { result in
 			self.queue.async {
 				switch result {
-				case .success(let record):
-					let duration = self.scene.estimatedRecordDuration(record)
-					print("== Record script wait: \(String(format: "%.2f", duration))s")
-					self.scene.setCutsceneScriptsPaused(true, except: [self])
-					guard duration > 0 else {
-						self.scene.setCutsceneScriptsPaused(false)
+				case .success:
+					if waitsForCommandBlock {
+						self.finishCommandBlockAsyncOperation()
+					} else {
 						self.next()
-						return
 					}
-					self.waitForCutscene(secondsRemaining: duration, lastTick: Date.timeIntervalSinceReferenceDate)
 
 				case .failure(let error):
 					print("Failed to load record '\(name)':", error)
-					self.next()
+					if waitsForCommandBlock {
+						self.finishCommandBlockAsyncOperation()
+					} else {
+						self.next()
+					}
 				}
 			}
 		}
+		if waitsForCommandBlock {
+			next()
+		}
 	}
 
-	private func waitForCutscene(secondsRemaining: TimeInterval, lastTick: TimeInterval) {
+	private func recwaitforend(_ args: [Argument]) {
+		let duration = scene.activeRecordPlaybackDuration()
+		print("== Record script wait for end: \(String(format: "%.2f", duration))s")
+		scene.setCutsceneScriptsPaused(true, except: [self])
+		guard duration > 0 else {
+			scene.setCutsceneScriptsPaused(false)
+			next()
+			return
+		}
+		let waitsForCommandBlock = beginCommandBlockAsyncOperation()
+		waitForCutscene(secondsRemaining: duration, lastTick: Date.timeIntervalSinceReferenceDate) {
+			if waitsForCommandBlock {
+				self.finishCommandBlockAsyncOperation()
+			} else {
+				self.next()
+			}
+		}
+		if waitsForCommandBlock {
+			next()
+		}
+	}
+
+	private func waitForCutscene(secondsRemaining: TimeInterval, lastTick: TimeInterval, completion: @escaping () -> Void) {
 		let interval: TimeInterval = 0.1
 		queue.asyncAfter(deadline: .now() + interval) {
 			let now = Date.timeIntervalSinceReferenceDate
@@ -702,10 +804,10 @@ extension Script {
 			let remaining = secondsRemaining - elapsed
 			guard remaining > 0 else {
 				self.scene.setCutsceneScriptsPaused(false)
-				self.next()
+				completion()
 				return
 			}
-			self.waitForCutscene(secondsRemaining: remaining, lastTick: now)
+			self.waitForCutscene(secondsRemaining: remaining, lastTick: now, completion: completion)
 		}
 	}
 
@@ -792,7 +894,12 @@ extension Script {
 
 	private func wait(_ args: [Argument]) {
 		let delay = args[0].getValueOrVarValue(vars: vars)
-		queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: next)
+		if beginCommandBlockAsyncOperation() {
+			queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: finishCommandBlockAsyncOperation)
+			next()
+		} else {
+			queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: next)
+		}
 	}
 
 	private func zatmyse(_ args: [Argument]) {

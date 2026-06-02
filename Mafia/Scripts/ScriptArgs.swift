@@ -96,6 +96,7 @@ extension Script {
 		case "car_repair":				return getArgs_car_repair(scanner)
 		case "car_setspeed":			return getArgs_car_setspeed(scanner)
 		case "cleardifferences":		return []
+		case "commandblock":			return getArgs_commandblock(scanner)
 		case "compareownerwithex":		return getArgs_compareownerwithex(scanner)
 		case "console_addtext":			return getArgs_console_addtext(scanner)
 		case "createweaponfromframe":	return getArgs_createweaponfromframe(scanner)
@@ -135,6 +136,7 @@ extension Script {
 		case "rnd":						return getArgs_rnd(scanner)
 		case "recload":					return getArgs_recload(scanner)
 		case "recloadfull":				return getArgs_recload(scanner)
+		case "recwaitforend":			return []
 		case "recunload":				return []
 		case "setcompass":				return getArgs_setcompass(scanner)
 		case "setevent":				return getArgs_setevent(scanner)
@@ -171,6 +173,10 @@ extension Script {
 
 	private func getArgs_car_setspeed(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(0)]
+	}
+
+	private func getArgs_commandblock(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_compareownerwithex(_ scanner: Scanner) -> [Argument] {

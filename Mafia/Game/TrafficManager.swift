@@ -51,6 +51,12 @@ final class TrafficManager {
 	private let maxGeneratedCars = 16
 	private var placementSeed = 0
 	private var lastPlacementCenter: SCNVector3?
+	var isEnabled = true {
+		didSet {
+			guard oldValue != isEnabled else { return }
+			rootNode.isHidden = !isEnabled
+		}
+	}
 
 	init?(road: Road?, trafficSettings: TrafficSettings?, scene: SCNScene) {
 		guard let road = road,
@@ -66,7 +72,7 @@ final class TrafficManager {
 	}
 
 	func update(deltaTime: TimeInterval, playerPosition: SCNVector3?) {
-		guard deltaTime > 0 else { return }
+		guard isEnabled, deltaTime > 0 else { return }
 
 		if let playerPosition = playerPosition {
 			rebalanceVehiclesIfNeeded(relativeTo: playerPosition)

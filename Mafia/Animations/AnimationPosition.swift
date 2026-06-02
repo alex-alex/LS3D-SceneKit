@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import SceneKit
 
 // /anims/*.tck
 
@@ -38,3 +39,166 @@ PosY float Y
 PosZ float Z
 -------------------------------------------------- ------------
 */
+
+struct PositionAnimation {
+	private static let defaultFrameDuration: TimeInterval = 1.0 / 25.0
+
+	let name: String
+	let startPosition: SCNVector3
+	let endPosition: SCNVector3
+	let duration: TimeInterval
+	let frameDuration: TimeInterval
+	let positions: [SCNVector3]
+
+	func applyInitialPose(to node: SCNNode, relativeTo basePosition: SCNVector3) {
+		guard let firstPosition = positions.first else { return }
+		node.position = basePosition + firstPosition
+	}
+
+	func apply(elapsedTime: TimeInterval, to node: SCNNode, relativeTo basePosition: SCNVector3) {
+		guard !positions.isEmpty else { return }
+		guard positions.count > 1 else {
+			node.position = basePosition + positions[0]
+			return
+		}
+
+		let frameDuration = self.frameDuration > 0 ? self.frameDuration : Self.defaultFrameDuration
+		let frame = elapsedTime / frameDuration
+		let lowerIndex = max(0, min(positions.count - 1, Int(floor(frame))))
+		let progress = SCNFloat(max(0, min(1, frame - Double(lowerIndex))))
+		node.position = basePosition + interpolatedPosition(at: lowerIndex, progress: progress)
+	}
+
+	private func interpolatedPosition(at index: Int, progress: SCNFloat) -> SCNVector3 {
+		let previous = positions[max(0, index - 1)]
+		let current = positions[max(0, min(positions.count - 1, index))]
+		let next = positions[max(0, min(positions.count - 1, index + 1))]
+		let following = positions[max(0, min(positions.count - 1, index + 2))]
+		return catmullRom(previous, current, next, following, smoothstep(progress))
+	}
+
+	private func smoothstep(_ progress: SCNFloat) -> SCNFloat {
+		let amount = max(0, min(1, progress))
+		return amount * amount * (3 - 2 * amount)
+	}
+
+	private func catmullRom(
+		_ previous: SCNVector3,
+		_ current: SCNVector3,
+		_ next: SCNVector3,
+		_ following: SCNVector3,
+		_ progress: SCNFloat
+	) -> SCNVector3 {
+		let progress2 = progress * progress
+		let progress3 = progress2 * progress
+		return SCNVector3(
+			x: 0.5 * (
+				2 * current.x +
+				(-previous.x + next.x) * progress +
+				(2 * previous.x - 5 * current.x + 4 * next.x - following.x) * progress2 +
+				(-previous.x + 3 * current.x - 3 * next.x + following.x) * progress3
+			),
+			y: 0.5 * (
+				2 * current.y +
+				(-previous.y + next.y) * progress +
+				(2 * previous.y - 5 * current.y + 4 * next.y - following.y) * progress2 +
+				(-previous.y + 3 * current.y - 3 * next.y + following.y) * progress3
+			),
+			z: 0.5 * (
+				2 * current.z +
+				(-previous.z + next.z) * progress +
+				(2 * previous.z - 5 * current.z + 4 * next.z - following.z) * progress2 +
+				(-previous.z + 3 * current.z - 3 * next.z + following.z) * progress3
+			)
+		)
+	}
+}
+
+private struct LoadedPositionAnimation {
+	let animation: PositionAnimation
+}
+
+private let loadedPositionAnimationsLock = NSLock()
+private var loadedPositionAnimationsByName: [String: LoadedPositionAnimation] = [:]
+
+func loadPositionAnimation(named name: String) throws -> PositionAnimation {
+	let key = name.lowercased()
+	loadedPositionAnimationsLock.lock()
+	if let cachedAnimation = loadedPositionAnimationsByName[key] {
+		loadedPositionAnimationsLock.unlock()
+		return cachedAnimation.animation
+	}
+	loadedPositionAnimationsLock.unlock()
+
+	let url = mainDirectory.appendingPathComponent(key)
+	guard let stream = InputStream(url: url) else { throw AnimationError.file }
+	stream.open()
+	defer { stream.close() }
+
+	let magic: UInt32 = try stream.read()
+	guard magic == 4 else { throw AnimationError.file }
+
+	let startPosition = try SCNVector3(stream: stream)
+	let endPosition = try SCNVector3(stream: stream)
+	let durationMilliseconds: UInt32 = try stream.read()
+	let frameMilliseconds: UInt32 = try stream.read()
+	let positionCount: UInt32 = try stream.read()
+
+	var positions: [SCNVector3] = []
+	positions.reserveCapacity(Int(positionCount))
+	for _ in 0 ..< positionCount {
+		positions.append(try SCNVector3(stream: stream))
+	}
+
+	if positions.isEmpty {
+		positions = [startPosition, endPosition]
+	}
+
+	let animation = PositionAnimation(
+		name: name,
+		startPosition: startPosition,
+		endPosition: endPosition,
+		duration: TimeInterval(durationMilliseconds) / 1000.0,
+		frameDuration: TimeInterval(frameMilliseconds) / 1000.0,
+		positions: positions
+	)
+
+	loadedPositionAnimationsLock.lock()
+	loadedPositionAnimationsByName[key] = LoadedPositionAnimation(animation: animation)
+	loadedPositionAnimationsLock.unlock()
+	return animation
+}
+
+func positionAnimationExists(named name: String) -> Bool {
+	let key = name.lowercased()
+	let url = mainDirectory.appendingPathComponent(key)
+	return FileManager.default.fileExists(atPath: url.path)
+}
+
+func positionAnimationDuration(named name: String) throws -> TimeInterval {
+	return try loadPositionAnimation(named: name).duration
+}
+
+func playPositionAnimation(
+	named name: String,
+	in node: SCNNode,
+	animationKey: String? = nil,
+	completionHandler: (() -> Void)? = nil
+) throws {
+	let animation = try loadPositionAnimation(named: name)
+	let duration = animation.duration > 0 ? animation.duration : animation.frameDuration * TimeInterval(animation.positions.count)
+	guard duration > 0 else {
+		animation.applyInitialPose(to: node, relativeTo: node.position)
+		completionHandler?()
+		return
+	}
+
+	let basePosition = node.presentation.position
+	node.runAction(
+		SCNAction.customAction(duration: duration) { node, elapsedTime in
+			animation.apply(elapsedTime: TimeInterval(elapsedTime), to: node, relativeTo: basePosition)
+		},
+		forKey: animationKey
+	)
+	node.runAction(SCNAction.wait(duration: duration), completionHandler: completionHandler)
+}

@@ -81,6 +81,7 @@ enum ScriptCommandName: String {
 	case carRepair = "car_repair"
 	case carSetspeed = "car_setspeed"
 	case cleardifferences
+	case commandblock
 	case compareownerwithex
 	case consoleAddtext = "console_addtext"
 	case createweaponfromframe
@@ -130,6 +131,7 @@ enum ScriptCommandName: String {
 	case pmShowsymbol = "pm_showsymbol"
 	case recload
 	case recloadfull
+	case recwaitforend
 	case recunload
 	case `return` = "return"
 	case returnBang = "return!"
@@ -180,6 +182,9 @@ final class Script {
 	var isPaused = false
 	var hasPendingRun = false
 	var hasPendingNext = false
+	var commandBlockDepth = 0
+	var pendingCommandBlockAsyncOperations = 0
+	var isWaitingForCommandBlockAsyncOperations = false
 
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
@@ -278,6 +283,9 @@ final class Script {
 		}
 
 		guard currentLine < commands.endIndex else {
+			guard commandBlockDepth == 0 else {
+				fatalError("Unterminated commandblock")
+			}
 			if hasQueuedEvent {
 				currentLine = commands.endIndex - 1
 				next()

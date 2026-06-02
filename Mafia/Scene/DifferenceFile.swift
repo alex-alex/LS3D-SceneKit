@@ -35,6 +35,7 @@ final class DifferenceFile {
 	let rootNode = SCNNode()
 	private(set) var scripts: [String: DifferenceScript] = [:]
 	private(set) var sounds: [DifferenceSound] = []
+	private(set) var animationStates: [String: Bool] = [:]
 	let declaredFileSize: Int
 	private var pendingSound: (name: String, fileName: String)?
 
@@ -60,6 +61,7 @@ final class DifferenceFile {
 
 		var loadedScripts: [String: DifferenceScript] = [:]
 		var loadedSounds: [DifferenceSound] = []
+		var loadedAnimationStates: [String: Bool] = [:]
 		while stream.currentOffset + 6 <= declaredFileSize {
 			let recordStartOffset = stream.currentOffset
 			let rawKind: UInt16 = try stream.read()
@@ -85,7 +87,12 @@ final class DifferenceFile {
 					loadedScripts[script.name] = script
 				}
 
-			case .objectDefinition, .animation, .none:
+			case .animation:
+				if let animationState = try readAnimationState(stream: stream, endOffset: recordEndOffset) {
+					loadedAnimationStates[animationState.name] = animationState.isEnabled
+				}
+
+			case .objectDefinition, .none:
 				break
 			}
 
@@ -94,6 +101,7 @@ final class DifferenceFile {
 
 		scripts = loadedScripts
 		sounds = loadedSounds
+		animationStates = loadedAnimationStates
 	}
 
 	static func availableNames() -> [String] {
@@ -176,6 +184,20 @@ final class DifferenceFile {
 		}
 
 		return scripts
+	}
+
+	private func readAnimationState(
+		stream: InputStream,
+		endOffset: Int
+	) throws -> (name: String, isEnabled: Bool)? {
+		let name = try readLengthPrefixedString(stream: stream, endOffset: endOffset)
+		guard !name.isEmpty,
+			  stream.currentOffset + 4 <= endOffset else {
+			return nil
+		}
+
+		let isEnabled: UInt32 = try stream.read()
+		return (name, isEnabled != 0)
 	}
 
 	private func readLengthPrefixedString(stream: InputStream, endOffset: Int) throws -> String {

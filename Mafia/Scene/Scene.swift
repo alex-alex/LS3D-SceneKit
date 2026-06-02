@@ -188,6 +188,20 @@ private final class ScheduledRecordSound {
 	}
 }
 
+private final class ActiveRecordPlayback {
+	let name: String
+	let duration: TimeInterval
+	var workItem: DispatchWorkItem?
+	var deadline: TimeInterval?
+	var remaining: TimeInterval
+
+	init(name: String, duration: TimeInterval) {
+		self.name = name
+		self.duration = duration
+		self.remaining = duration
+	}
+}
+
 private struct RecordAnimationPlayback {
 	let animation: RecordAnimation
 	let animationPath: String
@@ -310,6 +324,7 @@ final class Scene {
 	private let recordLoadQueue = DispatchQueue(label: "record.load", qos: .userInitiated)
 	private var pendingRecordLoads: [String: [PendingRecordLoad]] = [:]
 	private var activeRecordNames = Set<String>()
+	private var activeRecordPlaybacks: [String: ActiveRecordPlayback] = [:]
 	private var recordCameraRestore: (
 		parent: SCNNode?,
 		transform: SCNMatrix4,
@@ -517,6 +532,12 @@ final class Scene {
 						}
 					}
 
+					objectNode.recordSourcePosition = objectNode.position
+					objectNode.recordSourceOrientationVector = SCNVector3(
+						x: -objectNode.orientation.w,
+						y: objectNode.orientation.x,
+						z: objectNode.orientation.y
+					)
 					if let name = objectNode.name, nodesByName[name] == nil {
 						nodesByName[name] = objectNode
 					}
@@ -978,11 +999,21 @@ final class Scene {
 	private func attachDifferenceFile(_ differenceFile: DifferenceFile, key: String) {
 		rootNode.addChildNode(differenceFile.rootNode)
 		loadedDifferenceFiles[key] = differenceFile
+		for (name, isEnabled) in differenceFile.animationStates {
+			guard let node = game.scnScene.rootNode.mafiaChildNode(named: name, recursively: true) else {
+				continue
+			}
+			node.actionsEnabled = isEnabled
+		}
 		for script in differenceFile.scripts.values {
 			if replacedScriptsByDifferenceName[script.name] == nil, let existingScript = scripts[script.name] {
 				replacedScriptsByDifferenceName[script.name] = existingScript
 			}
-			scripts[script.name] = Script(script: script.source, scene: self, node: differenceFile.rootNode)
+			let loadedScript = Script(script: script.source, scene: self, node: differenceFile.rootNode)
+			scripts[script.name] = loadedScript
+			if didStartScripts {
+				loadedScript.start()
+			}
 			loadedDifferenceScriptNames.insert(script.name)
 		}
 	}
@@ -1192,24 +1223,26 @@ final class Scene {
 			print("== Record Playback skipped: no differences loaded for \(record.name)")
 			return
 		}
+		let recordRoots = differenceRoots + [rootNode, game.scnScene.rootNode]
 
 		print("== Playing Record: \(record.name) full=\(full)")
 		activeRecordNames.insert(record.name)
 
-		var visibleBindings = 0
+		var resolvedBindings = 0
 		for binding in record.modelBindings {
-			guard let node = differenceRoots.compactMap({
+			guard let node = recordRoots.compactMap({
 				$0.mafiaChildNode(named: binding.sourceName, recursively: true)
 			}).first else { continue }
-			node.isHidden = false
-			visibleBindings += 1
+			resolvedBindings += 1
 		}
-		print("== Record Bindings visible: \(visibleBindings)/\(record.modelBindings.count)")
+		print("== Record Bindings resolved: \(resolvedBindings)/\(record.modelBindings.count)")
 
 		var startedAnimations = 0
+		var startedPositionAnimations = 0
 		var skippedAnimations = 0
 		var resolvedAnimations: [RecordAnimationPlayback] = []
 		var resolvedTransformPlaybacks: [ObjectIdentifier: RecordTransformPlayback] = [:]
+		var positionAnimationNodeIds = Set<ObjectIdentifier>()
 		for animation in record.animations {
 			let animationName = animation.name.replacingOccurrences(
 				of: ".i3d",
@@ -1219,15 +1252,18 @@ final class Scene {
 			let animationPath = "anims/" + animationName
 			guard let target = recordAnimationTarget(
 				animation: animation,
+				animationPath: animationPath,
 				record: record,
-				differenceRoots: differenceRoots
+				recordRoots: recordRoots
 			) else {
 				skippedAnimations += 1
 				print("== Record Animation skipped: no decoded REC target \(animation.id) \(animation.name)")
 				continue
 			}
 			let transformEvents = recordTransformEvents(for: target, record: record)
-			if isRecordVehicleTarget(target) {
+			let positionAnimationPath = recordPositionAnimationPath(for: animationPath)
+			let positionDuration = try? positionAnimationDuration(named: positionAnimationPath)
+			if positionDuration == nil, isRecordVehicleTarget(target) {
 				appendRecordTransformPlayback(
 					targetNode: target.node,
 					events: transformEvents,
@@ -1238,17 +1274,35 @@ final class Scene {
 
 			do {
 				let duration = try animationDuration(named: animationPath)
+				let playbackDuration = max(duration, positionDuration ?? 0)
 				let animationRoot = try recordAnimationRoot(
 					for: animationPath,
 					in: target.node
 				)
 				guard animationRoot.matches > 0 else {
-					appendRecordTransformPlayback(
-						targetNode: target.node,
-						events: transformEvents,
-						source: target.source,
-						to: &resolvedTransformPlaybacks
-					)
+					if positionDuration != nil {
+						let startTime = recordAnimationStartTime(
+							events: target.timingEvents,
+							matching: target.event,
+							duration: playbackDuration
+						) ?? target.event.time
+						playRecordPositionAnimation(
+							named: positionAnimationPath,
+							in: target.node,
+							recordName: record.name,
+							animationKey: "record:\(record.name):position:\(animation.id)",
+							after: max(0, startTime)
+						)
+						positionAnimationNodeIds.insert(ObjectIdentifier(target.node))
+						startedPositionAnimations += 1
+					} else {
+						appendRecordTransformPlayback(
+							targetNode: target.node,
+							events: transformEvents,
+							source: target.source,
+							to: &resolvedTransformPlaybacks
+						)
+					}
 					skippedAnimations += 1
 					print("== Record Animation skipped: no skeleton target \(animation.id) \(animation.name)")
 					continue
@@ -1256,7 +1310,7 @@ final class Scene {
 				let startTime = recordAnimationStartTime(
 					events: target.timingEvents,
 					matching: target.event,
-					duration: duration
+					duration: playbackDuration
 				) ?? target.event.time
 				resolvedAnimations.append(RecordAnimationPlayback(
 					animation: animation,
@@ -1273,12 +1327,29 @@ final class Scene {
 					matches: animationRoot.matches
 				))
 			} catch {
-				appendRecordTransformPlayback(
-					targetNode: target.node,
-					events: transformEvents,
-					source: target.source,
-					to: &resolvedTransformPlaybacks
-				)
+				if let positionDuration = positionDuration {
+					let startTime = recordAnimationStartTime(
+						events: target.timingEvents,
+						matching: target.event,
+						duration: positionDuration
+					) ?? target.event.time
+					playRecordPositionAnimation(
+						named: positionAnimationPath,
+						in: target.node,
+						recordName: record.name,
+						animationKey: "record:\(record.name):position:\(animation.id)",
+						after: max(0, startTime)
+					)
+					positionAnimationNodeIds.insert(ObjectIdentifier(target.node))
+					startedPositionAnimations += 1
+				} else {
+					appendRecordTransformPlayback(
+						targetNode: target.node,
+						events: transformEvents,
+						source: target.source,
+						to: &resolvedTransformPlaybacks
+					)
+				}
 				skippedAnimations += 1
 				print("== Record Animation failed: \(animation.name) \(error)")
 			}
@@ -1312,6 +1383,18 @@ final class Scene {
 					after: animationDelay
 				)
 				startedAnimations += 1
+				let positionAnimationPath = recordPositionAnimationPath(for: playback.animationPath)
+				if positionAnimationExists(named: positionAnimationPath) {
+					playRecordPositionAnimation(
+						named: positionAnimationPath,
+						in: playback.targetNode,
+						recordName: record.name,
+						animationKey: animationKey + ":position",
+						after: animationDelay
+					)
+					positionAnimationNodeIds.insert(ObjectIdentifier(playback.targetNode))
+					startedPositionAnimations += 1
+				}
 				print(
 					"== Record Animation target: \(playback.animation.name) -> \(playback.targetNode.name ?? "unnamed") " +
 					"binding=\(playback.binding.map { "\($0.sourceName)/\($0.targetName)" } ?? "exact-node") " +
@@ -1330,7 +1413,26 @@ final class Scene {
 				print("== Record Animation failed: \(playback.animation.name) \(error)")
 			}
 		}
-		print("== Record Animations started: \(startedAnimations) skipped=\(skippedAnimations)")
+		print(
+			"== Record Animations started: \(startedAnimations) " +
+			"position=\(startedPositionAnimations) skipped=\(skippedAnimations)"
+		)
+		for binding in record.modelBindings where !binding.transformEvents.isEmpty {
+			guard let node = recordBindingTransformTargetNode(
+				named: binding.sourceName,
+				differenceRoots: differenceRoots
+			) else {
+				continue
+			}
+			guard !node.isHiddenInRecordHierarchy else { continue }
+			guard !positionAnimationNodeIds.contains(ObjectIdentifier(node)) else { continue }
+			appendRecordTransformPlayback(
+				targetNode: node,
+				events: binding.transformEvents,
+				source: "binding-transform:\(binding.sourceName)/\(binding.targetName)",
+				to: &resolvedTransformPlaybacks
+			)
+		}
 		var startedTransforms = 0
 		let recordDuration = estimatedRecordDuration(record)
 		for transformPlayback in resolvedTransformPlaybacks.values {
@@ -1354,6 +1456,7 @@ final class Scene {
 		playRecordCamera(record)
 		playRecordSpeech(record, animations: resolvedAnimations)
 		playRecordSounds(record)
+		startActiveRecordPlayback(record, duration: recordDuration)
 	}
 
 	private func recordAnimationStartTime(
@@ -1403,6 +1506,44 @@ final class Scene {
 		]), forKey: animationKey + ":schedule")
 	}
 
+	private func playRecordPositionAnimation(
+		named name: String,
+		in node: SCNNode,
+		recordName: String,
+		animationKey: String,
+		after delay: TimeInterval
+	) {
+		guard delay > 0 else {
+			node.removeAction(forKey: animationKey)
+			do {
+				try playPositionAnimation(named: name, in: node, animationKey: animationKey)
+			} catch {
+				print("== Record Position Animation failed: \(name) \(error)")
+			}
+			return
+		}
+
+		node.runAction(SCNAction.sequence([
+			.wait(duration: delay),
+			.run { node in
+				node.removeAction(forKey: animationKey)
+				do {
+					try playPositionAnimation(named: name, in: node, animationKey: animationKey)
+				} catch {
+					print("== Record Position Animation failed delayed: \(name) \(error)")
+				}
+			}
+		]), forKey: animationKey + ":schedule")
+	}
+
+	private func recordPositionAnimationPath(for animationPath: String) -> String {
+		let lowercasedPath = animationPath.lowercased()
+		if lowercasedPath.hasSuffix(".5ds") {
+			return String(animationPath.dropLast(4)) + ".tck"
+		}
+		return animationPath + ".tck"
+	}
+
 	private func stopRecordAnimationActions(in node: SCNNode, recordName: String, keeping animationKey: String) {
 		let recordKeyPrefix = "record:\(recordName):"
 		for actionKey in node.actionKeys {
@@ -1434,6 +1575,44 @@ final class Scene {
 
 	private func isRecordVehicleTarget(_ target: RecordAnimationTargetMatch) -> Bool {
 		return target.binding?.targetName.lowercased().hasPrefix("car") == true
+	}
+
+	private func recordBindingTransformTargetNode(
+		named name: String,
+		differenceRoots: [SCNNode]
+	) -> SCNNode? {
+		if let differenceNode = recordNode(named: name, in: differenceRoots) {
+			return differenceNode
+		}
+		if let renderNode = recordNode(named: name, in: [game.scnScene.rootNode], excluding: rootNode) {
+			return renderNode
+		}
+		return recordNode(named: name, in: [rootNode])
+	}
+
+	private func recordNode(
+		named name: String,
+		in roots: [SCNNode],
+		excluding excludedRoot: SCNNode? = nil
+	) -> SCNNode? {
+		let candidates = roots.flatMap { [$0] + $0.flattenedChildNodes }
+			.filter { node in
+				guard let excludedRoot = excludedRoot else { return true }
+				return !node.isInHierarchy(of: excludedRoot)
+			}
+		if let exactNode = candidates.first(where: { $0.name == name }) {
+			return exactNode
+		}
+
+		let lowercasedName = name.lowercased()
+		if let caseInsensitiveNode = candidates.first(where: { $0.name?.lowercased() == lowercasedName }) {
+			return caseInsensitiveNode
+		}
+
+		guard name.count >= 16 else { return nil }
+		return candidates.first { node in
+			node.name?.lowercased().hasPrefix(lowercasedName) == true
+		}
 	}
 
 	private func appendRecordTransformPlayback(
@@ -1511,7 +1690,7 @@ final class Scene {
 		progress: CGFloat,
 		node: SCNNode
 	) {
-		let amount = SCNFloat(max(0, min(1, progress)))
+		let amount = smoothRecordProgress(SCNFloat(progress))
 		node.position = SCNVector3(
 			x: startEvent.position.x + (endEvent.position.x - startEvent.position.x) * amount,
 			y: startEvent.position.y + (endEvent.position.y - startEvent.position.y) * amount,
@@ -1523,6 +1702,11 @@ final class Scene {
 			z: startEvent.orientationVector.z + (endEvent.orientationVector.z - startEvent.orientationVector.z) * amount
 		)
 		node.orientation = recordOrientation(from: orientationVector, fallback: node.orientation)
+	}
+
+	private static func smoothRecordProgress(_ progress: SCNFloat) -> SCNFloat {
+		let amount = max(0, min(1, progress))
+		return amount * amount * (3 - 2 * amount)
 	}
 
 	private static func recordOrientation(
@@ -1591,8 +1775,9 @@ final class Scene {
 
 	private func recordAnimationTarget(
 		animation: RecordAnimation,
+		animationPath: String,
 		record: Record,
-		differenceRoots: [SCNNode]
+		recordRoots: [SCNNode]
 	) -> RecordAnimationTargetMatch? {
 		func vectorDistance(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
 			let x = lhs.x - rhs.x
@@ -1602,7 +1787,7 @@ final class Scene {
 		}
 
 		func node(named recordName: String) -> SCNNode? {
-			if let exactNode = differenceRoots.compactMap({
+			if let exactNode = recordRoots.compactMap({
 				$0.mafiaChildNode(named: recordName, recursively: true)
 			}).first {
 				return exactNode
@@ -1610,7 +1795,7 @@ final class Scene {
 
 			guard recordName.count >= 16 else { return nil }
 			let lowercasedName = recordName.lowercased()
-			for root in differenceRoots {
+			for root in recordRoots {
 				if let prefixedNode = root.flattenedChildNodes.first(where: { childNode in
 					childNode.name?.lowercased().hasPrefix(lowercasedName) == true
 				}) {
@@ -1647,6 +1832,10 @@ final class Scene {
 			return targetName.hasPrefix("car") ? 80.0 : 1.0
 		}
 
+		func skeletonMatchCount(in node: SCNNode) -> Int {
+			return (try? recordAnimationRoot(for: animationPath, in: node).matches) ?? 0
+		}
+
 		let directAnimationEvents = record.animationEvents.filter { $0.animationId == animation.id }
 		let animationEvents: [RecordAnimationEvent]
 		let sourcePrefix: String
@@ -1672,6 +1861,26 @@ final class Scene {
 		}
 		let targetResolutionEvents = recordAnimationTargetResolutionEvents(from: targetEvents)
 
+		let bindingNodes = record.modelBindings.enumerated().compactMap { index, binding -> (
+			index: Int,
+			binding: RecordModelBinding,
+			node: SCNNode,
+			skeletonMatches: Int
+		)? in
+			guard let node = recordRoots.compactMap({
+				$0.mafiaChildNode(named: binding.sourceName, recursively: true)
+			}).first else { return nil }
+			return (index, binding, node, skeletonMatchCount(in: node))
+		}
+		let skeletonCompatibleNodeIds = Set(
+			bindingNodes
+				.filter { $0.skeletonMatches > 0 }
+				.map { ObjectIdentifier($0.node) }
+		)
+		let targetBindingNodes = skeletonCompatibleNodeIds.isEmpty ?
+			bindingNodes :
+			bindingNodes.filter { skeletonCompatibleNodeIds.contains(ObjectIdentifier($0.node)) }
+
 		struct LinkedTargetCandidate {
 			let targetNode: SCNNode
 			let binding: RecordModelBinding?
@@ -1687,6 +1896,10 @@ final class Scene {
 		for (_, links) in linksByGroup {
 			guard let targetLink = links.first(where: { $0.role == 1 }),
 				  let targetNode = node(named: targetLink.name) else {
+				continue
+			}
+			if !skeletonCompatibleNodeIds.isEmpty,
+			   !skeletonCompatibleNodeIds.contains(ObjectIdentifier(targetNode)) {
 				continue
 			}
 
@@ -1730,17 +1943,6 @@ final class Scene {
 			)
 		}
 
-		let bindingNodes = record.modelBindings.enumerated().compactMap { index, binding -> (
-			index: Int,
-			binding: RecordModelBinding,
-			node: SCNNode
-		)? in
-			guard let node = differenceRoots.compactMap({
-				$0.mafiaChildNode(named: binding.sourceName, recursively: true)
-			}).first else { return nil }
-			return (index, binding, node)
-		}
-
 		var bestCandidate: (
 			node: SCNNode,
 			binding: RecordModelBinding,
@@ -1750,7 +1952,7 @@ final class Scene {
 			score: SCNFloat
 		)?
 		for event in targetResolutionEvents {
-			for bindingNode in bindingNodes {
+			for bindingNode in targetBindingNodes {
 				let positionDistance = vectorDistance(event.position, sourcePosition(of: bindingNode.node))
 				let orientationDistance = vectorDistance(event.orientationVector, sourceOrientation(of: bindingNode.node))
 				let score = positionDistance + orientationDistance * 8
@@ -1940,7 +2142,19 @@ final class Scene {
 		guard hasFaceAnimation(soundId: event.soundId) else {
 			print(
 				"== Record Face Animation failed: missing \(faceFileName) " +
-				"speech=\(event.soundId) time=\(String(format: "%.2f", event.time))s"
+				"speech=\(event.soundId) channel=\(event.channelId) " +
+				"speaker=\(event.speakerFrameName ?? "none") " +
+				"time=\(String(format: "%.2f", event.time))s"
+			)
+			return
+		}
+
+		guard let speakerFrameName = event.speakerFrameName,
+			  !speakerFrameName.isEmpty else {
+			print(
+				"== Record Face Animation failed: no speaker binding \(faceFileName) " +
+				"speech=\(event.soundId) channel=\(event.channelId) " +
+				"time=\(String(format: "%.2f", event.time))s"
 			)
 			return
 		}
@@ -1970,7 +2184,8 @@ final class Scene {
 			.joined(separator: "; ")
 		print(
 			"== Record Face Animation failed: no target \(faceFileName) " +
-			"speech=\(event.soundId) time=\(String(format: "%.2f", event.time))s " +
+			"speech=\(event.soundId) channel=\(event.channelId) speaker=\(speakerFrameName) " +
+			"time=\(String(format: "%.2f", event.time))s " +
 			"activeAnimations=\(activeAnimations.count) active=[\(activeAnimationDescriptions)] " +
 			"morphTargets=\(morpherAnimations.count) activeMorphTargets=\(activeMorpherAnimations.count) " +
 			"nearest=[\(nearestMorpherAnimations)]"
@@ -2017,23 +2232,44 @@ final class Scene {
 		animations: [RecordAnimationPlayback]
 	) -> SCNNode? {
 		guard hasFaceAnimation(soundId: event.soundId) else { return nil }
-		let activeAnimations = animations.filter {
-			hasFaceAnimationTarget(in: $0.targetNode) &&
-				recordFaceAnimationContains(
-					event.time,
-					in: $0,
-					tolerance: recordFaceAnimationTimeTolerance
-				)
+		guard let speakerFrameName = event.speakerFrameName,
+			  !speakerFrameName.isEmpty else {
+			return nil
 		}
-		return activeAnimations
-			.sorted {
-				if $0.startTime == $1.startTime {
-					return $0.matches > $1.matches
-				}
-				return $0.startTime > $1.startTime
-			}
-			.first?
+
+		return animations
+			.filter { hasFaceAnimationTarget(in: $0.targetNode) }
+			.first { recordSpeechTarget($0, matches: speakerFrameName) }?
 			.targetNode
+	}
+
+	private func recordSpeechTarget(
+		_ playback: RecordAnimationPlayback,
+		matches speakerFrameName: String
+	) -> Bool {
+		if recordName(playback.targetNode.name, matches: speakerFrameName) {
+			return true
+		}
+		if let binding = playback.binding,
+		   recordName(binding.sourceName, matches: speakerFrameName) ||
+			recordName(binding.targetName, matches: speakerFrameName) ||
+			recordName(binding.extraName, matches: speakerFrameName) {
+			return true
+		}
+		return playback.targetNode.flattenedChildNodes.contains { childNode in
+			recordName(childNode.name, matches: speakerFrameName)
+		}
+	}
+
+	private func recordName(_ candidate: String?, matches recordName: String) -> Bool {
+		guard let candidate = candidate?.lowercased(),
+			  !candidate.isEmpty else {
+			return false
+		}
+		let recordName = recordName.lowercased()
+		return candidate == recordName ||
+			(candidate.count >= 16 && candidate.hasPrefix(recordName)) ||
+			(recordName.count >= 16 && recordName.hasPrefix(candidate))
 	}
 
 	private func scheduleRecordFaceAnimation(
@@ -2114,6 +2350,68 @@ final class Scene {
 			lastEventTime,
 			lastSpeechTime
 		].max() ?? 0
+	}
+
+	func activeRecordPlaybackDuration() -> TimeInterval {
+		guard Thread.isMainThread else {
+			return DispatchQueue.main.sync {
+				self.activeRecordPlaybackDuration()
+			}
+		}
+
+		refreshActiveRecordPlaybacks()
+		return activeRecordPlaybacks.values.map(\.remaining).max() ?? 0
+	}
+
+	private func startActiveRecordPlayback(_ record: Record, duration: TimeInterval) {
+		let key = recordKey(for: record.name)
+		activeRecordPlaybacks[key]?.workItem?.cancel()
+		activeRecordNames.insert(record.name)
+
+		guard duration > 0 else {
+			activeRecordNames.remove(record.name)
+			activeRecordPlaybacks.removeValue(forKey: key)
+			return
+		}
+
+		let playback = ActiveRecordPlayback(name: record.name, duration: duration)
+		activeRecordPlaybacks[key] = playback
+		scheduleActiveRecordPlayback(playback, after: duration)
+	}
+
+	private func scheduleActiveRecordPlayback(_ playback: ActiveRecordPlayback, after delay: TimeInterval) {
+		playback.workItem?.cancel()
+		playback.workItem = nil
+		playback.deadline = nil
+		playback.remaining = delay
+		guard !game.isGamePaused else { return }
+
+		let workItem = DispatchWorkItem { [weak self, weak playback] in
+			guard let self = self,
+				  let playback = playback else { return }
+			self.activeRecordNames.remove(playback.name)
+			self.activeRecordPlaybacks.removeValue(forKey: self.recordKey(for: playback.name))
+		}
+		playback.workItem = workItem
+		playback.deadline = Date.timeIntervalSinceReferenceDate + delay
+		DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+	}
+
+	private func refreshActiveRecordPlaybacks() {
+		for playback in activeRecordPlaybacks.values {
+			if let deadline = playback.deadline {
+				playback.remaining = max(0, deadline - Date.timeIntervalSinceReferenceDate)
+			}
+		}
+		let expiredKeys = activeRecordPlaybacks.compactMap { key, playback in
+			playback.remaining <= 0 ? key : nil
+		}
+		for key in expiredKeys {
+			if let playback = activeRecordPlaybacks[key] {
+				activeRecordNames.remove(playback.name)
+			}
+			activeRecordPlaybacks.removeValue(forKey: key)
+		}
 	}
 
 	private func playRecordCamera(_ record: Record) {
@@ -2207,6 +2505,10 @@ final class Scene {
 			scheduledSound.workItem?.cancel()
 		}
 		activeRecordSoundSchedules.removeAll()
+		for playback in activeRecordPlaybacks.values {
+			playback.workItem?.cancel()
+		}
+		activeRecordPlaybacks.removeAll()
 		game?.cameraContainer.removeAllActions()
 		game?.isCutsceneCameraActive = false
 		if let restore = recordCameraRestore,
@@ -2307,6 +2609,7 @@ final class Scene {
 		}
 
 		isAudioPaused = isPaused
+		setActiveRecordPlaybacksPaused(isPaused)
 		setRecordSoundSchedulesPaused(isPaused)
 		var detachedPlayerIds: [ObjectIdentifier] = []
 		for (playerId, activePlayer) in activeAudioPlayers {
@@ -2339,6 +2642,21 @@ final class Scene {
 				scheduledSound.deadline = nil
 			} else {
 				scheduleRecordSound(scheduledSound, after: scheduledSound.remaining)
+			}
+		}
+	}
+
+	private func setActiveRecordPlaybacksPaused(_ isPaused: Bool) {
+		for playback in activeRecordPlaybacks.values {
+			if isPaused {
+				if let deadline = playback.deadline {
+					playback.remaining = max(0, deadline - Date.timeIntervalSinceReferenceDate)
+				}
+				playback.workItem?.cancel()
+				playback.workItem = nil
+				playback.deadline = nil
+			} else {
+				scheduleActiveRecordPlayback(playback, after: playback.remaining)
 			}
 		}
 	}
@@ -2777,6 +3095,28 @@ private extension String {
 }
 
 private extension SCNNode {
+	var isHiddenInRecordHierarchy: Bool {
+		var node: SCNNode? = self
+		while let currentNode = node {
+			if currentNode.isHidden {
+				return true
+			}
+			node = currentNode.parent
+		}
+		return false
+	}
+
+	func isInHierarchy(of rootNode: SCNNode) -> Bool {
+		var node: SCNNode? = self
+		while let currentNode = node {
+			if currentNode === rootNode {
+				return true
+			}
+			node = currentNode.parent
+		}
+		return false
+	}
+
 	var hasGeometryContent: Bool {
 		if geometry != nil {
 			return true
