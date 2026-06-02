@@ -213,7 +213,7 @@ private struct RecordAnimationTargetMatch {
 	let orientationDistance: SCNFloat
 }
 
-private let recordCameraDollyBackDistance: SCNFloat = 3.0
+private let recordCameraNearPlane: Double = 0.01
 
 struct TrafficCarDefinition {
 	let modelName: String
@@ -268,7 +268,8 @@ final class Scene {
 		transform: SCNMatrix4,
 		cameraPosition: SCNVector3,
 		cameraEulerAngles: SCNVector3,
-		cameraFieldOfView: CGFloat?
+		cameraFieldOfView: CGFloat?,
+		cameraNearPlane: Double?
 	)?
 	private var cutscenePausedScriptIds = Set<ObjectIdentifier>()
 	private var activeRecordSoundSchedules: [ScheduledRecordSound] = []
@@ -1585,7 +1586,8 @@ final class Scene {
 				transform: cameraContainer.presentation.worldTransform,
 				cameraPosition: game.cameraNode.position,
 				cameraEulerAngles: game.cameraNode.eulerAngles,
-				cameraFieldOfView: game.cameraNode.camera?.fieldOfView
+				cameraFieldOfView: game.cameraNode.camera?.fieldOfView,
+				cameraNearPlane: game.cameraNode.camera?.zNear
 			)
 		}
 
@@ -1593,25 +1595,34 @@ final class Scene {
 		cameraContainer.removeFromParentNode()
 		game.scnScene.rootNode.addChildNode(cameraContainer)
 		cameraContainer.transform = recordCameraRestore?.transform ?? cameraContainer.transform
-		game.cameraNode.position = SCNVector3(x: 0, y: 0, z: -recordCameraDollyBackDistance)
-		game.cameraNode.eulerAngles = SCNVector3(x: 0, y: .pi, z: .pi)
+		game.cameraNode.position = SCNVector3Zero
+		game.cameraNode.eulerAngles = SCNVector3(x: 0, y: 0, z: .pi)
+		game.cameraNode.camera?.zNear = recordCameraNearPlane
 
 		let keyframes = record.cameraKeyframes
 		let duration = estimatedRecordDuration(record)
 		let lastKeyTime = keyframes.last?.time ?? 0
 		let controlledKeyframes = keyframes.filter {
-			$0.controlPoint1 != nil || $0.controlPoint2 != nil
+			$0.outgoingControlPoint != nil || $0.incomingControlPoint != nil
 		}.count
+		let cutMarkerKeyframes = keyframes.filter(\.hasCutMarker).count
+		let hardCutKeyframes = keyframes.filter(cameraKeyframeIsHardCut).count
 		print(
 			"== Record Camera playing: keys=\(keyframes.count) " +
 			"controlled=\(controlledKeyframes) " +
+			"cutMarkers=\(cutMarkerKeyframes) " +
+			"hardCuts=\(hardCutKeyframes) " +
 			"lastKey=\(String(format: "%.2f", lastKeyTime))s " +
 			"duration=\(String(format: "%.2f", duration))s"
 		)
 
 		let firstKeyframe = keyframes[0]
 		cameraContainer.position = firstKeyframe.position
-		cameraContainer.eulerAngles = firstKeyframe.eulerAngles
+		cameraContainer.eulerAngles = cameraEulerAngles(
+			position: firstKeyframe.position,
+			focusPosition: firstKeyframe.focusPosition,
+			roll: firstKeyframe.roll
+		)
 		if let fieldOfView = firstKeyframe.fieldOfView {
 			game.cameraNode.camera?.fieldOfView = fieldOfView
 		}
@@ -1664,6 +1675,9 @@ final class Scene {
 			game.cameraNode.eulerAngles = restore.cameraEulerAngles
 			if let fieldOfView = restore.cameraFieldOfView {
 				game.cameraNode.camera?.fieldOfView = fieldOfView
+			}
+			if let nearPlane = restore.cameraNearPlane {
+				game.cameraNode.camera?.zNear = nearPlane
 			}
 		}
 		recordCameraRestore = nil
@@ -2001,13 +2015,21 @@ private func lerpAngle(_ start: SCNFloat, _ end: SCNFloat, _ amount: SCNFloat) -
 	return start + delta * clampedAmount
 }
 
+private func vectorLength(_ vector: SCNVector3) -> SCNFloat {
+	return sqrt(vector.x * vector.x + vector.y * vector.y + vector.z * vector.z)
+}
+
 private func cameraPosition(
 	from: RecordCameraKeyframe,
 	to: RecordCameraKeyframe,
 	progress: SCNFloat
 ) -> SCNVector3 {
-	guard let controlPoint1 = to.controlPoint1,
-		  let controlPoint2 = to.controlPoint2 else {
+	if cameraKeyframeIsHardCut(to) {
+		return progress < 1 ? from.position : to.position
+	}
+
+	guard let controlPoint1 = from.outgoingControlPoint,
+		  let controlPoint2 = to.incomingControlPoint else {
 		return lerpVector(from.position, to.position, progress)
 	}
 
@@ -2025,22 +2047,72 @@ private func cameraEulerAngles(
 	to: RecordCameraKeyframe,
 	progress: SCNFloat
 ) -> SCNVector3 {
-	guard let controlPoint1 = to.controlPoint1,
-		  let controlPoint2 = to.controlPoint2 else {
-		return SCNVector3(
-			x: lerpAngle(from.eulerAngles.x, to.eulerAngles.x, progress),
-			y: lerpAngle(from.eulerAngles.y, to.eulerAngles.y, progress),
-			z: lerpAngle(from.eulerAngles.z, to.eulerAngles.z, progress)
-		)
+	return cameraEulerAngles(
+		position: cameraPosition(from: from, to: to, progress: progress),
+		focusPosition: cameraFocusPosition(from: from, to: to, progress: progress),
+		roll: cameraRoll(from: from, to: to, progress: progress)
+	)
+}
+
+private func cameraFocusPosition(
+	from: RecordCameraKeyframe,
+	to: RecordCameraKeyframe,
+	progress: SCNFloat
+) -> SCNVector3 {
+	if cameraKeyframeIsHardCut(to) {
+		return progress < 1 ? from.focusPosition : to.focusPosition
 	}
 
-	let controlAngles1 = unwrapAngles(controlPoint1.eulerAngles, relativeTo: from.eulerAngles)
-	let controlAngles2 = unwrapAngles(controlPoint2.eulerAngles, relativeTo: controlAngles1)
-	let targetAngles = unwrapAngles(to.eulerAngles, relativeTo: controlAngles2)
+	guard let controlPoint1 = from.outgoingControlPoint,
+		  let controlPoint2 = to.incomingControlPoint else {
+		return lerpVector(from.focusPosition, to.focusPosition, progress)
+	}
+
+	return cubicBezier(
+		from.focusPosition,
+		controlPoint1.focusPosition,
+		controlPoint2.focusPosition,
+		to.focusPosition,
+		progress
+	)
+}
+
+private func cameraRoll(
+	from: RecordCameraKeyframe,
+	to: RecordCameraKeyframe,
+	progress: SCNFloat
+) -> SCNFloat {
+	if cameraKeyframeIsHardCut(to) {
+		return progress < 1 ? from.roll : to.roll
+	}
+
+	guard let controlPoint1 = from.outgoingControlPoint,
+		  let controlPoint2 = to.incomingControlPoint else {
+		return lerpAngle(from.roll, to.roll, progress)
+	}
+
+	let controlRoll1 = unwrapAngle(controlPoint1.roll, relativeTo: from.roll)
+	let controlRoll2 = unwrapAngle(controlPoint2.roll, relativeTo: controlRoll1)
+	let targetRoll = unwrapAngle(to.roll, relativeTo: controlRoll2)
+	return cubicBezier(from.roll, controlRoll1, controlRoll2, targetRoll, progress)
+}
+
+private func cameraEulerAngles(
+	position: SCNVector3,
+	focusPosition: SCNVector3,
+	roll: SCNFloat
+) -> SCNVector3 {
+	let direction = SCNVector3(
+		x: focusPosition.x - position.x,
+		y: focusPosition.y - position.y,
+		z: focusPosition.z - position.z
+	)
+	let length = max(SCNFloat(0.0001), vectorLength(direction))
+	let clampedVertical = max(SCNFloat(-1), min(SCNFloat(1), direction.y / length))
 	return SCNVector3(
-		x: cubicBezier(from.eulerAngles.x, controlAngles1.x, controlAngles2.x, targetAngles.x, progress),
-		y: cubicBezier(from.eulerAngles.y, controlAngles1.y, controlAngles2.y, targetAngles.y, progress),
-		z: cubicBezier(from.eulerAngles.z, controlAngles1.z, controlAngles2.z, targetAngles.z, progress)
+		x: asin(clampedVertical),
+		y: atan2(-direction.x, -direction.z),
+		z: roll
 	)
 }
 
@@ -2051,8 +2123,12 @@ private func cameraFieldOfView(
 	defaultTo: CGFloat,
 	progress: SCNFloat
 ) -> CGFloat {
-	guard let controlPoint1 = to.controlPoint1,
-		  let controlPoint2 = to.controlPoint2,
+	if cameraKeyframeIsHardCut(to) {
+		return progress < 1 ? defaultFrom : defaultTo
+	}
+
+	guard let controlPoint1 = from.outgoingControlPoint,
+		  let controlPoint2 = to.incomingControlPoint,
 		  let controlFieldOfView1 = controlPoint1.fieldOfView,
 		  let controlFieldOfView2 = controlPoint2.fieldOfView else {
 		return defaultFrom + (defaultTo - defaultFrom) * CGFloat(progress)
@@ -2065,6 +2141,10 @@ private func cameraFieldOfView(
 		SCNFloat(defaultTo),
 		progress
 	)
+}
+
+private func cameraKeyframeIsHardCut(_ keyframe: RecordCameraKeyframe) -> Bool {
+	return keyframe.hasCutMarker
 }
 
 private func cubicBezier(

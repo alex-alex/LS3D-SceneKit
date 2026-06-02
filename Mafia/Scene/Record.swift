@@ -26,16 +26,47 @@ struct RecordModelBinding {
 struct RecordCameraKeyframe {
 	let time: TimeInterval
 	let position: SCNVector3
-	let eulerAngles: SCNVector3
+	let focusPosition: SCNVector3
+	let roll: SCNFloat
 	let fieldOfView: CGFloat?
-	let controlPoint1: RecordCameraControlPoint?
-	let controlPoint2: RecordCameraControlPoint?
+	let outgoingControlPoint: RecordCameraControlPoint?
+	let incomingControlPoint: RecordCameraControlPoint?
+	let hasCutMarker: Bool
 }
 
 struct RecordCameraControlPoint {
 	let position: SCNVector3
-	let eulerAngles: SCNVector3
+	let focusPosition: SCNVector3
+	let roll: SCNFloat
 	let fieldOfView: CGFloat?
+}
+
+private struct RecordCameraChunk {
+	let time: TimeInterval
+	let kind: UInt32
+	let position: SCNVector3
+	let roll: SCNFloat
+	let fieldOfView: CGFloat?
+}
+
+private struct RecordCameraFocusChunk {
+	let time: TimeInterval
+	let kind: UInt32
+	let position: SCNVector3
+}
+
+private struct RecordCameraPositionSample {
+	let time: TimeInterval
+	let position: SCNVector3
+	let roll: SCNFloat
+	let fieldOfView: CGFloat?
+	let hasCutMarker: Bool
+}
+
+private struct RecordCameraFocusSample {
+	let time: TimeInterval
+	let position: SCNVector3
+	let hasCutMarker: Bool
 }
 
 struct RecordTimedEvent {
@@ -139,7 +170,9 @@ final class Record {
 		payloadOffset = stream.currentOffset
 		cameraKeyframes = Record.readCameraKeyframes(
 			url: url,
-			offset: payloadOffset + Int(header[2])
+			offset: payloadOffset + Int(header[2]),
+			cameraCount: Int(header[5]),
+			focusCount: Int(header[6])
 		)
 		animationEvents = Record.readAnimationEvents(
 			url: url,
@@ -152,59 +185,161 @@ final class Record {
 		speechEvents = Record.readSpeechEvents(url: url)
 	}
 
-	private static func readCameraKeyframes(url: URL, offset: Int) -> [RecordCameraKeyframe] {
+	private static func readCameraKeyframes(
+		url: URL,
+		offset: Int,
+		cameraCount: Int,
+		focusCount: Int
+	) -> [RecordCameraKeyframe] {
 		guard let data = try? Data(contentsOf: url),
 			  offset >= 0,
 			  offset < data.count else {
 			return []
 		}
 
-		var keyframes: [RecordCameraKeyframe] = []
-		var pendingControlPoint1: RecordCameraControlPoint?
-		var pendingControlPoint2: RecordCameraControlPoint?
-		let recordSize = 64
-		var currentOffset = offset
-		while data.hasCameraRecord(at: currentOffset) {
-			let kind = data.readUInt32(at: currentOffset + 8)
-			switch kind {
+		let cameraChunks = data.readCameraChunks(offset: offset, count: cameraCount)
+		let focusChunks = data.readCameraFocusChunks(offset: offset + cameraCount * 64, count: focusCount)
+		guard !cameraChunks.isEmpty, !focusChunks.isEmpty else { return [] }
+
+		let cameraSamples = Record.cameraPositionSamples(from: cameraChunks)
+		let focusSamples = Record.cameraFocusSamples(from: focusChunks)
+		guard !cameraSamples.isEmpty, !focusSamples.isEmpty else { return [] }
+
+		let keyTimes = Set(cameraSamples.map(\.time) + focusSamples.map(\.time)).sorted()
+		return keyTimes.compactMap { time in
+			guard let cameraSample = Record.cameraPositionSample(at: time, in: cameraSamples),
+				  let focusSample = Record.cameraFocusSample(at: time, in: focusSamples) else {
+				return nil
+			}
+
+			return RecordCameraKeyframe(
+				time: time,
+				position: cameraSample.position,
+				focusPosition: focusSample.position,
+				roll: cameraSample.roll,
+				fieldOfView: cameraSample.fieldOfView,
+				outgoingControlPoint: nil,
+				incomingControlPoint: nil,
+				hasCutMarker: cameraSample.hasCutMarker || focusSample.hasCutMarker
+			)
+		}
+	}
+
+	private static func cameraPositionSamples(
+		from chunks: [RecordCameraChunk]
+	) -> [RecordCameraPositionSample] {
+		var samples: [RecordCameraPositionSample] = []
+		var pendingCutMarker = false
+
+		for chunk in chunks {
+			switch chunk.kind {
 			case 1:
-				let time = data.readUInt32(at: currentOffset)
-				let x = data.readFloat(at: currentOffset + 12)
-				let y = data.readFloat(at: currentOffset + 16)
-				let z = data.readFloat(at: currentOffset + 20)
-				let yaw = data.readFloat(at: currentOffset + 24)
-				let pitch = data.readFloat(at: currentOffset + 28)
-				let roll = data.readFloat(at: currentOffset + 32)
-				let fov = data.readFloat(at: currentOffset + 52)
-				if [x, y, z, yaw, pitch, roll].allSatisfy({ $0.isFinite }) {
-					keyframes.append(RecordCameraKeyframe(
-						time: TimeInterval(time) / 1000.0,
-						position: SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z)),
-						eulerAngles: recordCameraEulerAngles(yaw: yaw, pitch: pitch, roll: roll),
-						fieldOfView: data.recordCameraFieldOfView(from: fov),
-						controlPoint1: pendingControlPoint1,
-						controlPoint2: pendingControlPoint2
-					))
-				}
-				pendingControlPoint1 = nil
-				pendingControlPoint2 = nil
+				samples.append(RecordCameraPositionSample(
+					time: chunk.time,
+					position: chunk.position,
+					roll: chunk.roll,
+					fieldOfView: chunk.fieldOfView,
+					hasCutMarker: pendingCutMarker
+				))
+				pendingCutMarker = false
 
 			case 2:
-				pendingControlPoint1 = nil
-				pendingControlPoint2 = nil
-
-			case 4:
-				pendingControlPoint1 = data.readCameraControlPoint(at: currentOffset)
-
-			case 8:
-				pendingControlPoint2 = data.readCameraControlPoint(at: currentOffset)
+				pendingCutMarker = !samples.isEmpty
 
 			default:
 				break
 			}
-			currentOffset += recordSize
 		}
-		return keyframes
+
+		return samples
+	}
+
+	private static func cameraFocusSamples(
+		from chunks: [RecordCameraFocusChunk]
+	) -> [RecordCameraFocusSample] {
+		var samples: [RecordCameraFocusSample] = []
+		var pendingCutMarker = false
+
+		for chunk in chunks {
+			switch chunk.kind {
+			case 1:
+				samples.append(RecordCameraFocusSample(
+					time: chunk.time,
+					position: chunk.position,
+					hasCutMarker: pendingCutMarker
+				))
+				pendingCutMarker = false
+
+			case 2:
+				pendingCutMarker = !samples.isEmpty
+
+			default:
+				break
+			}
+		}
+
+		return samples
+	}
+
+	private static func cameraPositionSample(
+		at time: TimeInterval,
+		in samples: [RecordCameraPositionSample]
+	) -> RecordCameraPositionSample? {
+		if let exactSample = samples.first(where: { abs($0.time - time) < 0.001 }) {
+			return exactSample
+		}
+		guard let bounds = recordSampleBounds(in: samples, at: time) else { return nil }
+		let from = bounds.from
+		let to = bounds.to
+		if to.hasCutMarker {
+			return RecordCameraPositionSample(
+				time: time,
+				position: from.position,
+				roll: from.roll,
+				fieldOfView: from.fieldOfView,
+				hasCutMarker: false
+			)
+		}
+
+		let progress = SCNFloat(bounds.progress)
+		let fromFieldOfView = from.fieldOfView ?? to.fieldOfView
+		let toFieldOfView = to.fieldOfView ?? from.fieldOfView
+		let fieldOfView: CGFloat?
+		if let fromFieldOfView = fromFieldOfView,
+		   let toFieldOfView = toFieldOfView {
+			fieldOfView = fromFieldOfView + (toFieldOfView - fromFieldOfView) * CGFloat(progress)
+		} else {
+			fieldOfView = nil
+		}
+
+		return RecordCameraPositionSample(
+			time: time,
+			position: recordLerpVector(from.position, to.position, progress),
+			roll: recordLerpAngle(from.roll, to.roll, progress),
+			fieldOfView: fieldOfView,
+			hasCutMarker: false
+		)
+	}
+
+	private static func cameraFocusSample(
+		at time: TimeInterval,
+		in samples: [RecordCameraFocusSample]
+	) -> RecordCameraFocusSample? {
+		if let exactSample = samples.first(where: { abs($0.time - time) < 0.001 }) {
+			return exactSample
+		}
+		guard let bounds = recordSampleBounds(in: samples, at: time) else { return nil }
+		let from = bounds.from
+		let to = bounds.to
+		if to.hasCutMarker {
+			return RecordCameraFocusSample(time: time, position: from.position, hasCutMarker: false)
+		}
+
+		return RecordCameraFocusSample(
+			time: time,
+			position: recordLerpVector(from.position, to.position, SCNFloat(bounds.progress)),
+			hasCutMarker: false
+		)
 	}
 
 	private static func readTimedEvents(url: URL) -> [RecordTimedEvent] {
@@ -388,56 +523,62 @@ private extension Data {
 		return Float(bitPattern: readUInt32(at: offset))
 	}
 
-	func hasCameraRecord(at offset: Int) -> Bool {
-		guard offset >= 0, offset + 64 <= count else { return false }
-
-		let time = readUInt32(at: offset)
-		let repeatedTime = readUInt32(at: offset + 4)
-		let kind = readUInt32(at: offset + 8)
-		guard time <= 200_000,
-			  repeatedTime <= 200_000,
-			  [1, 2, 4, 8].contains(kind) else {
-			return false
+	func readCameraChunks(offset: Int, count cameraCount: Int) -> [RecordCameraChunk] {
+		let recordSize = 64
+		guard offset >= 0,
+			  cameraCount > 0,
+			  offset + cameraCount * recordSize <= count else {
+			return []
 		}
 
-		if kind == 2 {
-			return true
-		}
+		return (0 ..< cameraCount).compactMap { index in
+			let recordOffset = offset + index * recordSize
+			let kind = readUInt32(at: recordOffset + 8)
+			guard [1, 2, 4, 8].contains(kind) else { return nil }
 
-		let x = readFloat(at: offset + 12)
-		let y = readFloat(at: offset + 16)
-		let z = readFloat(at: offset + 20)
-		let yaw = readFloat(at: offset + 24)
-		let pitch = readFloat(at: offset + 28)
-		let roll = readFloat(at: offset + 32)
-		let fieldOfView = readFloat(at: offset + 52)
-		guard [x, y, z, yaw, pitch, roll, fieldOfView].allSatisfy({ $0.isFinite }) else {
-			return false
-		}
+			let time = readUInt32(at: recordOffset)
+			let x = readFloat(at: recordOffset + 12)
+			let y = readFloat(at: recordOffset + 16)
+			let z = readFloat(at: recordOffset + 20)
+			let roll = readFloat(at: recordOffset + 32)
+			let fov = readFloat(at: recordOffset + 52)
+			guard [x, y, z, roll, fov].allSatisfy({ $0.isFinite }) else { return nil }
 
-		return abs(x) < 100_000 &&
-			abs(y) < 100_000 &&
-			abs(z) < 100_000 &&
-			fieldOfView >= 0 &&
-			fieldOfView <= .pi * 1.5
+			return RecordCameraChunk(
+				time: TimeInterval(time) / 1000.0,
+				kind: kind,
+				position: SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z)),
+				roll: SCNFloat(recordCameraRoll(from: roll)),
+				fieldOfView: recordCameraFieldOfView(from: fov)
+			)
+		}
 	}
 
-	func readCameraControlPoint(at offset: Int) -> RecordCameraControlPoint? {
-		let x = readFloat(at: offset + 12)
-		let y = readFloat(at: offset + 16)
-		let z = readFloat(at: offset + 20)
-		let yaw = readFloat(at: offset + 24)
-		let pitch = readFloat(at: offset + 28)
-		let roll = readFloat(at: offset + 32)
-		let fov = readFloat(at: offset + 52)
+	func readCameraFocusChunks(offset: Int, count focusCount: Int) -> [RecordCameraFocusChunk] {
+		let recordSize = 56
+		guard offset >= 0,
+			  focusCount > 0,
+			  offset + focusCount * recordSize <= count else {
+			return []
+		}
 
-		guard [x, y, z, yaw, pitch, roll].allSatisfy({ $0.isFinite }) else { return nil }
+		return (0 ..< focusCount).compactMap { index in
+			let recordOffset = offset + index * recordSize
+			let kind = readUInt32(at: recordOffset + 8)
+			guard [1, 2, 4, 8].contains(kind) else { return nil }
 
-		return RecordCameraControlPoint(
-			position: SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z)),
-			eulerAngles: recordCameraEulerAngles(yaw: yaw, pitch: pitch, roll: roll),
-			fieldOfView: recordCameraFieldOfView(from: fov)
-		)
+			let time = readUInt32(at: recordOffset)
+			let x = readFloat(at: recordOffset + 12)
+			let y = readFloat(at: recordOffset + 16)
+			let z = readFloat(at: recordOffset + 20)
+			guard [x, y, z].allSatisfy({ $0.isFinite }) else { return nil }
+
+			return RecordCameraFocusChunk(
+				time: TimeInterval(time) / 1000.0,
+				kind: kind,
+				position: SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
+			)
+		}
 	}
 
 	func recordCameraFieldOfView(from rawValue: Float) -> CGFloat? {
@@ -770,18 +911,72 @@ private extension Data {
 	}
 }
 
-private func recordCameraEulerAngles(yaw: Float, pitch: Float, roll: Float) -> SCNVector3 {
-	return SCNVector3(
-		x: SCNFloat(pitch),
-		y: SCNFloat(yaw),
-		z: SCNFloat(recordCameraRoll(from: roll))
-	)
-}
-
 private func recordCameraRoll(from rawRoll: Float) -> Float {
 	guard rawRoll.isFinite else { return 0 }
 	let scaledRoll = rawRoll * recordCameraRollScale
 	return Swift.max(-recordCameraMaximumRoll, Swift.min(recordCameraMaximumRoll, scaledRoll))
+}
+
+private func recordLerpVector(_ start: SCNVector3, _ end: SCNVector3, _ amount: SCNFloat) -> SCNVector3 {
+	let clampedAmount = max(0, min(1, amount))
+	return SCNVector3(
+		x: start.x + (end.x - start.x) * clampedAmount,
+		y: start.y + (end.y - start.y) * clampedAmount,
+		z: start.z + (end.z - start.z) * clampedAmount
+	)
+}
+
+private func recordLerpAngle(_ start: SCNFloat, _ end: SCNFloat, _ amount: SCNFloat) -> SCNFloat {
+	let clampedAmount = max(0, min(1, amount))
+	let fullTurn = SCNFloat.pi * 2
+	var delta = end - start
+	while delta > .pi {
+		delta -= fullTurn
+	}
+	while delta < -.pi {
+		delta += fullTurn
+	}
+	return start + delta * clampedAmount
+}
+
+private func recordSampleBounds(
+	in samples: [RecordCameraPositionSample],
+	at time: TimeInterval
+) -> (from: RecordCameraPositionSample, to: RecordCameraPositionSample, progress: CGFloat)? {
+	guard let first = samples.first else { return nil }
+	guard time > first.time else { return (first, first, 0) }
+
+	var previous = first
+	for sample in samples.dropFirst() {
+		guard time > sample.time else {
+			let duration = sample.time - previous.time
+			let progress = duration > 0 ? CGFloat((time - previous.time) / duration) : 1
+			return (previous, sample, max(0, min(1, progress)))
+		}
+		previous = sample
+	}
+
+	return (previous, previous, 0)
+}
+
+private func recordSampleBounds(
+	in samples: [RecordCameraFocusSample],
+	at time: TimeInterval
+) -> (from: RecordCameraFocusSample, to: RecordCameraFocusSample, progress: CGFloat)? {
+	guard let first = samples.first else { return nil }
+	guard time > first.time else { return (first, first, 0) }
+
+	var previous = first
+	for sample in samples.dropFirst() {
+		guard time > sample.time else {
+			let duration = sample.time - previous.time
+			let progress = duration > 0 ? CGFloat((time - previous.time) / duration) : 1
+			return (previous, sample, max(0, min(1, progress)))
+		}
+		previous = sample
+	}
+
+	return (previous, previous, 0)
 }
 
 private func vectorLength(_ vector: SCNVector3) -> SCNFloat {
