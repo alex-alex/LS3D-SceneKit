@@ -845,7 +845,7 @@ extension Script {
 	private func humanNode(for node: SCNNode) -> SCNNode? {
 		var current: SCNNode? = node
 		while let candidate = current {
-			if candidate.humanEnergy != nil || candidate.type == .player {
+			if candidate.humanEnergy != nil || candidate.type.hasDefaultHumanEnergy {
 				if candidate.humanEnergy == nil {
 					candidate.humanEnergy = 100
 				}

@@ -17,6 +17,8 @@ enum SceneSection: UInt16 {
 	case objects		= 0x4000
 	case objDefs		= 0xae20
 	case xyzs			= 0xae02
+	case weather		= 0xaef0
+	case noRainSectors	= 0xaef1
 	case initScripts	= 0xae50
 }
 
@@ -88,6 +90,17 @@ enum ObjectDefinitionType: UInt32 {
 	case clock			= 34
 	case physical		= 35
 	case truck			= 36
+}
+
+extension ObjectDefinitionType {
+	var hasDefaultHumanEnergy: Bool {
+		switch self {
+		case .player, .enemy, .pumpar:
+			return true
+		default:
+			return false
+		}
+	}
 }
 
 enum LightType: UInt32 {
@@ -297,13 +310,23 @@ final class Scene {
 
 		let startOffset = stream.currentOffset
 
-		let _ = try SceneSection(forcedRawValue: stream.read()) // secSgn
+		let secSgn = try SceneSection(forcedRawValue: stream.read())
 	//	guard secSgn == 44576 else { throw SceneError.file }
 
 		let _secSize: UInt32 = try stream.read()
 		let secSize = Int(_secSize)
+		let sectionEndOffset = startOffset + secSize
 
-		while stream.currentOffset < (startOffset + secSize) {
+		switch secSgn {
+		case .weather, .noRainSectors:
+			stream.currentOffset = sectionEndOffset
+			return
+
+		case .objects, .objDefs, .xyzs, .initScripts:
+			break
+		}
+
+		while stream.currentOffset < sectionEndOffset {
 			try autoreleasepool {
 
 				let objectStartOffset = stream.currentOffset
@@ -468,7 +491,7 @@ final class Scene {
 								name = try stream.read(maxLength: partSize - 6)
 								node = self.node(named: name)
 								if let node = node {
-									node.type = type
+									applyObjectDefinitionType(type, to: node)
 								} else if type != .empty {
 									pendingObjectTypesByName[name] = type
 								}
@@ -476,7 +499,7 @@ final class Scene {
 							case 0xae22: // type
 								type = try ObjectDefinitionType(forcedRawValue: stream.read())
 								if let node = node {
-									node.type = type
+									applyObjectDefinitionType(type, to: node)
 								} else if !name.isEmpty {
 									pendingObjectTypesByName[name] = type
 								}
@@ -509,6 +532,7 @@ final class Scene {
 								let _: Float = try stream.read()						// 80		mass
 								let _: Float = try stream.read()						// 0.5		behavior 2
 
+								print("Player \(name) energy: \(energy)")
 								if let node = node {
 									node.humanEnergy = energy
 								} else if !name.isEmpty {
@@ -812,7 +836,7 @@ final class Scene {
 	func resolvePendingObjectTypes(in rootNode: SCNNode) {
 		for (name, type) in pendingObjectTypesByName {
 			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
-			node.type = type
+			applyObjectDefinitionType(type, to: node)
 		}
 		pendingObjectTypesByName.removeAll()
 		for (name, energy) in pendingHumanEnergyByName {
@@ -820,6 +844,13 @@ final class Scene {
 			node.humanEnergy = energy
 		}
 		pendingHumanEnergyByName.removeAll()
+	}
+
+	private func applyObjectDefinitionType(_ type: ObjectDefinitionType, to node: SCNNode) {
+		node.type = type
+		if type.hasDefaultHumanEnergy && node.humanEnergy == nil {
+			node.humanEnergy = 100
+		}
 	}
 
 	func startScripts() {
@@ -1237,6 +1268,7 @@ final class Scene {
 		} else {
 			targetEvents = animationEvents
 		}
+		let targetResolutionEvents = recordAnimationTargetResolutionEvents(from: targetEvents)
 
 		struct LinkedTargetCandidate {
 			let targetNode: SCNNode
@@ -1260,7 +1292,7 @@ final class Scene {
 				guard let anchorNode = node(named: anchorLink.name) else { continue }
 				let anchorPosition = sourcePosition(of: anchorNode)
 				let anchorOrientation = sourceOrientation(of: anchorNode)
-				for event in targetEvents {
+				for event in targetResolutionEvents {
 					let positionDistance = vectorDistance(event.position, anchorPosition)
 					let orientationDistance = vectorDistance(event.orientationVector, anchorOrientation)
 					let score = positionDistance + orientationDistance * 8
@@ -1315,7 +1347,7 @@ final class Scene {
 			orientationDistance: SCNFloat,
 			score: SCNFloat
 		)?
-		for event in targetEvents {
+		for event in targetResolutionEvents {
 			for bindingNode in bindingNodes {
 				let positionDistance = vectorDistance(event.position, sourcePosition(of: bindingNode.node))
 				let orientationDistance = vectorDistance(event.orientationVector, sourceOrientation(of: bindingNode.node))
@@ -1351,6 +1383,19 @@ final class Scene {
 			positionDistance: bestCandidate.positionDistance,
 			orientationDistance: bestCandidate.orientationDistance
 		)
+	}
+
+	private func recordAnimationTargetResolutionEvents(
+		from events: [RecordAnimationEvent]
+	) -> [RecordAnimationEvent] {
+		let groupedEvents = Dictionary(grouping: events.filter { $0.trackId >= 0 }, by: \.trackId)
+		guard !groupedEvents.isEmpty else { return events }
+
+		return groupedEvents.values.compactMap { trackEvents in
+			trackEvents.max { lhs, rhs in
+				lhs.time < rhs.time
+			}
+		}
 	}
 
 	private func recordSequenceAnimationEvents(

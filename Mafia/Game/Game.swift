@@ -1788,7 +1788,7 @@ extension Game {
 			if candidate.humanEnergy != nil {
 				return candidate
 			}
-			if candidate.type == .player {
+			if candidate.type.hasDefaultHumanEnergy {
 				candidate.humanEnergy = 100
 				return candidate
 			}
@@ -2176,7 +2176,7 @@ extension Game {
 	private func shootableNode(from node: SCNNode) -> SCNNode? {
 		var current: SCNNode? = node
 		while let candidate = current {
-			if candidate.humanEnergy != nil || candidate.type == .player {
+			if candidate.humanEnergy != nil || candidate.type.hasDefaultHumanEnergy {
 				return candidate
 			}
 			if candidate.physicsBody?.type == .dynamic {

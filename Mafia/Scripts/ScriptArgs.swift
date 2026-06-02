@@ -445,7 +445,7 @@ extension Script {
 		let charset = CharacterSet(charactersIn: "\"")
 		guard scanner.scanString("\"", into: nil) else { return nil }
 		scanner.scanUpToCharacters(from: charset, into: &str)
-		guard scanner.scanString("\"", into: nil) else { fatalError() }
+		guard scanner.scanString("\"", into: nil) || scanner.isAtEnd else { fatalError() }
 		scanner.scanCharacters(from: .whitespaces, into: nil)
 		return (str as String?)
 	}
