@@ -11,6 +11,8 @@ import SceneKit
 
 extension Script {
 
+	private static let loopYieldInterval: DispatchTimeInterval = .milliseconds(16)
+
 	func performCommand(command: ScriptCommand) {
 		switch command.name {
 //		"{"
@@ -129,8 +131,15 @@ extension Script {
 			next()
 			return
 		}
+		let isBackwardJump = line < currentLine
 		currentLine = line
-		next()
+		if isBackwardJump {
+			queue.asyncAfter(deadline: .now() + Self.loopYieldInterval) {
+				self.next()
+			}
+		} else {
+			next()
+		}
 	}
 
 	// ----

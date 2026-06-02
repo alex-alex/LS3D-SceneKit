@@ -151,6 +151,8 @@ final class Game: NSObject {
 	private let vehicleStealDuration: TimeInterval = 1.6
 	private var playerPhysicsBodyBeforeVehicle: SCNPhysicsBody?
 	private var trafficManager: TrafficManager?
+	private var environmentSectorNodes: [String: SCNNode] = [:]
+	private var missingEnvironmentSectorNames = Set<String>()
 
 	init(missionName: String, progressHandler: ((CGFloat) -> Void)? = nil) throws {
 		progressHandler?(0.05)
@@ -533,13 +535,25 @@ final class Game: NSObject {
 		let ambientBlend = min(1, frameTime * ambientBlendSpeed)
 		let fogBlend = min(1, frameTime * fogBlendSpeed)
 
-		if let ambient = scene.environmentLights.bestMatch(kind: .ambient, cameraPosition: cameraPosition, rootNode: scnScene.rootNode) {
+		if let ambient = scene.environmentLights.bestMatch(
+			kind: .ambient,
+			cameraPosition: cameraPosition,
+			rootNode: scnScene.rootNode,
+			sectorNodes: &environmentSectorNodes,
+			missingSectorNames: &missingEnvironmentSectorNames
+		) {
 			let targetColor = ambient.color.multiplied(by: ambient.power)
 			ambientLightNode.light?.color = (ambientLightNode.light?.color as? SKColor ?? .black).lerped(to: targetColor, amount: ambientBlend)
 			ambientLightNode.light?.intensity = 100
 		}
 
-		if let fog = scene.environmentLights.bestMatch(kind: .fog, cameraPosition: cameraPosition, rootNode: scnScene.rootNode) {
+		if let fog = scene.environmentLights.bestMatch(
+			kind: .fog,
+			cameraPosition: cameraPosition,
+			rootNode: scnScene.rootNode,
+			sectorNodes: &environmentSectorNodes,
+			missingSectorNames: &missingEnvironmentSectorNames
+		) {
 			let targetColor = fog.color.multiplied(by: fog.power)
 			scnScene.fogColor = (scnScene.fogColor as? SKColor ?? .clear).lerped(to: targetColor, amount: fogBlend)
 			scnScene.fogStartDistance += (fog.near * 1000 - scnScene.fogStartDistance) * fogBlend
@@ -1067,14 +1081,25 @@ private extension SCNNode {
 }
 
 private extension Array where Element == EnvironmentLight {
-	func bestMatch(kind: EnvironmentLightKind, cameraPosition: SCNVector3, rootNode: SCNNode) -> EnvironmentLight? {
+	func bestMatch(
+		kind: EnvironmentLightKind,
+		cameraPosition: SCNVector3,
+		rootNode: SCNNode,
+		sectorNodes: inout [String: SCNNode],
+		missingSectorNames: inout Set<String>
+	) -> EnvironmentLight? {
 		var bestLight: EnvironmentLight?
 		var bestLevel = Int.min
 
 		for light in self where light.kind == kind {
 			let level: Int
 			if let sectorName = light.sectorName,
-			   let sectorNode = rootNode.mafiaChildNode(named: sectorName, recursively: true) {
+			   let sectorNode = environmentSectorNode(
+				named: sectorName,
+				rootNode: rootNode,
+				sectorNodes: &sectorNodes,
+				missingSectorNames: &missingSectorNames
+			   ) {
 				guard sectorNode.containsWorldPosition(cameraPosition) else { continue }
 				level = sectorName == "Primary Sector" ? 0 : sectorNode.hierarchyLevel
 			} else {
@@ -1088,6 +1113,24 @@ private extension Array where Element == EnvironmentLight {
 		}
 
 		return bestLight
+	}
+
+	private func environmentSectorNode(
+		named name: String,
+		rootNode: SCNNode,
+		sectorNodes: inout [String: SCNNode],
+		missingSectorNames: inout Set<String>
+	) -> SCNNode? {
+		if let sectorNode = sectorNodes[name] {
+			return sectorNode
+		}
+		guard !missingSectorNames.contains(name) else { return nil }
+		guard let sectorNode = rootNode.mafiaChildNode(named: name, recursively: true) else {
+			missingSectorNames.insert(name)
+			return nil
+		}
+		sectorNodes[name] = sectorNode
+		return sectorNode
 	}
 }
 

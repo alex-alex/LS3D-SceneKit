@@ -1660,23 +1660,39 @@ final class Scene {
 			return
 		}
 
-		var previousEvent = firstEvent
-		for nextEvent in events.dropFirst() {
-			guard time > nextEvent.time else {
-				let span = nextEvent.time - previousEvent.time
-				let progress = span <= 0 ? 1 : CGFloat((time - previousEvent.time) / span)
-				applyRecordTransform(
-					from: previousEvent,
-					to: nextEvent,
-					progress: progress,
-					node: node
-				)
-				return
-			}
-			previousEvent = nextEvent
+		guard let lastEvent = events.last,
+			  time <= lastEvent.time else {
+			applyRecordTransform(event: events[events.count - 1], to: node)
+			return
 		}
 
-		applyRecordTransform(event: previousEvent, to: node)
+		var lowerBound = 0
+		var upperBound = events.count - 1
+		while lowerBound < upperBound {
+			let middle = (lowerBound + upperBound) / 2
+			if time > events[middle].time {
+				lowerBound = middle + 1
+			} else {
+				upperBound = middle
+			}
+		}
+
+		let nextIndex = lowerBound
+		guard nextIndex > 0 else {
+			applyRecordTransform(event: firstEvent, to: node)
+			return
+		}
+
+		let previousEvent = events[nextIndex - 1]
+		let nextEvent = events[nextIndex]
+		let span = nextEvent.time - previousEvent.time
+		let progress = span <= 0 ? 1 : CGFloat((time - previousEvent.time) / span)
+		applyRecordTransform(
+			from: previousEvent,
+			to: nextEvent,
+			progress: progress,
+			node: node
+		)
 	}
 
 	private static func applyRecordTransform(event: RecordAnimationEvent, to node: SCNNode) {
@@ -3067,17 +3083,32 @@ private func cameraKeyframeBounds(
 	}
 	guard time > first.time else { return (first, first, 0) }
 
-	var previous = first
-	for keyframe in keyframes.dropFirst() {
-		guard time > keyframe.time else {
-			let duration = keyframe.time - previous.time
-			let progress = duration > 0 ? CGFloat((time - previous.time) / duration) : 1
-			return (previous, keyframe, max(0, min(1, progress)))
-		}
-		previous = keyframe
+	guard let last = keyframes.last else {
+		return (first, first, 0)
+	}
+	guard time <= last.time else {
+		return (last, last, 0)
 	}
 
-	return (previous, previous, 0)
+	var lowerBound = 0
+	var upperBound = keyframes.count - 1
+	while lowerBound < upperBound {
+		let middle = (lowerBound + upperBound) / 2
+		if time > keyframes[middle].time {
+			lowerBound = middle + 1
+		} else {
+			upperBound = middle
+		}
+	}
+
+	let nextIndex = lowerBound
+	guard nextIndex > 0 else { return (first, first, 0) }
+
+	let previous = keyframes[nextIndex - 1]
+	let next = keyframes[nextIndex]
+	let duration = next.time - previous.time
+	let progress = duration > 0 ? CGFloat((time - previous.time) / duration) : 1
+	return (previous, next, max(0, min(1, progress)))
 }
 
 private extension InputStream {

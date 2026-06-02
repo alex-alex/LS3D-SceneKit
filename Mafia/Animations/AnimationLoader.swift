@@ -195,39 +195,45 @@ class Animation {
 	}
 
 	private static func interpolatedVector(keys: [Int], values: [Int: SCNVector3], at tick: CGFloat) -> SCNVector3? {
-		guard let firstKey = keys.first else { return nil }
-		guard tick >= CGFloat(firstKey) else { return nil }
-
-		var previousKey = firstKey
-		for key in keys.dropFirst() {
-			guard tick > CGFloat(key) else {
-				guard let previousValue = values[previousKey],
-					  let nextValue = values[key] else { return values[key] }
-				let t = CGFloat(key == previousKey ? 1 : (tick - CGFloat(previousKey)) / CGFloat(key - previousKey))
-				return lerp(previousValue, nextValue, smoothstep(t))
-			}
-			previousKey = key
-		}
-
-		return values[previousKey]
+		guard let bounds = keyBounds(in: keys, at: tick) else { return nil }
+		guard bounds.previous != bounds.next else { return values[bounds.previous] }
+		guard let previousValue = values[bounds.previous],
+			  let nextValue = values[bounds.next] else { return values[bounds.next] }
+		let t = CGFloat((tick - CGFloat(bounds.previous)) / CGFloat(bounds.next - bounds.previous))
+		return lerp(previousValue, nextValue, smoothstep(t))
 	}
 
 	private static func interpolatedQuaternion(keys: [Int], values: [Int: SCNQuaternion], at tick: CGFloat) -> SCNQuaternion? {
+		guard let bounds = keyBounds(in: keys, at: tick) else { return nil }
+		guard bounds.previous != bounds.next else { return values[bounds.previous] }
+		guard let previousValue = values[bounds.previous],
+			  let nextValue = values[bounds.next] else { return values[bounds.next] }
+		let t = CGFloat((tick - CGFloat(bounds.previous)) / CGFloat(bounds.next - bounds.previous))
+		return slerp(previousValue, nextValue, smoothstep(t))
+	}
+
+	private static func keyBounds(in keys: [Int], at tick: CGFloat) -> (previous: Int, next: Int)? {
 		guard let firstKey = keys.first else { return nil }
 		guard tick >= CGFloat(firstKey) else { return nil }
-
-		var previousKey = firstKey
-		for key in keys.dropFirst() {
-			guard tick > CGFloat(key) else {
-				guard let previousValue = values[previousKey],
-					  let nextValue = values[key] else { return values[key] }
-				let t = CGFloat(key == previousKey ? 1 : (tick - CGFloat(previousKey)) / CGFloat(key - previousKey))
-				return slerp(previousValue, nextValue, smoothstep(t))
-			}
-			previousKey = key
+		guard let lastKey = keys.last else { return nil }
+		guard tick <= CGFloat(lastKey) else {
+			return (lastKey, lastKey)
 		}
 
-		return values[previousKey]
+		var lowerBound = 0
+		var upperBound = keys.count - 1
+		while lowerBound < upperBound {
+			let middle = (lowerBound + upperBound) / 2
+			if tick > CGFloat(keys[middle]) {
+				lowerBound = middle + 1
+			} else {
+				upperBound = middle
+			}
+		}
+
+		let nextIndex = lowerBound
+		guard nextIndex > 0 else { return (keys[0], keys[0]) }
+		return (keys[nextIndex - 1], keys[nextIndex])
 	}
 
 	private static func smoothstep(_ t: CGFloat) -> CGFloat {
