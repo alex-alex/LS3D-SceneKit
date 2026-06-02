@@ -198,7 +198,6 @@ extension Script {
 	}
 
 	private func cleardifferences(_ args: [Argument]) {
-		print(">>> cleardifferences")
 		scene.clearDifferenceFiles()
 		next()
 	}
@@ -630,7 +629,6 @@ extension Script {
 
 	private func loaddifferences(_ args: [Argument]) {
 		let name = args[0].getString()
-		print(">>> loaddifferences \(name)")
 		scene.loadDifferenceFileAsync(named: name) { result in
 			if case .failure(let error) = result {
 				print("Failed to load differences '\(name)':", error)
@@ -674,7 +672,6 @@ extension Script {
 
 	private func recload(_ args: [Argument], full: Bool) {
 		let name = args[0].getString()
-		print(">>> \(full ? "recloadfull" : "recload") \(name)")
 		scene.loadRecordAsync(named: name, full: full) { result in
 			self.queue.async {
 				switch result {
@@ -713,7 +710,6 @@ extension Script {
 	}
 
 	private func recunload(_ args: [Argument]) {
-		print(">>> recunload")
 		scene.unloadRecords()
 		next()
 	}

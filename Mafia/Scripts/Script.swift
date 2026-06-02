@@ -55,6 +55,22 @@ enum Argument {
 		}
 		return Int(getValueOrVarValueFloat(vars: vars))
 	}
+
+	var scriptLogDescription: String {
+		switch self {
+		case .integer(let value):
+			return "\(value)"
+		case .number(let value):
+			return String(format: "%g", value)
+		case .label(let value):
+			return value
+		case .string(let value):
+			let escapedValue = value.replacingOccurrences(of: "\"", with: "\\\"")
+			return "\"\(escapedValue)\""
+		case .variable(let value):
+			return "flt[\(value)]"
+		}
+	}
 }
 
 enum ScriptCommandName: String {
@@ -132,6 +148,11 @@ struct ScriptCommand {
 	let name: ScriptCommandName
 	let rawName: String
 	let args: [Argument]
+
+	var scriptLogDescription: String {
+		guard !args.isEmpty else { return rawName }
+		return rawName + " " + args.map(\.scriptLogDescription).joined(separator: ", ")
+	}
 }
 
 final class Script {
@@ -277,7 +298,7 @@ final class Script {
 			return next()
 		}
 
-		print(">>> [\(node.name ?? "unnamed")] \(command.rawName) \(command.args)")
+		print(">>> [\(node.name ?? "unnamed")] \(command.scriptLogDescription)")
 
 		performCommand(command: command)
 	}
