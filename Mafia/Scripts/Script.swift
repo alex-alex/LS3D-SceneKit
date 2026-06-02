@@ -57,6 +57,81 @@ enum Argument {
 	}
 }
 
+enum ScriptCommandName: String {
+	case actSetstate = "act_setstate"
+	case actorSetplacement = "actor_setplacement"
+	case carGetspeed = "car_getspeed"
+	case carMuststeal = "car_muststeal"
+	case carRepair = "car_repair"
+	case carSetspeed = "car_setspeed"
+	case cleardifferences
+	case compareownerwithex
+	case consoleAddtext = "console_addtext"
+	case createweaponfromframe
+	case ctrlRead = "ctrl_read"
+	case detectorInrange = "detector_inrange"
+	case detectorIssignal = "detector_issignal"
+	case detectorSetsignal = "detector_setsignal"
+	case detectorWaitforuse = "detector_waitforuse"
+	case dimAct = "dim_act"
+	case dimFlt = "dim_flt"
+	case dimFrm = "dim_frm"
+	case doorEnableus = "door_enableus"
+	case doorLock = "door_lock"
+	case doorOpen = "door_open"
+	case end
+	case endBang = "end!"
+	case endofmission
+	case enemyPlayanim = "enemy_playanim"
+	case event
+	case eventUseCb = "event_use_cb"
+	case findactor
+	case findframe
+	case frmSeton = "frm_seton"
+	case garageEnablesteal = "garage_enablesteal"
+	case getactorsdist
+	case getenemyaistate
+	case goto
+	case humanAnyweaponinhand = "human_anyweaponinhand"
+	case humanGetactanimid = "human_getactanimid"
+	case humanGetproperty = "human_getproperty"
+	case humanHolster = "human_holster"
+	case humanIsweapon = "human_isweapon"
+	case humanSetproperty = "human_setproperty"
+	case humanTalk = "human_talk"
+	case `if` = "if"
+	case iffltinrange
+	case ifplayerstealcar
+	case iscarusable
+	case label
+	case `let` = "let"
+	case loaddifferences
+	case missionObjectives = "mission_objectives"
+	case missionObjectivesclear = "mission_objectivesclear"
+	case personPlayanim = "person_playanim"
+	case personStopanim = "person_stopanim"
+	case playerLockcontrols = "player_lockcontrols"
+	case pmShowsymbol = "pm_showsymbol"
+	case recload
+	case recloadfull
+	case recunload
+	case `return` = "return"
+	case returnBang = "return!"
+	case rnd
+	case setcompass
+	case setevent
+	case setplayerfireevent
+	case setplayerhornevent
+	case wait
+	case unknown
+}
+
+struct ScriptCommand {
+	let name: ScriptCommandName
+	let rawName: String
+	let args: [Argument]
+}
+
 final class Script {
 
 	let uuid = NSUUID()
@@ -66,6 +141,7 @@ final class Script {
 	var mainInEvent = false
 
 	var eventIdQueue: [String] = []
+	var eventIdQueueStartIndex = 0
 	var currentEventId: String?
 	var lineBeforeEvent: Int = 0
 	var executingEvent = false
@@ -73,7 +149,7 @@ final class Script {
 
 	let scene: Scene
 	let node: SCNNode
-	var commands: [(String, [Argument])]!
+	var commands: [ScriptCommand]!
 	var labels: [String: Int] = [:]
 	var events: [String: Int] = [:]
 	var currentLine: Int = 0
@@ -95,7 +171,7 @@ final class Script {
 		self.commands = parse(string: script)
 	}
 
-	func parse(string: String) -> [(String, [Argument])] {
+	func parse(string: String) -> [ScriptCommand] {
 //		if node.name == nil {
 //			print("==============================")
 //			print(string)
@@ -103,7 +179,7 @@ final class Script {
 //		}
 
 		let lines = string.components(separatedBy: .newlines)
-		var parsed: [(String, [Argument])] = []
+		var parsed: [ScriptCommand] = []
 		var lineNum = 0
 		for line in lines {
 			let line = line.trimmingCharacters(in: .whitespaces)
@@ -124,7 +200,7 @@ final class Script {
 			}
 
 			let args = getArgumentsForCommand(str: commandStr, scanner: scanner)
-			parsed.append((commandStr, args))
+			parsed.append(ScriptCommand(name: ScriptCommandName(rawValue: commandStr) ?? .unknown, rawName: commandStr, args: args))
 			lineNum += 1
 		}
 
@@ -179,7 +255,7 @@ final class Script {
 		}
 
 		guard currentLine < commands.endIndex else {
-			if !eventIdQueue.isEmpty {
+			if hasQueuedEvent {
 				currentLine = commands.endIndex - 1
 				next()
 				return
@@ -193,15 +269,30 @@ final class Script {
 		let command = commands[currentLine]
 
 		if mainInEvent {
-			if command.0 == "return" || command.0 == "return!" {
+			if command.name == .`return` || command.name == .returnBang {
 				mainInEvent = false
 			}
 			return next()
 		}
 
-		print(">>> [\(node.name ?? "unnamed")] \(command.0) \(command.1)")
+		print(">>> [\(node.name ?? "unnamed")] \(command.rawName) \(command.args)")
 
 		performCommand(command: command)
+	}
+
+	var hasQueuedEvent: Bool {
+		return eventIdQueueStartIndex < eventIdQueue.count
+	}
+
+	func dequeueEventId() -> String? {
+		guard hasQueuedEvent else { return nil }
+		let eventId = eventIdQueue[eventIdQueueStartIndex]
+		eventIdQueueStartIndex += 1
+		if eventIdQueueStartIndex > 32 && eventIdQueueStartIndex * 2 >= eventIdQueue.count {
+			eventIdQueue.removeFirst(eventIdQueueStartIndex)
+			eventIdQueueStartIndex = 0
+		}
+		return eventId
 	}
 
 }
