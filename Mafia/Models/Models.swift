@@ -366,7 +366,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 						if let source = CGImageSourceCreateWithData(data as CFData, nil),
 						   let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil),
 						   let masked = cgImage.removeColor(color.cgColor) {
-							material.diffuse.contents = masked.caLayer()
+							material.diffuse.contents = masked
 						} else {
 							material.diffuse.contents = NSImage(data: data)
 						}
@@ -384,7 +384,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 							let color = UIColor(red: r, green: g, blue: b, alpha: 1)
 							let image = UIImage(data: data)?.removeColor(color)
 							imageCache[textureName] = image
-							material.diffuse.contents = image?.cgImage?.caLayer()
+							material.diffuse.contents = image
 						} else {
 							let image = UIImage(data: data)
 							imageCache[textureName] = image

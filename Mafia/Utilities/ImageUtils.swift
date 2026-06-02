@@ -14,17 +14,6 @@ extension CGImage {
 		let comps = color.components ?? [0, 0, 0]
 		return copy(maskingColorComponents: [comps[0], comps[0], comps[1], comps[1], comps[2], comps[2]])
 	}
-
-	func caLayer() -> CALayer {
-		let layer = CALayer()
-		#if os(macOS)
-		layer.frame = NSRect(x: 0, y: 0, width: width, height: height)
-		#elseif os(iOS)
-		layer.frame = CGRect(x: 0, y: 0, width: width, height: height)
-		#endif
-		layer.contents = self
-		return layer
-	}
 }
 
 #if os(macOS)
