@@ -518,6 +518,9 @@ extension Script {
 			source.isPositional = false
 			source.load()
 			DispatchQueue.main.async {
+				if let actor = self.node(forScriptId: actorId) {
+					try? playFaceAnimation(soundName: soundId, in: actor)
+				}
 				self.scene.playAudio(source, url: url, on: self.scene.rootNode) {
 					self.next()
 				}

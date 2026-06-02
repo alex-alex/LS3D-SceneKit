@@ -197,6 +197,7 @@ private struct RecordAnimationPlayback {
 	let source: String
 	let trackId: Int
 	let startTime: TimeInterval
+	let duration: TimeInterval
 	let positionDistance: SCNFloat
 	let orientationDistance: SCNFloat
 	let matches: Int
@@ -876,10 +877,13 @@ final class Scene {
 
 		print("== Loading Difference: \(name)")
 		game?.setLoadBlackoutVisible(true)
-		defer {
+		let differenceFile: DifferenceFile
+		do {
+			differenceFile = try DifferenceFile(named: name)
+		} catch {
 			game?.setLoadBlackoutVisible(false)
+			throw error
 		}
-		let differenceFile = try DifferenceFile(named: name)
 		rootNode.addChildNode(differenceFile.rootNode)
 		loadedDifferenceFiles[key] = differenceFile
 		for script in differenceFile.scripts.values {
@@ -898,6 +902,7 @@ final class Scene {
 
 	func clearDifferenceFiles() {
 		print("== Clearing Differences: \(loadedDifferenceFiles.count)")
+		game?.setLoadBlackoutVisible(false)
 		for differenceFile in loadedDifferenceFiles.values {
 			differenceFile.rootNode.removeFromParentNode()
 		}
@@ -940,6 +945,7 @@ final class Scene {
 
 	func unloadRecords() {
 		print("== Unloading Records: \(loadedRecords.count)")
+		game?.setLoadBlackoutVisible(false)
 		stopRecordPlayback()
 		loadedRecords.removeAll()
 	}
@@ -955,6 +961,7 @@ final class Scene {
 		let differenceRoots = loadedDifferenceFiles.values.map { $0.rootNode }
 		guard !differenceRoots.isEmpty else {
 			print("== Record Playback skipped: no differences loaded for \(record.name)")
+			game?.setLoadBlackoutVisible(false)
 			return
 		}
 
@@ -1016,6 +1023,7 @@ final class Scene {
 					source: target.source,
 					trackId: target.trackId,
 					startTime: startTime,
+					duration: duration,
 					positionDistance: target.positionDistance,
 					orientationDistance: target.orientationDistance,
 					matches: animationRoot.matches
@@ -1074,7 +1082,7 @@ final class Scene {
 		}
 		print("== Record Animations started: \(startedAnimations) skipped=\(skippedAnimations)")
 		playRecordCamera(record)
-		playRecordSpeech(record)
+		playRecordSpeech(record, animations: resolvedAnimations)
 		playRecordSounds(record)
 	}
 
@@ -1485,7 +1493,7 @@ final class Scene {
 		print("== Record Sounds scheduled: \(scheduledCount)")
 	}
 
-	private func playRecordSpeech(_ record: Record) {
+	private func playRecordSpeech(_ record: Record, animations: [RecordAnimationPlayback]) {
 		guard !record.speechEvents.isEmpty else {
 			return
 		}
@@ -1513,10 +1521,60 @@ final class Scene {
 			)
 			activeRecordSoundSchedules.append(scheduledSound)
 			scheduleRecordSound(scheduledSound, after: event.time)
+			if let speechTarget = recordSpeechTarget(for: event, animations: animations) {
+				scheduleRecordFaceAnimation(
+					soundId: event.soundId,
+					in: speechTarget,
+					after: event.time
+				)
+			}
 			scheduledCount += 1
 		}
 
 		print("== Record Speech scheduled: \(scheduledCount)")
+	}
+
+	private func recordSpeechTarget(
+		for event: RecordSpeechEvent,
+		animations: [RecordAnimationPlayback]
+	) -> SCNNode? {
+		guard hasFaceAnimation(soundId: event.soundId) else { return nil }
+		let activeAnimations = animations.filter {
+			hasFaceAnimationTarget(in: $0.targetNode) &&
+				event.time >= $0.startTime &&
+				event.time <= $0.startTime + $0.duration
+		}
+		return activeAnimations
+			.sorted {
+				if $0.startTime == $1.startTime {
+					return $0.matches > $1.matches
+				}
+				return $0.startTime > $1.startTime
+			}
+			.first?
+			.targetNode
+	}
+
+	private func scheduleRecordFaceAnimation(
+		soundId: Int,
+		in node: SCNNode,
+		after delay: TimeInterval
+	) {
+		let actionKey = "record:face:\(soundId):\(delay)"
+		node.runAction(SCNAction.sequence([
+			.wait(duration: max(0, delay)),
+			.run { node in
+				do {
+					try playFaceAnimation(
+						soundId: soundId,
+						in: node,
+						animationKey: actionKey
+					)
+				} catch {
+					print("== Record Face Animation failed: \(soundId) \(error)")
+				}
+			}
+		]), forKey: actionKey + ":schedule")
 	}
 
 	private func scheduleRecordSound(_ scheduledSound: ScheduledRecordSound, after delay: TimeInterval) {
@@ -1576,6 +1634,7 @@ final class Scene {
 		guard let game = game,
 			  record.cameraKeyframes.count > 1 else {
 			print("== Record Camera skipped: keys=\(record.cameraKeyframes.count)")
+			game?.setLoadBlackoutVisible(false)
 			return
 		}
 
@@ -1626,6 +1685,7 @@ final class Scene {
 		if let fieldOfView = firstKeyframe.fieldOfView {
 			game.cameraNode.camera?.fieldOfView = fieldOfView
 		}
+		game.setLoadBlackoutVisible(false)
 
 		cameraContainer.runAction(SCNAction.customAction(duration: duration) { node, elapsedTime in
 			let time = TimeInterval(elapsedTime)

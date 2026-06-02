@@ -22,7 +22,11 @@ func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
 		return
 	}
 	let baseNormals = baseGeometry.vectors(for: .normal)
+	let baseTextureCoordinates = baseGeometry.textureCoordinates
 	let morpher = SCNMorpher()
+	var morphFrameVertices = [[SCNVector3]]()
+	var morphFrameNormals = [[SCNVector3]]()
+	var morphVertexLinks = [Int]()
 
 	for lod in 0 ..< lodCount {
 		let vertexCount: UInt16 = try stream.read()
@@ -37,8 +41,8 @@ func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
 
 		for _ in 0 ..< vertexCount {
 			for frame in 0 ..< Int(frameCount) {
-				let normal = try SCNVector3(stream: stream)
 				let pointPosition = try SCNVector3(stream: stream)
+				let normal = try SCNVector3(stream: stream)
 				if lod == 0 {
 					frameNormals[frame].append(normal)
 					frameVertices[frame].append(pointPosition)
@@ -59,29 +63,35 @@ func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
 		}
 
 		guard lod == 0 else { continue }
-
-		for frame in 0 ..< Int(frameCount) {
-			var vertices = baseVertices
-			var normals = baseNormals ?? []
-			for (index, vertexLink) in vertexLinks.enumerated() where vertexLink < vertices.count {
-				vertices[vertexLink] = frameVertices[frame][index]
-				if !normals.isEmpty, vertexLink < normals.count {
-					normals[vertexLink] = frameNormals[frame][index]
-				}
-			}
-
-			var geometrySources = [SCNGeometrySource(vertices: vertices)]
-			if !normals.isEmpty {
-				geometrySources.append(SCNGeometrySource(normals: normals))
-			}
-			let geometry = SCNGeometry(sources: geometrySources, elements: baseGeometry.allGeometryElements)
-			geometry.materials = baseGeometry.materials
-			morpher.targets.append(geometry)
-		}
+		morphFrameVertices = frameVertices
+		morphFrameNormals = frameNormals
+		morphVertexLinks = vertexLinks
 	}
 
 	for _ in 0 ..< 10 {
 		let _: Float = try stream.read()
+	}
+
+	for frame in 0 ..< Int(frameCount) {
+		var vertices = baseVertices
+		var normals = baseNormals ?? []
+		for (index, vertexLink) in morphVertexLinks.enumerated() where vertexLink < vertices.count {
+			vertices[vertexLink] = morphFrameVertices[frame][index]
+			if !normals.isEmpty, vertexLink < normals.count {
+				normals[vertexLink] = morphFrameNormals[frame][index]
+			}
+		}
+
+		var geometrySources = [SCNGeometrySource(vertices: vertices)]
+		if !normals.isEmpty {
+			geometrySources.append(SCNGeometrySource(normals: normals))
+		}
+		if let baseTextureCoordinates = baseTextureCoordinates {
+			geometrySources.append(baseTextureCoordinates)
+		}
+		let geometry = SCNGeometry(sources: geometrySources, elements: baseGeometry.allGeometryElements)
+		geometry.materials = baseGeometry.materials
+		morpher.targets.append(geometry)
 	}
 
 	for index in 0 ..< morpher.targets.count {
@@ -125,6 +135,10 @@ private extension SCNGeometry {
 				z: SCNFloat(data.float32(at: offset + source.bytesPerComponent * 2))
 			)
 		}
+	}
+
+	var textureCoordinates: SCNGeometrySource? {
+		return sources(for: .texcoord).first
 	}
 }
 
