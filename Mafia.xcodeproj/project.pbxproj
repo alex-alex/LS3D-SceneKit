@@ -16,6 +16,8 @@
 		FA1000010000000000000003 /* DifferenceFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1000010000000000000001 /* DifferenceFile.swift */; };
 		FA2000010000000000000002 /* MenuDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2000010000000000000001 /* MenuDef.swift */; };
 		FA2000010000000000000003 /* MenuDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2000010000000000000001 /* MenuDef.swift */; };
+		FA3000010000000000000002 /* MaterialDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000010000000000000001 /* MaterialDef.swift */; };
+		FA3000010000000000000003 /* MaterialDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000010000000000000001 /* MaterialDef.swift */; };
 		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
 		FA2FE8B9200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
 		FA2FE8BA200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
@@ -134,6 +136,7 @@
 		FA0D45591D610BB500B7C721 /* MissionEffects.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MissionEffects.swift; sourceTree = "<group>"; };
 		FA1000010000000000000001 /* DifferenceFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DifferenceFile.swift; sourceTree = "<group>"; };
 		FA2000010000000000000001 /* MenuDef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuDef.swift; sourceTree = "<group>"; };
+		FA3000010000000000000001 /* MaterialDef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialDef.swift; sourceTree = "<group>"; };
 		FA177F8C1E3534B2009FA6D7 /* Script.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Script.swift; sourceTree = "<group>"; };
 		FA2FE8B8200FD1650057A80E /* Aurora.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Aurora.ttf; sourceTree = "<group>"; };
 		FA2000020000000000000001 /* Freehand-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Freehand-Regular.ttf"; sourceTree = "<group>"; };
@@ -330,6 +333,7 @@
 			isa = PBXGroup;
 			children = (
 				FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */,
+				FA3000010000000000000001 /* MaterialDef.swift */,
 				FA37F0C4204C93BA001FF8A7 /* CollisionVolume.swift */,
 				FA37F0B2204C9262001FF8A7 /* CollisionTriangle.swift */,
 				FA37F0B5204C9289001FF8A7 /* CollisionAABB.swift */,
@@ -618,6 +622,7 @@
 				FA37F0A9204C8D26001FF8A7 /* InputStreamUtils.swift in Sources */,
 				FA4B74152006427E00E0A66F /* Record.swift in Sources */,
 				FA37F0C5204C93BA001FF8A7 /* CollisionVolume.swift in Sources */,
+				FA3000010000000000000002 /* MaterialDef.swift in Sources */,
 				FA518F2D200F64E0004069D4 /* AnimationPosition.swift in Sources */,
 				FABBB1A21D621E49006A39F8 /* TextDb.swift in Sources */,
 				FA2000010000000000000002 /* MenuDef.swift in Sources */,
@@ -672,6 +677,7 @@
 				FA37F0AA204C8D26001FF8A7 /* InputStreamUtils.swift in Sources */,
 				FA6DAAFA1D67709C002017DE /* TextDb.swift in Sources */,
 				FA2000010000000000000003 /* MenuDef.swift in Sources */,
+				FA3000010000000000000003 /* MaterialDef.swift in Sources */,
 				FA37F0C6204C93BA001FF8A7 /* CollisionVolume.swift in Sources */,
 				FA518F2E200F64E0004069D4 /* AnimationPosition.swift in Sources */,
 				FA355C5A20092BC800512DC0 /* CMAccelerationUtils.swift in Sources */,

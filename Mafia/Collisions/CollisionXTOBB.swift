@@ -39,7 +39,7 @@ struct XTOBB {
 //		node.geometry = box
 //		node.transform = transform
 
-		if volume.mtlId == 41 {
+		if volume.mtlId == MaterialDef.crashCollisionId {
 			guard let shape = _node.convexHullPhysicsShapeFromGeometryHierarchy() else { return node }
 			_node.physicsBody = SCNPhysicsBody(type: .dynamic, shape: shape)
 			_node.physicsBody?.mass = 35

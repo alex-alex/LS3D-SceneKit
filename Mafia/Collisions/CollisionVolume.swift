@@ -34,6 +34,9 @@ struct Volume {
 	var flags: UInt8
 	var mtlId: UInt8
 	var linkId: UInt32?
+	var material: MaterialDef? {
+		return MaterialDef.get(mtlId)
+	}
 
 	init(stream: InputStream, hasLink: Bool) throws {
 		type = try VolumeType(forcedRawValue: stream.read())

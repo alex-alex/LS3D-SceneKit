@@ -28,13 +28,12 @@ struct Triangle {
 		}
 	}
 
-	//var volume: Volume
+	var volume: Volume
 	var vertices: [VertexLink] = []
 	//var plane: Plane
 
 	init(stream: InputStream) throws {
-		//volume = try Volume(stream: stream, hasLink: false)
-		stream.currentOffset += 4
+		volume = try Volume(stream: stream, hasLink: false)
 
 		for _ in 0 ..< 3 {
 			try vertices.append(VertexLink(stream: stream))
