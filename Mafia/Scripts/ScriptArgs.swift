@@ -191,8 +191,10 @@ extension Script {
 		case "human_candie":			return getArgs_human_candie(scanner)
 		case "human_death":				return getArgs_human_death(scanner)
 		case "human_delweapon":			return getArgs_human_delweapon(scanner)
+		case "human_force_settocar":	return getArgs_human_force_settocar(scanner)
 		case "human_getactanimid":		return getArgs_human_getactanimid(scanner)
 		case "human_getiteminrhand":		return getArgs_human_getiteminrhand(scanner)
+		case "human_getowner":			return getArgs_human_getowner(scanner)
 		case "human_getproperty":		return getArgs_human_getproperty(scanner)
 		case "human_holster":			return getArgs_human_holster(scanner)
 		case "human_isweapon":			return getArgs_human_isweapon(scanner)
@@ -598,11 +600,19 @@ extension Script {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_human_force_settocar(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_human_getactanimid(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_human_getiteminrhand(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_human_getowner(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 

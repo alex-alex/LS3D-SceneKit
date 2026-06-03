@@ -101,8 +101,10 @@ extension Script {
 		case .humanCandie:				human_candie(command.args)
 		case .humanDeath:				human_death(command.args)
 		case .humanDelweapon:			human_delweapon(command.args)
+		case .humanForceSettocar:		human_force_settocar(command.args)
 		case .humanGetactanimid:		human_getactanimid(command.args)
 		case .humanGetiteminrhand:		human_getiteminrhand(command.args)
+		case .humanGetowner:			human_getowner(command.args)
 		case .humanGetproperty:			human_getproperty(command.args)
 		case .humanHolster:				human_holster(command.args)
 		case .humanIsweapon:			human_isweapon(command.args)
@@ -459,11 +461,12 @@ extension Script {
 	}
 
 	private func compareownerwithex(_ args: [Argument]) {
-		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
+		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let carId = args[1].getValueOrVarValue(vars: vars)
 		let label1 = args[2].getString()
 		let label2 = args[3].getString()
-		if playerOwnerMatches(carId: carId) {
+		if humanOwnerMatches(actorId: actorId, carId: carId) ||
+			(isPlayerActor(actorId) && playerOwnerMatches(carId: carId)) {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
@@ -1138,6 +1141,27 @@ extension Script {
 		next()
 	}
 
+	private func human_force_settocar(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let carId = args[1].getValueOrVarValue(vars: vars)
+		let seatId = args[2].getValueOrVarValue(vars: vars)
+		guard let actor = node(forScriptId: actorId),
+			  let car = node(forScriptId: carId) else {
+			next()
+			return
+		}
+
+		scene.humanVehicleOwners[ObjectIdentifier(actor)] = car
+		placeHuman(actor, inCar: car, seatId: seatId)
+
+		if isPlayerActor(actorId) {
+			DispatchQueue.main.async {
+				self.scene.game.enterScriptedVehicle(car)
+			}
+		}
+		next()
+	}
+
 	private func human_getactanimid(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
@@ -1156,6 +1180,19 @@ extension Script {
 		} else {
 			vars[varId] = -1
 		}
+		next()
+	}
+
+	private func human_getowner(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		guard let actor = node(forScriptId: actorId),
+			  let owner = scene.humanVehicleOwners[ObjectIdentifier(actor)] else {
+			vars[varId] = -1
+			next()
+			return
+		}
+		vars[varId] = Float(scriptId(for: owner) ?? -1)
 		next()
 	}
 
@@ -2068,6 +2105,48 @@ extension Script {
 			return scene.game.playerOwnerMatches(carNode: carNode)
 		}
 		return scene.game.mode == .car && scene.game.vehicle != nil
+	}
+
+	private func humanOwnerMatches(actorId: Int, carId: Int) -> Bool {
+		guard let actor = node(forScriptId: actorId),
+			  let car = node(forScriptId: carId),
+			  let owner = scene.humanVehicleOwners[ObjectIdentifier(actor)] else {
+			return false
+		}
+		return owner === car || owner.name == car.name
+	}
+
+	private func scriptId(for target: SCNNode) -> Int? {
+		if let actor = actors.first(where: { $0.value === target || $0.value.name == target.name }) {
+			return actor.key
+		}
+		if let frame = frames.first(where: { $0.value === target || $0.value.name == target.name }) {
+			return frame.key
+		}
+		return nil
+	}
+
+	private func placeHuman(_ actor: SCNNode, inCar car: SCNNode, seatId: Int) {
+		let body = car.mafiaChildNode(named: "BODY", recursively: false) ?? car
+		let bounds = body.boundingBox
+		let width = bounds.max.x - bounds.min.x
+		let height = bounds.max.y - bounds.min.y
+		let length = bounds.max.z - bounds.min.z
+		guard width > 0, height > 0, length > 0 else {
+			actor.worldPosition = car.presentation.worldPosition
+			actor.isHidden = true
+			return
+		}
+
+		let isLeftSeat = seatId == 0 || seatId == 2
+		let isFrontSeat = seatId == 0 || seatId == 1
+		let seatPosition = SCNVector3(
+			x: (bounds.min.x + bounds.max.x) / 2 + (isLeftSeat ? -width : width) * 0.18,
+			y: bounds.min.y + height * 0.55,
+			z: (bounds.min.z + bounds.max.z) / 2 + (isFrontSeat ? length : -length) * 0.18
+		)
+		actor.worldPosition = body.presentation.convertPosition(seatPosition, to: nil)
+		actor.isHidden = true
 	}
 
 	private func stopCarPhysics(carId: Int, brakeCurrentVehicle: Bool) {

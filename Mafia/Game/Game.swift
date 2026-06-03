@@ -817,6 +817,22 @@ final class Game: NSObject {
 			isNode(node, inside: vehicle.scriptNode)
 	}
 
+	func enterScriptedVehicle(_ node: SCNNode) {
+		if let vehicle = vehicle,
+		   isVehicle(vehicle, matching: node) {
+			mode = .car
+			return
+		}
+
+		if let vehicle = vehicle {
+			vehicle.updateAudio(isActive: false)
+			scnScene.physicsWorld.removeBehavior(vehicle.physicsVehicle)
+		}
+		guard let scriptedVehicle = Vehicle(scene: scnScene, node: node) else { return }
+		vehicle = scriptedVehicle
+		mode = .car
+	}
+
 	func setup(in view: SCNView) {
 		hud = HudScene(size: view.bounds.size, game: self)
 		view.scene = scnScene
