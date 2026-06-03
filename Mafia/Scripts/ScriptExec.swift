@@ -167,6 +167,7 @@ extension Script {
 		case .streamGetpos:				stream_getpos(command.args)
 		case .streamPause:				stream_pause(command.args)
 		case .streamPlay:				stream_play(command.args)
+		case .streamSetpos:				stream_setpos(command.args)
 		case .streamSetloop:			stream_setloop(command.args)
 		case .streamStop:				stream_stop(command.args)
 		case .subtitleAdd:				subtitle_add(command.args)
@@ -1826,7 +1827,9 @@ extension Script {
 
 	private func stream_destroy(_ args: [Argument]) {
 		let streamId = musicStreamId(from: args[0])
-		if let stream = streams.removeValue(forKey: streamId) {
+		if sharedStreamIds.remove(streamId) != nil {
+			streams.removeValue(forKey: streamId)
+		} else if let stream = streams.removeValue(forKey: streamId) {
 			DispatchQueue.main.async {
 				stream.destroy()
 			}
@@ -1883,20 +1886,39 @@ extension Script {
 		next()
 	}
 
+	private func stream_setpos(_ args: [Argument]) {
+		let streamId = musicStreamId(from: args[0])
+		let position = args[1].getValueOrVarValue(vars: vars)
+		if let stream = streams[streamId] {
+			DispatchQueue.main.async {
+				stream.setPosition(milliseconds: position)
+			}
+		}
+		next()
+	}
+
 	private func getfilmmusic(_ args: [Argument]) {
-		playFilmMusicStream(args)
+		let varId = args.first?.getValueOrVarValue(vars: vars) ?? 0
+		let slot = args.count > 1 ? args[1].getValueOrVarValue(vars: vars) : 0
+		guard let stream = scene.filmMusicStream(at: slot) else {
+			vars[varId] = 0
+			next()
+			return
+		}
+
+		let streamId = nextStreamId
+		nextStreamId += 1
+		streams[streamId] = stream
+		sharedStreamIds.insert(streamId)
+		vars[varId] = Float(streamId)
+		next()
 	}
 
 	private func setfilmmusic(_ args: [Argument]) {
-		playFilmMusicStream(args)
-	}
-
-	private func playFilmMusicStream(_ args: [Argument]) {
 		let streamId = musicStreamId(from: args.first)
 		if let stream = streams[streamId] {
-			DispatchQueue.main.async {
-				stream.play()
-			}
+			scene.addFilmMusicStream(stream)
+			sharedStreamIds.insert(streamId)
 		}
 		next()
 	}
@@ -2433,6 +2455,10 @@ final class ScriptMusicStream {
 		playback.stop()
 	}
 
+	func setPosition(milliseconds: Int) {
+		playback.setPosition(milliseconds: milliseconds)
+	}
+
 	func destroy() {
 		playback.destroy()
 	}
@@ -2456,6 +2482,7 @@ private protocol ScriptMusicStreamPlayback: AnyObject {
 	func play()
 	func pause()
 	func stop()
+	func setPosition(milliseconds: Int)
 	func destroy()
 	func setLoop(_ loops: Bool)
 	func setGamePaused(_ paused: Bool)
@@ -2518,7 +2545,6 @@ private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback
 				self.playbackState = .playing
 
 			case .stopped:
-				self.accumulatedPosition = 0
 				self.startsAt = Date.timeIntervalSinceReferenceDate
 				self.playbackState = .playing
 				self.scheduleBuffer()
@@ -2537,6 +2563,22 @@ private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback
 	func stop() {
 		runOnMain {
 			self.stopPlaying(resetPosition: true)
+		}
+	}
+
+	func setPosition(milliseconds: Int) {
+		runOnMain {
+			let position = self.clampedPosition(TimeInterval(max(0, milliseconds)) / 1000)
+			let wasPlaying = self.playbackState == .playing
+			let shouldReschedule = self.playbackState != .stopped
+			self.accumulatedPosition = position
+			self.startsAt = wasPlaying ? Date.timeIntervalSinceReferenceDate : nil
+			if shouldReschedule {
+				self.scheduleBuffer()
+			}
+			if wasPlaying {
+				self.playerNode.play()
+			}
 		}
 	}
 
@@ -2597,8 +2639,12 @@ private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback
 		playbackGeneration += 1
 		let generation = playbackGeneration
 		playerNode.stop()
+		guard let scheduledBuffer = makeBuffer(from: accumulatedPosition) else {
+			stopPlaying(resetPosition: true)
+			return
+		}
 		let options: AVAudioPlayerNodeBufferOptions = loops ? [.loops] : []
-		playerNode.scheduleBuffer(buffer, at: nil, options: options) { [weak self] in
+		playerNode.scheduleBuffer(scheduledBuffer, at: nil, options: options) { [weak self] in
 			DispatchQueue.main.async {
 				guard let self = self,
 					  self.playbackGeneration == generation,
@@ -2640,6 +2686,35 @@ private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback
 			return position.truncatingRemainder(dividingBy: duration)
 		}
 		return max(0, min(position, duration))
+	}
+
+	private func clampedPosition(_ position: TimeInterval) -> TimeInterval {
+		return max(0, min(position, duration))
+	}
+
+	private func makeBuffer(from position: TimeInterval) -> AVAudioPCMBuffer? {
+		let startFrame = min(buffer.frameLength, AVAudioFrameCount((clampedPosition(position) * buffer.format.sampleRate).rounded(.down)))
+		let frameCount = buffer.frameLength - startFrame
+		guard frameCount > 0,
+			  let scheduledBuffer = AVAudioPCMBuffer(pcmFormat: buffer.format, frameCapacity: frameCount) else {
+			return nil
+		}
+
+		scheduledBuffer.frameLength = frameCount
+		let sourceBuffers = UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList)
+		let destinationBuffers = UnsafeMutableAudioBufferListPointer(scheduledBuffer.mutableAudioBufferList)
+		for index in 0..<min(sourceBuffers.count, destinationBuffers.count) {
+			let source = sourceBuffers[index]
+			let destination = destinationBuffers[index]
+			guard let sourceData = source.mData,
+				  let destinationData = destination.mData,
+				  buffer.frameLength > 0 else { continue }
+			let bytesPerFrame = Int(source.mDataByteSize) / Int(buffer.frameLength)
+			let byteOffset = Int(startFrame) * bytesPerFrame
+			let byteCount = Int(frameCount) * bytesPerFrame
+			memcpy(destinationData, sourceData.advanced(by: byteOffset), byteCount)
+		}
+		return scheduledBuffer
 	}
 
 	private func setVolume(_ volume: Float) {
@@ -2705,6 +2780,7 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 	private var stream: OpaquePointer?
 	private let sampleRate: Double
 	private let duration: TimeInterval
+	private let frameCount: Int64
 	private var playbackState: PlaybackState = .stopped
 	private var loops = false
 	private var volume: Float = 1
@@ -2733,6 +2809,7 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 		self.stream = stream
 		self.sampleRate = Double(sampleRate)
 		self.duration = TimeInterval(OggVorbisStreamGetDuration(stream))
+		self.frameCount = Int64(OggVorbisStreamGetFrameCount(stream))
 
 		sourceNode = AVAudioSourceNode(format: format) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
 			self?.render(frameCount: frameCount, audioBufferList: audioBufferList) ?? 0
@@ -2772,10 +2849,10 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 			case .paused:
 				self.playbackState = .playing
 			case .stopped:
-				if let stream = self.stream {
-					OggVorbisStreamSeekStart(stream)
+				if let stream = self.stream,
+				   self.samplePosition > 0 {
+					OggVorbisStreamSeek(stream, Int32(max(0, min(self.samplePosition, Int64(Int32.max)))))
 				}
-				self.samplePosition = 0
 				self.playbackState = .playing
 			}
 		}
@@ -2794,6 +2871,21 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 	func stop() {
 		runOnMain {
 			self.stopPlaying(resetPosition: true)
+		}
+	}
+
+	func setPosition(milliseconds: Int) {
+		runOnMain {
+			let requestedPosition = TimeInterval(max(0, milliseconds)) / 1000
+			let frame = Int64((requestedPosition * self.sampleRate).rounded(.down))
+			let maxFrame = self.frameCount > 0 ? self.frameCount : Int64(Int32.max)
+			let clampedFrame = max(0, min(frame, maxFrame, Int64(Int32.max)))
+			self.lock.lock()
+			if let stream = self.stream,
+			   OggVorbisStreamSeek(stream, Int32(clampedFrame)) {
+				self.samplePosition = clampedFrame
+			}
+			self.lock.unlock()
 		}
 	}
 
@@ -2891,6 +2983,8 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 				didSeekForLoop = true
 			} else {
 				playbackState = .stopped
+				OggVorbisStreamSeekStart(stream)
+				samplePosition = 0
 				fillSilence(buffers: buffers, from: framesWritten, frameCount: frameCount - framesWritten)
 				break
 			}

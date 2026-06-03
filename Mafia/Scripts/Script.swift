@@ -226,6 +226,7 @@ enum ScriptCommandName: String {
 	case streamGetpos = "stream_getpos"
 	case streamPause = "stream_pause"
 	case streamPlay = "stream_play"
+	case streamSetpos = "stream_setpos"
 	case streamSetloop = "stream_setloop"
 	case streamStop = "stream_stop"
 	case subtitleAdd = "subtitle_add"
@@ -319,6 +320,7 @@ final class Script {
 	var soundPlaybacks: [Int: ScriptSoundPlayback] = [:]
 	var nextSoundPlaybackId = 1
 	var streams: [Int: ScriptMusicStream] = [:]
+	var sharedStreamIds = Set<Int>()
 	var nextStreamId = 1
 	var pendingEnemyTalk: ScriptEnemyTalkOperation?
 	var lastTickTime = Date.timeIntervalSinceReferenceDate
@@ -376,6 +378,27 @@ final class Script {
 		queue.async {
 			guard !self.isRunning, !self.commands.isEmpty else { return }
 			self.isRunning = true
+			self.run()
+		}
+	}
+
+	func restart() {
+		queue.async {
+			guard !self.commands.isEmpty else { return }
+			self.currentLine = 0
+			self.isRunning = true
+			self.hasPendingRun = false
+			self.hasPendingNext = false
+			self.commandBlockDepth = 0
+			self.pendingCommandBlockAsyncOperations = 0
+			self.isWaitingForCommandBlockAsyncOperations = false
+			self.mainInEvent = false
+			self.currentEventId = nil
+			self.lineBeforeEvent = 0
+			self.executingEvent = false
+			self.eventCompletionHandler = nil
+			self.eventIdQueue.removeAll()
+			self.eventIdQueueStartIndex = 0
 			self.run()
 		}
 	}
@@ -455,8 +478,11 @@ final class Script {
 
 	func destroyMusicStreams() {
 		queue.async {
-			let streams = Array(self.streams.values)
+			let streams = self.streams.compactMap { streamId, stream in
+				self.sharedStreamIds.contains(streamId) ? nil : stream
+			}
 			self.streams.removeAll()
+			self.sharedStreamIds.removeAll()
 			DispatchQueue.main.async {
 				for stream in streams {
 					stream.destroy()

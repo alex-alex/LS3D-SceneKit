@@ -21,6 +21,7 @@ extern unsigned int stb_vorbis_stream_length_in_samples(stb_vorbis *f);
 extern float stb_vorbis_stream_length_in_seconds(stb_vorbis *f);
 extern int stb_vorbis_get_samples_float(stb_vorbis *f, int channels, float **buffer, int num_samples);
 extern int stb_vorbis_seek_start(stb_vorbis *f);
+extern int stb_vorbis_seek(stb_vorbis *f, unsigned int sample_number);
 
 struct OggVorbisStream {
 	stb_vorbis *vorbis;
@@ -148,4 +149,17 @@ bool OggVorbisStreamSeekStart(OggVorbisStream *stream) {
 		return false;
 	}
 	return stb_vorbis_seek_start(stream->vorbis) != 0;
+}
+
+bool OggVorbisStreamSeek(OggVorbisStream *stream, int frame) {
+	if (stream == NULL || stream->vorbis == NULL) {
+		return false;
+	}
+	if (frame < 0) {
+		frame = 0;
+	}
+	if (stream->frameCount > 0 && frame > stream->frameCount) {
+		frame = stream->frameCount;
+	}
+	return stb_vorbis_seek(stream->vorbis, (unsigned int)frame) != 0;
 }

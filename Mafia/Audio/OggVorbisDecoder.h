@@ -23,5 +23,6 @@ int OggVorbisStreamGetFrameCount(OggVorbisStream *stream);
 float OggVorbisStreamGetDuration(OggVorbisStream *stream);
 int OggVorbisStreamRead(OggVorbisStream *stream, float **channelData, int frameCapacity);
 bool OggVorbisStreamSeekStart(OggVorbisStream *stream);
+bool OggVorbisStreamSeek(OggVorbisStream *stream, int frame);
 
 #endif

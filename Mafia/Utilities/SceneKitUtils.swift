@@ -144,7 +144,8 @@ func mafiaResourceURL(directory: String, name: String) -> URL? {
 		return directURL
 	}
 
-	let normalizedName = name.lowercased()
+	let normalizedName = name.replacingOccurrences(of: "\\", with: "/").lowercased()
+	let isNestedName = normalizedName.contains("/")
 	guard let enumerator = FileManager.default.enumerator(
 		at: directoryURL,
 		includingPropertiesForKeys: nil,
@@ -153,8 +154,18 @@ func mafiaResourceURL(directory: String, name: String) -> URL? {
 		return nil
 	}
 
-	for case let url as URL in enumerator where url.lastPathComponent.lowercased() == normalizedName {
-		return url
+	for case let url as URL in enumerator {
+		if isNestedName {
+			let relativePath = url.path
+				.dropFirst(directoryURL.path.count)
+				.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+				.lowercased()
+			if relativePath == normalizedName {
+				return url
+			}
+		} else if url.lastPathComponent.lowercased() == normalizedName {
+			return url
+		}
 	}
 	return nil
 }

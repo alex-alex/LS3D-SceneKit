@@ -188,6 +188,21 @@ private final class ScheduledRecordSound {
 	}
 }
 
+private final class ScheduledRecordEvent {
+	let recordName: String
+	let event: RecordTimedEvent
+	var workItem: DispatchWorkItem?
+	var deadline: TimeInterval?
+	var remaining: TimeInterval
+	var didDispatch = false
+
+	init(recordName: String, event: RecordTimedEvent) {
+		self.recordName = recordName
+		self.event = event
+		self.remaining = event.time
+	}
+}
+
 private struct RecordSoundBinding {
 	let fileName: String
 	let url: URL
@@ -502,6 +517,10 @@ final class Scene {
 	private var pendingRecordLoads: [String: [PendingRecordLoad]] = [:]
 	private var activeRecordNames = Set<String>()
 	private var activeRecordPlaybacks: [String: ActiveRecordPlayback] = [:]
+	private var activeRecordEventSchedules: [ScheduledRecordEvent] = []
+	private let filmMusicStreamsLock = NSLock()
+	private var filmMusicStreams: [Int: ScriptMusicStream] = [:]
+	private var nextFilmMusicSlot = 0
 	private var recordCameraRestore: (
 		parent: SCNNode?,
 		transform: SCNMatrix4,
@@ -1194,7 +1213,7 @@ final class Scene {
 			loadedScript.node.actorState = .active
 			loadedScript.applyDeclaredInitialActorState()
 			scripts[script.name] = loadedScript
-			if didStartScripts {
+			if didStartScripts && script.name == "GameInitStart" {
 				loadedScript.start()
 			}
 			loadedDifferenceScriptNames.insert(script.name)
@@ -1676,6 +1695,7 @@ final class Scene {
 		}
 		print("== Record Transforms started: \(startedTransforms)")
 		playRecordCamera(record)
+		playRecordEvents(record)
 		playRecordSpeech(record, animations: resolvedAnimations)
 		playRecordSounds(record)
 		startActiveRecordPlayback(record, duration: recordDuration)
@@ -2406,6 +2426,60 @@ final class Scene {
 		print("== Record Speech scheduled: \(scheduledCount)")
 	}
 
+	private func playRecordEvents(_ record: Record) {
+		let events = record.timedEvents.filter { !$0.isStop }
+		guard !events.isEmpty else { return }
+
+		print("== Record Events scheduling: \(events.count)")
+		for event in events {
+			let scheduledEvent = ScheduledRecordEvent(recordName: record.name, event: event)
+			activeRecordEventSchedules.append(scheduledEvent)
+			scheduleRecordEvent(scheduledEvent, after: event.time)
+		}
+	}
+
+	private func scheduleRecordEvent(_ scheduledEvent: ScheduledRecordEvent, after delay: TimeInterval) {
+		scheduledEvent.workItem?.cancel()
+		scheduledEvent.workItem = nil
+		scheduledEvent.deadline = nil
+		scheduledEvent.remaining = delay
+		guard !game.isGamePaused else { return }
+
+		let workItem = DispatchWorkItem { [weak self, weak scheduledEvent] in
+			guard let self = self,
+				  let scheduledEvent = scheduledEvent,
+				  !scheduledEvent.didDispatch,
+				  self.activeRecordNames.contains(scheduledEvent.recordName) else { return }
+			scheduledEvent.didDispatch = true
+			scheduledEvent.workItem = nil
+			scheduledEvent.deadline = nil
+			self.dispatchRecordEvent(scheduledEvent.event)
+		}
+		scheduledEvent.workItem = workItem
+		scheduledEvent.deadline = Date.timeIntervalSinceReferenceDate + delay
+		DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: workItem)
+	}
+
+	private func dispatchRecordEvent(_ event: RecordTimedEvent) {
+		var didDispatch = false
+		if let script = scripts[event.name] ?? initScripts[event.name] {
+			print("== Record Event script: \(String(format: "%.2f", event.time))s \(event.name)")
+			script.restart()
+			didDispatch = true
+		}
+
+		let allScripts = Array(initScripts.values) + Array(scripts.values)
+		for script in allScripts where script.events[event.name] != nil {
+			print("== Record Event enqueue: \(String(format: "%.2f", event.time))s \(event.name)")
+			script.enqueueEvent(event.name)
+			didDispatch = true
+		}
+
+		if !didDispatch && event.name.hasPrefix("Music") {
+			print("== Record Event missing music handler: \(event.name)")
+		}
+	}
+
 	private func logRecordFaceAnimationTargetFailure(
 		for event: RecordSpeechEvent,
 		animations: [RecordAnimationPlayback]
@@ -2812,6 +2886,18 @@ final class Scene {
 			scheduledSound.workItem?.cancel()
 		}
 		activeRecordSoundSchedules.removeAll()
+		for scheduledEvent in activeRecordEventSchedules {
+			scheduledEvent.workItem?.cancel()
+		}
+		activeRecordEventSchedules.removeAll()
+		filmMusicStreamsLock.lock()
+		let filmMusicStreams = Array(self.filmMusicStreams.values)
+		self.filmMusicStreams.removeAll()
+		nextFilmMusicSlot = 0
+		filmMusicStreamsLock.unlock()
+		for stream in filmMusicStreams {
+			stream.destroy()
+		}
 		for playback in activeRecordPlaybacks.values {
 			playback.workItem?.cancel()
 		}
@@ -2915,6 +3001,7 @@ final class Scene {
 		isAudioPaused = isPaused
 		setActiveRecordPlaybacksPaused(isPaused)
 		setRecordSoundSchedulesPaused(isPaused)
+		setRecordEventSchedulesPaused(isPaused)
 		setScriptMusicStreamsPaused(isPaused)
 		var detachedPlayerIds: [ObjectIdentifier] = []
 		for (playerId, activePlayer) in activeAudioPlayers {
@@ -2950,6 +3037,20 @@ final class Scene {
 		}
 	}
 
+	func addFilmMusicStream(_ stream: ScriptMusicStream) {
+		filmMusicStreamsLock.lock()
+		filmMusicStreams[nextFilmMusicSlot] = stream
+		nextFilmMusicSlot += 1
+		filmMusicStreamsLock.unlock()
+	}
+
+	func filmMusicStream(at slot: Int) -> ScriptMusicStream? {
+		filmMusicStreamsLock.lock()
+		let stream = filmMusicStreams[slot]
+		filmMusicStreamsLock.unlock()
+		return stream
+	}
+
 	private func setRecordSoundSchedulesPaused(_ isPaused: Bool) {
 		for scheduledSound in activeRecordSoundSchedules where !scheduledSound.didPlay {
 			if isPaused {
@@ -2961,6 +3062,21 @@ final class Scene {
 				scheduledSound.deadline = nil
 			} else {
 				scheduleRecordSound(scheduledSound, after: scheduledSound.remaining)
+			}
+		}
+	}
+
+	private func setRecordEventSchedulesPaused(_ isPaused: Bool) {
+		for scheduledEvent in activeRecordEventSchedules where !scheduledEvent.didDispatch {
+			if isPaused {
+				if let deadline = scheduledEvent.deadline {
+					scheduledEvent.remaining = max(0, deadline - Date.timeIntervalSinceReferenceDate)
+				}
+				scheduledEvent.workItem?.cancel()
+				scheduledEvent.workItem = nil
+				scheduledEvent.deadline = nil
+			} else {
+				scheduleRecordEvent(scheduledEvent, after: scheduledEvent.remaining)
 			}
 		}
 	}

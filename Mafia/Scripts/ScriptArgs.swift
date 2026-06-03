@@ -247,6 +247,7 @@ extension Script {
 		case "stream_getpos":			return getArgs_stream_getpos(scanner)
 		case "stream_pause":			return getArgs_stream_pause(scanner)
 		case "stream_play":				return getArgs_stream_play(scanner)
+		case "stream_setpos":			return getArgs_stream_setpos(scanner)
 		case "stream_setloop":			return getArgs_stream_setloop(scanner)
 		case "stream_stop":				return getArgs_stream_stop(scanner)
 		case "subtitle_add":			return getArgs_subtitle_add(scanner)
@@ -880,6 +881,10 @@ extension Script {
 
 	private func getArgs_stream_play(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_stream_setpos(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_stream_setloop(_ scanner: Scanner) -> [Argument] {
