@@ -273,6 +273,10 @@ final class Vehicle {
 		audio?.update(on: node, speed: speed, throttle: -force / engineForce, isBraking: isBraking, isActive: isActive)
 	}
 
+	func playHorn() {
+		audio?.playHorn(on: node)
+	}
+
 	func setAudioPaused(_ isPaused: Bool) {
 		audio?.setPaused(isPaused)
 	}
@@ -287,6 +291,7 @@ private struct VehicleSoundProfile {
 	let idleLoopSound: String?
 	let engineLoopSounds: [String]
 	let brakeLoopSound: String?
+	let hornSound: String?
 
 	private static let recordStride = 4429
 	private static let profiles = loadProfiles()
@@ -308,7 +313,7 @@ private struct VehicleSoundProfile {
 		for name in candidateNames {
 			if let profile = profiles[name] {
 				VehicleSoundLog.log(
-					"Matched vehicle sound profile '\(name)': start=\(profile.startSound ?? "nil"), stop=\(profile.stopSound ?? "nil"), idle=\(profile.idleLoopSound ?? "nil"), brake=\(profile.brakeLoopSound ?? "nil"), loops=\(profile.engineLoopSounds.joined(separator: ", "))"
+					"Matched vehicle sound profile '\(name)': start=\(profile.startSound ?? "nil"), stop=\(profile.stopSound ?? "nil"), idle=\(profile.idleLoopSound ?? "nil"), brake=\(profile.brakeLoopSound ?? "nil"), horn=\(profile.hornSound ?? "nil"), loops=\(profile.engineLoopSounds.joined(separator: ", "))"
 				)
 				return profile
 			}
@@ -376,6 +381,7 @@ private struct VehicleSoundProfile {
 		let stopSound = vehicleNames.first { $0.hasSuffix("_off.wav") || $0.hasSuffix("_of.wav") }
 		let npcLoopSound = vehicleNames.first { $0.contains("_npc") && $0.hasSuffix(".wav") }
 		let idleLoopSound = vehicleNames.first { $0.hasSuffix("_0.wav") }
+		let hornSound = existingSoundName(from: names.filter { $0.contains("horn") && $0.hasSuffix(".wav") }.map { Optional($0) })
 		let brakeLoopSound = existingSoundName(from: [
 			names.first { $0 == "brzdy_loop.wav" },
 			names.first { $0 == "break.wav" },
@@ -389,7 +395,7 @@ private struct VehicleSoundProfile {
 			}
 		}
 
-		guard startSound != nil || stopSound != nil || idleLoopSound != nil || !engineLoopSounds.isEmpty else {
+		guard startSound != nil || stopSound != nil || idleLoopSound != nil || !engineLoopSounds.isEmpty || hornSound != nil else {
 			return nil
 		}
 
@@ -399,7 +405,8 @@ private struct VehicleSoundProfile {
 			npcLoopSound: npcLoopSound,
 			idleLoopSound: idleLoopSound,
 			engineLoopSounds: engineLoopSounds,
-			brakeLoopSound: brakeLoopSound
+			brakeLoopSound: brakeLoopSound,
+			hornSound: hornSound
 		)
 	}
 
@@ -492,6 +499,18 @@ private final class VehicleAudio {
 
 		playLoop(loopSoundName(for: speed, throttle: throttle), on: node)
 		updateBrakeLoop(on: node, speed: speed, isBraking: isBraking)
+	}
+
+	func playHorn(on node: SCNNode) {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.playHorn(on: node)
+			}
+			return
+		}
+
+		VehicleSoundLog.log("Playing vehicle horn '\(profile.hornSound ?? "nil")' on node '\(node.name ?? "<unnamed>")'")
+		playOneShot(profile.hornSound, on: node)
 	}
 
 	private func stop(on node: SCNNode) {

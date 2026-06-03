@@ -1404,6 +1404,9 @@ extension Game {
 
 	func playerDidHorn() {
 		lastControl = .HORN
+		if mode == .car {
+			vehicle?.playHorn()
+		}
 		scene.triggerPlayerHornEvent()
 	}
 
