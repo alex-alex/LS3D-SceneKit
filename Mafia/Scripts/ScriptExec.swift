@@ -135,9 +135,9 @@ extension Script {
 	func goto(label: String) {
 		if label == "-1" { return next() }
 		guard let line = labels[label] else {
-			if commandBlockDepth > 0 {
+			/*if commandBlockDepth > 0 {
 				fatalError("Unknown label '\(label)' in commandblock")
-			}
+			}*/
 			next()
 			return
 		}
@@ -1222,6 +1222,8 @@ final class ScriptMusicStream {
 	private var volume: Float = 1
 	private var fadeWorkItem: DispatchWorkItem?
 	private var playbackGeneration = 0
+	private var isGamePaused = false
+	private var wasPlayingBeforeGamePause = false
 
 	private var duration: TimeInterval {
 		return TimeInterval(buffer.frameLength) / buffer.format.sampleRate
@@ -1270,10 +1272,7 @@ final class ScriptMusicStream {
 	func pause() {
 		runOnMain {
 			guard self.playbackState == .playing else { return }
-			self.accumulatedPosition = self.currentPosition()
-			self.startsAt = nil
-			self.playerNode.pause()
-			self.playbackState = .paused
+			self.pausePlayback()
 		}
 	}
 
@@ -1299,6 +1298,28 @@ final class ScriptMusicStream {
 			self.startsAt = Date.timeIntervalSinceReferenceDate
 			self.scheduleBuffer()
 			self.playerNode.play()
+		}
+	}
+
+	func setGamePaused(_ paused: Bool) {
+		runOnMain {
+			if paused {
+				guard !self.isGamePaused else { return }
+				self.isGamePaused = true
+				self.wasPlayingBeforeGamePause = self.playbackState == .playing
+				if self.wasPlayingBeforeGamePause {
+					self.pausePlayback()
+				}
+			} else {
+				guard self.isGamePaused else { return }
+				self.isGamePaused = false
+				guard self.wasPlayingBeforeGamePause else { return }
+				self.wasPlayingBeforeGamePause = false
+				guard self.playbackState == .paused else { return }
+				self.startsAt = Date.timeIntervalSinceReferenceDate
+				self.playerNode.play()
+				self.playbackState = .playing
+			}
 		}
 	}
 
@@ -1332,6 +1353,7 @@ final class ScriptMusicStream {
 	private func stopPlaying(resetPosition: Bool) {
 		fadeWorkItem?.cancel()
 		fadeWorkItem = nil
+		wasPlayingBeforeGamePause = false
 		if resetPosition {
 			accumulatedPosition = 0
 		}
@@ -1339,6 +1361,13 @@ final class ScriptMusicStream {
 		playbackState = .stopped
 		playbackGeneration += 1
 		playerNode.stop()
+	}
+
+	private func pausePlayback() {
+		accumulatedPosition = currentPosition()
+		startsAt = nil
+		playerNode.pause()
+		playbackState = .paused
 	}
 
 	private func currentPosition() -> TimeInterval {

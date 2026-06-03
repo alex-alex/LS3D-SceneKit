@@ -2681,6 +2681,7 @@ final class Scene {
 		isAudioPaused = isPaused
 		setActiveRecordPlaybacksPaused(isPaused)
 		setRecordSoundSchedulesPaused(isPaused)
+		setScriptMusicStreamsPaused(isPaused)
 		var detachedPlayerIds: [ObjectIdentifier] = []
 		for (playerId, activePlayer) in activeAudioPlayers {
 			guard let audioPlayerNode = activePlayer.player.audioNode as? AVAudioPlayerNode else { continue }
@@ -2698,6 +2699,13 @@ final class Scene {
 		}
 		for playerId in detachedPlayerIds {
 			finishAudioPlayer(playerId)
+		}
+	}
+
+	private func setScriptMusicStreamsPaused(_ isPaused: Bool) {
+		let allScripts = Array(initScripts.values) + Array(scripts.values)
+		for script in allScripts {
+			script.setAudioPaused(isPaused)
 		}
 	}
 

@@ -651,20 +651,19 @@ extension HudScene {
 	}
 
 	private func playCutsceneFadeIn() {
+		let startAlpha: CGFloat
 		if !loadBlackoutOverlay.isHidden, loadBlackoutOverlay.alpha > 0 {
+			startAlpha = loadBlackoutOverlay.alpha
 			loadBlackoutOverlay.removeAllActions()
-			loadBlackoutOverlay.run(
-				SKAction.sequence([
-					SKAction.fadeOut(withDuration: 2.0),
-					SKAction.hide()
-				])
-			)
-			return
+			loadBlackoutOverlay.alpha = 0
+			loadBlackoutOverlay.isHidden = true
+		} else {
+			startAlpha = 1
 		}
 
 		cutsceneFadeOverlay.removeAction(forKey: cutsceneFadeActionKey)
 		cutsceneFadeOverlay.isHidden = false
-		cutsceneFadeOverlay.alpha = 1
+		cutsceneFadeOverlay.alpha = startAlpha
 		cutsceneFadeOverlay.run(
 			SKAction.sequence([
 				SKAction.fadeOut(withDuration: 2.0),

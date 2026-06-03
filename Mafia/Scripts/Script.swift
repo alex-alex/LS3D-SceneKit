@@ -284,6 +284,14 @@ final class Script {
 		}
 	}
 
+	func setAudioPaused(_ paused: Bool) {
+		queue.async {
+			for stream in self.streams.values {
+				stream.setGamePaused(paused)
+			}
+		}
+	}
+
 	func run() {
 		guard !isPaused else {
 			hasPendingRun = true
