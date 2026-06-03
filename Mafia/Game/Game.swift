@@ -133,6 +133,8 @@ final class Game: NSObject {
 	private var heldWeaponNode: SCNNode?
 	private var heldWeaponUUID: NSUUID?
 	private let heldWeaponNodeNamePrefix = "__held_weapon_"
+	private var npcHealthLabelNodes: [ObjectIdentifier: SCNNode] = [:]
+	private let npcHealthLabelNodeNamePrefix = "__npc_health_label_"
 	private var modeBeforeFreeCamera: Mode = .walk
 	private var freeCameraPosition = SCNVector3Zero
 	private var freeCameraMovement = SCNVector3Zero
@@ -1295,6 +1297,7 @@ extension Game: SCNSceneRendererDelegate {
 			isVisible: mode == .car && vehicle != nil
 		)
 		refreshPlayerStatusHud()
+		updateNPCHealthLabels()
 		updateVehicleStealing()
 		updateBatCharge()
 
@@ -1504,15 +1507,61 @@ extension Game {
 			  let index = weapons.firstIndex(where: { $0.position == .hand }) else { return }
 
 		let weapon = weapons.remove(at: index)
+		guard let dropNode = droppedWeaponNode(for: weapon, from: playerNode) else { return }
+
 		weapon.position = .inventory
 		scene.weapons[playerNode] = weapons
-
-		if let dropNode = scene.rootNode.childNode(withName: "2bbat", recursively: true) {
-			dropNode.isHidden = false
-			scene.actions.append(.weapon(dropNode, weapon))
-		}
+		scene.rootNode.addChildNode(dropNode)
+		scene.actions.append(.weapon(dropNode, weapon))
 		hud?.showConsoleText("Dropped \(weapon.name)")
 		refreshPlayerStatusHud()
+	}
+
+	private func droppedWeaponNode(for weapon: Weapon, from playerNode: SCNNode) -> SCNNode? {
+		guard let dropNode = loadHeldWeaponModel(for: weapon) else { return nil }
+
+		dropNode.name = "__dropped_weapon_\(weapon.id)__"
+		dropNode.physicsBody = nil
+		dropNode.disablePhysicsInHierarchy()
+
+		let handPosition = droppedWeaponHandPosition(in: playerNode)
+		let groundPosition = droppedWeaponGroundPosition(below: handPosition, playerNode: playerNode)
+		let bounds = dropNode.boundingBox
+		let groundY = groundPosition.y - min(bounds.min.y, bounds.max.y)
+		dropNode.position = scene.rootNode.convertPosition(
+			SCNVector3(x: groundPosition.x, y: groundY, z: groundPosition.z),
+			from: nil
+		)
+
+		let playerForward = playerNode.presentation.worldFront
+		dropNode.eulerAngles = SCNVector3(
+			x: 0,
+			y: atan2(-playerForward.x, -playerForward.z),
+			z: 0
+		)
+		return dropNode
+	}
+
+	private func droppedWeaponHandPosition(in playerNode: SCNNode) -> SCNVector3 {
+		if let heldWeaponNode = heldWeaponNode,
+		   heldWeaponNode.parent != nil {
+			return heldWeaponNode.presentation.worldPosition
+		}
+		return heldWeaponAnchor(in: playerNode).presentation.worldPosition
+	}
+
+	private func droppedWeaponGroundPosition(below position: SCNVector3, playerNode: SCNNode) -> SCNVector3 {
+		let from = SCNVector3(x: position.x, y: position.y + 1.0, z: position.z)
+		let to = SCNVector3(x: position.x, y: position.y - 8.0, z: position.z)
+		let hits = scnScene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
+			SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking,
+			SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
+		])
+
+		for hit in hits where hit.worldNormal.y >= 0.5 && !isNode(hit.node, inside: playerNode) {
+			return hit.worldCoordinates
+		}
+		return SCNVector3(x: position.x, y: playerNode.presentation.worldPosition.y, z: position.z)
 	}
 
 	func playerInventoryWeapons() -> [Weapon] {
@@ -1683,6 +1732,111 @@ extension Game {
 		hud?.updateVehicleStealProgress(0, isVisible: false)
 	}
 
+	private func updateNPCHealthLabels() {
+		var visibleHumanIds = Set<ObjectIdentifier>()
+		for humanNode in npcHumanNodes() {
+			let id = ObjectIdentifier(humanNode)
+			visibleHumanIds.insert(id)
+			let labelNode = npcHealthLabelNodes[id] ?? makeNPCHealthLabelNode(for: humanNode)
+			npcHealthLabelNodes[id] = labelNode
+
+			if labelNode.parent == nil {
+				scene.rootNode.addChildNode(labelNode)
+			}
+			updateNPCHealthLabel(labelNode, for: humanNode)
+		}
+
+		let staleIds = npcHealthLabelNodes.keys.filter { !visibleHumanIds.contains($0) }
+		for id in staleIds {
+			npcHealthLabelNodes[id]?.removeFromParentNode()
+			npcHealthLabelNodes[id] = nil
+		}
+	}
+
+	private func npcHumanNodes() -> [SCNNode] {
+		var nodes: [SCNNode] = []
+		collectNPCHumanNodes(in: scene.rootNode, nodes: &nodes)
+		return nodes
+	}
+
+	private func collectNPCHumanNodes(in node: SCNNode, nodes: inout [SCNNode]) {
+		if isNPCHumanNode(node) {
+			nodes.append(node)
+			return
+		}
+		for child in node.childNodes {
+			collectNPCHumanNodes(in: child, nodes: &nodes)
+		}
+	}
+
+	private func isNPCHumanNode(_ node: SCNNode) -> Bool {
+		guard !isNPCHealthLabelNode(node),
+			  node.humanEnergy != nil || node.type.hasDefaultHumanEnergy,
+			  !isNode(node, inside: scene.playerNode),
+			  !isNodeHiddenInHierarchy(node) else {
+			return false
+		}
+		if node.humanEnergy == nil {
+			node.humanEnergy = 100
+		}
+		return true
+	}
+
+	private func makeNPCHealthLabelNode(for humanNode: SCNNode) -> SCNNode {
+		let text = SCNText(string: "", extrusionDepth: 0.01)
+		text.flatness = 0.2
+		text.firstMaterial = npcHealthLabelMaterial()
+
+		let labelNode = SCNNode(geometry: text)
+		labelNode.name = "\(npcHealthLabelNodeNamePrefix)\(ObjectIdentifier(humanNode).hashValue)__"
+		labelNode.scale = SCNVector3(x: -0.007, y: -0.007, z: 0.007)
+		labelNode.constraints = [SCNBillboardConstraint()]
+		labelNode.renderingOrder = 1000
+		return labelNode
+	}
+
+	private func updateNPCHealthLabel(_ labelNode: SCNNode, for humanNode: SCNNode) {
+		let health = max(0, Int(round(humanNode.humanEnergy ?? 100)))
+		if let text = labelNode.geometry as? SCNText, text.string as? String != "\(health)" {
+			text.string = "\(health)"
+			let bounds = text.boundingBox
+			labelNode.pivot = SCNMatrix4MakeTranslation(
+				(bounds.min.x + bounds.max.x) / 2,
+				bounds.min.y,
+				0
+			)
+		}
+		labelNode.position = scene.rootNode.convertPosition(npcHealthLabelPosition(for: humanNode), from: nil)
+		labelNode.isHidden = health <= 0
+	}
+
+	private func npcHealthLabelPosition(for humanNode: SCNNode) -> SCNVector3 {
+		let bounds = humanNode.boundingBox
+		let hasBounds = bounds.max.x > bounds.min.x || bounds.max.y > bounds.min.y || bounds.max.z > bounds.min.z
+		guard hasBounds else {
+			let position = humanNode.presentation.worldPosition
+			return SCNVector3(x: position.x, y: position.y + 2.0, z: position.z)
+		}
+
+		let localTop = SCNVector3(
+			x: (bounds.min.x + bounds.max.x) / 2,
+			y: bounds.max.y,
+			z: (bounds.min.z + bounds.max.z) / 2
+		)
+		let worldTop = humanNode.presentation.convertPosition(localTop, to: nil)
+		return SCNVector3(x: worldTop.x, y: worldTop.y + 0.35, z: worldTop.z)
+	}
+
+	private func npcHealthLabelMaterial() -> SCNMaterial {
+		let material = SCNMaterial()
+		material.lightingModel = .constant
+		material.diffuse.contents = SKColor.white
+		material.emission.contents = SKColor.white
+		material.isDoubleSided = true
+		material.writesToDepthBuffer = false
+		return material
+	}
+
 	private func swingBaseballBat(charge: SCNFloat) {
 		let origin = cameraNode.presentation.worldPosition
 		let cameraForward = cameraNode.presentation.worldFront
@@ -1703,7 +1857,7 @@ extension Game {
 		)
 
 		for hit in hits {
-			if isShotEffectNode(hit.node) ||
+			if isIgnoredCombatHitNode(hit.node) ||
 			   isNode(hit.node, inside: scene.playerNode) ||
 			   isNode(hit.node, inside: vehicle?.node) ||
 			   isNode(hit.node, inside: heldWeaponNode) {
@@ -1786,7 +1940,7 @@ extension Game {
 
 		var tracerEnd = target
 		for hit in hits {
-			if isShotEffectNode(hit.node) ||
+			if isIgnoredCombatHitNode(hit.node) ||
 			   isNode(hit.node, inside: scene.playerNode) ||
 			   isNode(hit.node, inside: vehicle?.node) {
 				continue
@@ -2285,6 +2439,32 @@ extension Game {
 		var current: SCNNode? = node
 		while let candidate = current {
 			if let name = candidate.name, name.hasPrefix("__bullet_") || name.hasPrefix("__muzzle_") {
+				return true
+			}
+			current = candidate.parent
+		}
+		return false
+	}
+
+	private func isIgnoredCombatHitNode(_ node: SCNNode) -> Bool {
+		return isShotEffectNode(node) || isNPCHealthLabelNode(node)
+	}
+
+	private func isNPCHealthLabelNode(_ node: SCNNode) -> Bool {
+		var current: SCNNode? = node
+		while let candidate = current {
+			if candidate.name?.hasPrefix(npcHealthLabelNodeNamePrefix) == true {
+				return true
+			}
+			current = candidate.parent
+		}
+		return false
+	}
+
+	private func isNodeHiddenInHierarchy(_ node: SCNNode) -> Bool {
+		var current: SCNNode? = node
+		while let candidate = current {
+			if candidate.isHidden {
 				return true
 			}
 			current = candidate.parent

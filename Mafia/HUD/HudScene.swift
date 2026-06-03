@@ -1377,7 +1377,11 @@ extension HudScene {
 
 		switch event.keyCode {
 		case 4: // H
-			game.playerDidHorn()
+			if game.mode == .car {
+				game.playerDidHorn()
+			} else {
+				game.holsterPlayerWeapons()
+			}
 
 		case 7: // X
 			game.holsterPlayerWeapons()
