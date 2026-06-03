@@ -1360,15 +1360,16 @@ extension Game {
 			})!
 			scene.actions.remove(at: index)
 
-			if scene.weapons[scene.playerNode!] == nil {
-				scene.weapons[scene.playerNode!] = []
+			let playerKey = ObjectIdentifier(scene.playerNode!)
+			if scene.weapons[playerKey] == nil {
+				scene.weapons[playerKey] = []
 			}
 
-			for weapon in scene.weapons[scene.playerNode!]! {
+			for weapon in scene.weapons[playerKey]! {
 				weapon.position = .inventory
 			}
 
-			scene.weapons[scene.playerNode!]!.append(weapon)
+			scene.weapons[playerKey]!.append(weapon)
 			weapon.position = .hand
 			refreshPlayerStatusHud()
 
@@ -1511,7 +1512,7 @@ extension Game {
 
 	func holsterPlayerWeapons() {
 		guard let playerNode = scene.playerNode,
-			  let weapons = scene.weapons[playerNode] else { return }
+			  let weapons = scene.weapons[ObjectIdentifier(playerNode)] else { return }
 		for weapon in weapons {
 			weapon.position = .inventory
 		}
@@ -1520,14 +1521,14 @@ extension Game {
 
 	func dropPlayerWeapon() {
 		guard let playerNode = scene.playerNode,
-			  var weapons = scene.weapons[playerNode],
+			  var weapons = scene.weapons[ObjectIdentifier(playerNode)],
 			  let index = weapons.firstIndex(where: { $0.position == .hand }) else { return }
 
 		let weapon = weapons.remove(at: index)
 		guard let dropNode = droppedWeaponNode(for: weapon, from: playerNode) else { return }
 
 		weapon.position = .inventory
-		scene.weapons[playerNode] = weapons
+		scene.weapons[ObjectIdentifier(playerNode)] = weapons
 		scene.rootNode.addChildNode(dropNode)
 		scene.actions.append(.weapon(dropNode, weapon))
 		hud?.showConsoleText("Dropped \(weapon.name)")
@@ -1583,12 +1584,12 @@ extension Game {
 
 	func playerInventoryWeapons() -> [Weapon] {
 		guard let playerNode = scene.playerNode else { return [] }
-		return scene.weapons[playerNode] ?? []
+		return scene.weapons[ObjectIdentifier(playerNode)] ?? []
 	}
 
 	func equipPlayerWeapon(_ selectedWeapon: Weapon?) {
 		guard let playerNode = scene.playerNode,
-			  let weapons = scene.weapons[playerNode] else { return }
+			  let weapons = scene.weapons[ObjectIdentifier(playerNode)] else { return }
 
 		for weapon in weapons {
 			weapon.position = selectedWeapon.map { weapon === $0 } == true ? .hand : .inventory
@@ -2060,7 +2061,7 @@ extension Game {
 
 	func equippedPlayerWeapon() -> Weapon? {
 		guard let playerNode = scene.playerNode,
-			  let weapons = scene.weapons[playerNode] else { return nil }
+			  let weapons = scene.weapons[ObjectIdentifier(playerNode)] else { return nil }
 		return weapons.first { $0.position == .hand }
 	}
 

@@ -629,7 +629,8 @@ extension Script {
 	}
 
 	private func getArgs_if(_ scanner: Scanner) -> [Argument] {
-		let arg1 = scanVarOrValue(scanner)
+		guard let token1 = scanParamOptional(scanner),
+			  let arg1 = parseVarOrNumberToken(token1) else { return [] }
 
 		let op: String
 		if scanner.scanString("=", into: nil) {
@@ -645,7 +646,11 @@ extension Script {
 		}
 		scanner.scanCharacters(from: .whitespaces, into: nil)
 
-		return [arg1, .label(op), scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
+		guard let token2 = scanParamOptional(scanner),
+			  let arg2 = parseVarOrNumberToken(token2),
+			  let label1 = scanParamOptional(scanner),
+			  let label2 = scanParamOptional(scanner) else { return [] }
+		return [arg1, .label(op), arg2, .label(label1), .label(label2)]
 	}
 
 	private func getArgs_iffltinrange(_ scanner: Scanner) -> [Argument] {
@@ -975,6 +980,24 @@ extension Script {
 		let charset = CharacterSet(charactersIn: ",").union(.whitespaces)
 		scanner.scanCharacters(from: charset, into: nil)
 		return var1
+	}
+
+	private func parseVarOrNumberToken(_ token: String) -> Argument? {
+		if token.hasPrefix("flt["), token.hasSuffix("]") {
+			let indexStart = token.index(token.startIndex, offsetBy: 4)
+			let indexEnd = token.index(before: token.endIndex)
+			guard let varId = Int(token[indexStart..<indexEnd]) else { return nil }
+			return .variable(varId)
+		}
+		if token.contains(".") || token.contains("e") || token.contains("E") {
+			guard let value = Float(token) else { return nil }
+			return .number(value)
+		}
+		if let value = Int(token) {
+			return .integer(value)
+		}
+		guard let value = Float(token) else { return nil }
+		return .number(value)
 	}
 
 	private func scanNumber(_ scanner: Scanner) -> Argument? {

@@ -298,7 +298,7 @@ final class Scene {
 	var scripts: [String: Script] = [:]
 
 	var sounds: [SCNNode: Sound] = [:]
-	var weapons: [SCNNode: [Weapon]] = [:]
+	var weapons: [ObjectIdentifier: [Weapon]] = [:]
 	var actions: [Action] = []
 	var environmentLights: [EnvironmentLight] = []
 	var trafficSettings: TrafficSettings?

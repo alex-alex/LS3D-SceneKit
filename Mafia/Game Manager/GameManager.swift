@@ -28,6 +28,7 @@ class GameManager {
 	var mainMenu: MainMenu?
 	var game: Game!
 	private var missions: [MissionEntry] = []
+	private var saveGames: [SaveGameSlot] = []
 
 	init(view: SCNView) {
 		self.view = view
@@ -65,6 +66,15 @@ class GameManager {
 		view.pointOfView = nil
 		view.audioListener = nil
 		view.overlaySKScene = MissionSelectorScene(size: view.bounds.size, missions: missions, gameManager: self)
+	}
+
+	func loadSaveGameSelector() {
+		saveGames = SaveGame.loadSlots()
+		view.scene = SCNScene()
+		view.delegate = nil
+		view.pointOfView = nil
+		view.audioListener = nil
+		view.overlaySKScene = SaveGameSelectorScene(size: view.bounds.size, saveGames: saveGames, gameManager: self)
 	}
 
 	func loadMenu() {
@@ -108,35 +118,44 @@ class GameManager {
 		}
 	}
 
+	func loadSaveGame(_ saveGame: SaveGameSlot) {
+		guard let folder = saveGame.missionFolder else {
+			print("Unsupported savegame checkpoint '\(saveGame.fileName)'")
+			return
+		}
+
+		loadMission(textId: saveGame.textId, imageName: saveGame.imageName, folder: folder)
+	}
+
 }
 
 private struct MissionEntry {
 	let folder: String
 	let imageName: String
+	let textId: Int
 
 	var title: String {
-		return folder
+		return MissionLoadInfo.title(for: folder)
 	}
 
 	static func loadAll() -> [MissionEntry] {
-		let url = mainDirectory.appendingPathComponent("missions/a.txt")
-		guard let contents = try? String(contentsOf: url, encoding: .utf8) else {
-			return [MissionEntry(folder: "freeitaly", imageName: "freeride.tga")]
-		}
-
-		var missions: [MissionEntry] = contents
-			.components(separatedBy: .newlines)
-			.compactMap { (line: String) -> MissionEntry? in
-				let parts = line
-					.components(separatedBy: .whitespacesAndNewlines)
-					.filter { !$0.isEmpty }
-				guard let folder = parts.first else { return nil }
-				guard isLoadableMission(folder: folder) else { return nil }
-				let imageName = parts.count > 1 ? normalizedImageName(parts[1], fallbackFolder: folder) : fallbackImageName(for: folder)
-				return MissionEntry(folder: folder, imageName: imageName)
+		var missions: [MissionEntry] = MissionLoadInfo.loadAll()
+			.compactMap { info -> MissionEntry? in
+				guard isLoadableMission(folder: info.missionFolder) else { return nil }
+				return MissionEntry(
+					folder: info.missionFolder,
+					imageName: MissionLoadInfo.imageName(for: info.missionFolder, fallbackImageName: info.imageName),
+					textId: info.textId
+				)
 			}
 		prependBuiltInMission(folder: "tutorial", imageName: "tutorial.tga", to: &missions)
-		return missions.isEmpty ? [MissionEntry(folder: "freeitaly", imageName: "freeride.tga")] : missions
+		return missions.isEmpty ? [
+			MissionEntry(
+				folder: "freeitaly",
+				imageName: MissionLoadInfo.imageName(for: "freeitaly", fallbackImageName: "freeride.tga"),
+				textId: MissionLoadInfo.textId(for: "freeitaly")
+			)
+		] : missions
 	}
 
 	private static func prependBuiltInMission(folder: String, imageName: String, to missions: inout [MissionEntry]) {
@@ -144,7 +163,11 @@ private struct MissionEntry {
 			  !missions.contains(where: { $0.folder == folder }) else { return }
 
 		missions.insert(
-			MissionEntry(folder: folder, imageName: normalizedImageName(imageName, fallbackFolder: folder)),
+			MissionEntry(
+				folder: folder,
+				imageName: MissionLoadInfo.imageName(for: folder, fallbackImageName: imageName),
+				textId: MissionLoadInfo.textId(for: folder)
+			),
 			at: 0
 		)
 	}
@@ -155,19 +178,206 @@ private struct MissionEntry {
 			FileManager.default.fileExists(atPath: missionUrl.appendingPathComponent("scene2.bin").path)
 	}
 
-	private static func normalizedImageName(_ imageName: String, fallbackFolder: String) -> String {
-		let normalizedName = imageName.contains(".") ? imageName : imageName + ".tga"
-		let url = mainDirectory.appendingPathComponent("maps/" + normalizedName)
-		return FileManager.default.fileExists(atPath: url.path) ? normalizedName : fallbackImageName(for: fallbackFolder)
+}
+
+private final class SaveGameSelectorScene: SKScene {
+
+	private weak var gameManager: GameManager?
+	private let saveGames: [SaveGameSlot]
+	private var labels: [SKLabelNode] = []
+	private var selectedIndex = 0
+	private var firstVisibleIndex = 0
+	private var rowHeight: CGFloat = 30
+	private var firstRowY: CGFloat = 0
+	private let maxVisibleSaveGames = 18
+	private let titleLabel = SKLabelNode(fontNamed: mafiaMenuFontName)
+	private let hintLabel = SKLabelNode(fontNamed: "Arial")
+	#if os(iOS)
+	private var lastSwipePoint: CGPoint?
+	private var didSwipe = false
+	#endif
+
+	init(size: CGSize, saveGames: [SaveGameSlot], gameManager: GameManager) {
+		self.saveGames = saveGames
+		self.gameManager = gameManager
+
+		super.init(size: size)
+
+		scaleMode = .resizeFill
+		backgroundColor = .black
+		isUserInteractionEnabled = true
+
+		titleLabel.text = "Load Game"
+		titleLabel.fontColor = .white
+		titleLabel.horizontalAlignmentMode = .center
+		addChild(titleLabel)
+
+		#if os(iOS)
+		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Tap a save, or swipe to change selection"
+		#else
+		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Use arrows and Return, or click a save"
+		#endif
+		hintLabel.fontColor = SKColor(white: 0.75, alpha: 1)
+		hintLabel.horizontalAlignmentMode = .center
+		addChild(hintLabel)
+
+		for _ in 0 ..< min(maxVisibleSaveGames, saveGames.count) {
+			let label = SKLabelNode(fontNamed: "Arial")
+			label.horizontalAlignmentMode = .left
+			label.verticalAlignmentMode = .center
+			addChild(label)
+			labels.append(label)
+		}
+
+		didChangeSize(.zero)
+		refreshLabels()
 	}
 
-	private static func fallbackImageName(for folder: String) -> String {
-		let folderImageName = folder + ".tga"
-		let folderImageUrl = mainDirectory.appendingPathComponent("maps/" + folderImageName)
-		if FileManager.default.fileExists(atPath: folderImageUrl.path) {
-			return folderImageName
+	required init?(coder aDecoder: NSCoder) {
+		fatalError("init(coder:) has not been implemented")
+	}
+
+	override func didChangeSize(_ oldSize: CGSize) {
+		super.didChangeSize(oldSize)
+
+		titleLabel.fontSize = 34
+		titleLabel.position = CGPoint(x: size.width / 2, y: size.height - 64)
+
+		hintLabel.fontSize = 14
+		hintLabel.position = CGPoint(x: size.width / 2, y: 24)
+
+		rowHeight = min(30, max(22, (size.height - 150) / CGFloat(max(1, labels.count))))
+		let x = max(32, size.width * 0.12)
+		firstRowY = size.height - 120
+
+		for (index, label) in labels.enumerated() {
+			label.fontSize = min(16, rowHeight * 0.62)
+			label.position = CGPoint(x: x, y: firstRowY - CGFloat(index) * rowHeight)
+			label.preferredMaxLayoutWidth = size.width - x - 32
 		}
-		return "00menu.tga"
+	}
+
+	private func refreshLabels() {
+		for (labelIndex, label) in labels.enumerated() {
+			let saveGameIndex = firstVisibleIndex + labelIndex
+			guard saveGames.indices.contains(saveGameIndex) else {
+				label.text = nil
+				continue
+			}
+
+			let saveGame = saveGames[saveGameIndex]
+			let prefix = saveGameIndex == selectedIndex ? "> " : "  "
+			label.text = prefix + saveGame.title + "  [" + saveGame.fileName + "]"
+			if saveGame.missionFolder == nil {
+				label.fontColor = SKColor(white: 0.38, alpha: 1)
+			} else {
+				label.fontColor = saveGameIndex == selectedIndex ? .white : SKColor(white: 0.68, alpha: 1)
+			}
+		}
+	}
+
+	private func moveSelection(by offset: Int) {
+		guard !saveGames.isEmpty else { return }
+
+		selectedIndex = max(0, min(saveGames.count - 1, selectedIndex + offset))
+		if selectedIndex < firstVisibleIndex {
+			firstVisibleIndex = selectedIndex
+		} else if selectedIndex >= firstVisibleIndex + labels.count {
+			firstVisibleIndex = selectedIndex - labels.count + 1
+		}
+		refreshLabels()
+	}
+
+	private func loadSelectedSaveGame() {
+		guard saveGames.indices.contains(selectedIndex) else { return }
+
+		let saveGame = saveGames[selectedIndex]
+		guard saveGame.missionFolder != nil else { return }
+		gameManager?.loadSaveGame(saveGame)
+	}
+
+	#if os(macOS)
+
+	override func keyDown(with event: NSEvent) {
+		switch event.keyCode {
+		case 125:
+			moveSelection(by: 1)
+		case 126:
+			moveSelection(by: -1)
+		case 36, 76:
+			loadSelectedSaveGame()
+		case 53:
+			gameManager?.loadMenu()
+		default:
+			super.keyDown(with: event)
+		}
+	}
+
+	override func mouseDown(with event: NSEvent) {
+		selectSaveGame(at: event.location(in: self))
+	}
+
+	#elseif os(iOS)
+
+	override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+		guard let point = touches.first?.location(in: self) else { return }
+		lastSwipePoint = point
+		didSwipe = false
+	}
+
+	override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+		guard let point = touches.first?.location(in: self),
+			  let lastPoint = lastSwipePoint else { return }
+
+		let deltaY = point.y - lastPoint.y
+		let threshold = max(18, rowHeight * 0.75)
+		if abs(deltaY) >= threshold {
+			moveSelection(by: deltaY > 0 ? 1 : -1)
+			lastSwipePoint = point
+			didSwipe = true
+		}
+	}
+
+	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+		guard let point = touches.first?.location(in: self) else { return }
+		defer {
+			lastSwipePoint = nil
+			didSwipe = false
+		}
+
+		if didSwipe {
+			return
+		}
+
+		selectSaveGame(at: point)
+	}
+
+	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+		lastSwipePoint = nil
+		didSwipe = false
+	}
+
+	#endif
+
+	private func selectSaveGame(at point: CGPoint) {
+		guard let labelIndex = rowIndex(at: point) else { return }
+
+		selectedIndex = firstVisibleIndex + labelIndex
+		refreshLabels()
+		loadSelectedSaveGame()
+	}
+
+	private func rowIndex(at point: CGPoint) -> Int? {
+		guard rowHeight > 0 else { return nil }
+
+		let labelIndex = Int(round((firstRowY - point.y) / rowHeight))
+		guard labels.indices.contains(labelIndex) else { return nil }
+
+		let rowCenterY = firstRowY - CGFloat(labelIndex) * rowHeight
+		guard abs(point.y - rowCenterY) <= rowHeight / 2 else { return nil }
+
+		let saveGameIndex = firstVisibleIndex + labelIndex
+		return saveGames.indices.contains(saveGameIndex) ? labelIndex : nil
 	}
 }
 
@@ -280,7 +490,7 @@ private final class MissionSelectorScene: SKScene {
 			gameManager?.loadMenu()
 			return
 		}
-		gameManager?.loadMission(textId: 0, imageName: mission.imageName, folder: mission.folder)
+		gameManager?.loadMission(textId: mission.textId, imageName: mission.imageName, folder: mission.folder)
 	}
 
 	#if os(macOS)

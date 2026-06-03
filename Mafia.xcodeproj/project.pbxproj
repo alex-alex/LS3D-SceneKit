@@ -27,6 +27,8 @@
 		FA2FE8BE200FE4610057A80E /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8BC200FE4610057A80E /* GameManager.swift */; };
 		FA2FE8C0200FEA2A0057A80E /* MainMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8BF200FEA2A0057A80E /* MainMenu.swift */; };
 		FA2FE8C1200FEA2A0057A80E /* MainMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8BF200FEA2A0057A80E /* MainMenu.swift */; };
+		FA2FE8C30000000000000001 /* SaveGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8C20000000000000001 /* SaveGame.swift */; };
+		FA2FE8C30000000000000002 /* SaveGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8C20000000000000001 /* SaveGame.swift */; };
 		FA355C44200923E600512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3A200923E500512DC0 /* GameViewController.swift */; };
 		FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3C200923E500512DC0 /* AppDelegate.swift */; };
 		FA355C47200923E600512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3E200923E600512DC0 /* Assets.xcassets */; };
@@ -142,6 +144,7 @@
 		FA2000020000000000000001 /* Freehand-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Freehand-Regular.ttf"; sourceTree = "<group>"; };
 		FA2FE8BC200FE4610057A80E /* GameManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameManager.swift; sourceTree = "<group>"; };
 		FA2FE8BF200FEA2A0057A80E /* MainMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenu.swift; sourceTree = "<group>"; };
+		FA2FE8C20000000000000001 /* SaveGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveGame.swift; sourceTree = "<group>"; };
 		FA355C3A200923E500512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		FA355C3C200923E500512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FA355C3E200923E600512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -265,6 +268,7 @@
 			children = (
 				FA2FE8BC200FE4610057A80E /* GameManager.swift */,
 				FA2FE8BF200FEA2A0057A80E /* MainMenu.swift */,
+				FA2FE8C20000000000000001 /* SaveGame.swift */,
 			);
 			path = "Game Manager";
 			sourceTree = "<group>";
@@ -588,6 +592,7 @@
 				FA8A00010000000000000001 /* Road.swift in Sources */,
 				FA8A00010000000000000003 /* TrafficManager.swift in Sources */,
 				FA2FE8BD200FE4610057A80E /* GameManager.swift in Sources */,
+				FA2FE8C30000000000000001 /* SaveGame.swift in Sources */,
 				FADE02000000000000000001 /* OggVorbisDecoder.c in Sources */,
 				FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */,
 				FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */,
@@ -644,6 +649,7 @@
 				FA8A00010000000000000002 /* Road.swift in Sources */,
 				FA8A00010000000000000004 /* TrafficManager.swift in Sources */,
 				FA2FE8BE200FE4610057A80E /* GameManager.swift in Sources */,
+				FA2FE8C30000000000000002 /* SaveGame.swift in Sources */,
 				FA6DAAF51D67709C002017DE /* ImageUtils.swift in Sources */,
 				FADE02000000000000000002 /* OggVorbisDecoder.c in Sources */,
 				FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */,

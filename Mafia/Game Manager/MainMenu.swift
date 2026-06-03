@@ -121,8 +121,10 @@ class MainMenu {
 			return .mission(folder: "intro", imageName: "00menu.tga")
 		case 990102:
 			return .mission(folder: "tutorial", imageName: "tutorial.tga")
-		case 990104:
+		case 990103:
 			return .missionSelector
+		case 990104:
+			return .saveGameSelector
 		case 990109:
 			return .mission(folder: "autosalon", imageName: "carcyklopedia.tga")
 		default:
@@ -159,6 +161,8 @@ class MainMenu {
 		switch entries[index].action {
 		case .mission(let folder, let imageName):
 			gameManager?.loadMission(textId: 0, imageName: imageName, folder: folder)
+		case .saveGameSelector:
+			gameManager?.loadSaveGameSelector()
 		case .missionSelector:
 			gameManager?.loadMissionSelector()
 		case .none:
@@ -220,6 +224,7 @@ private struct MainMenuEntry {
 
 private enum MainMenuAction {
 	case mission(folder: String, imageName: String)
+	case saveGameSelector
 	case missionSelector
 	case none
 }
