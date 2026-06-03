@@ -52,6 +52,7 @@ final class HudScene: SKScene {
 	private var missionEndTitleLabel: SKLabelNode!
 	private var missionEndLabel: SKLabelNode!
 	private var missionEndOptionLabels: [SKLabelNode] = []
+	private var missionEndOptionFrames: [CGRect] = []
 	private var missionEndControls: [MenuDefControl] = []
 	private var inventoryRows: [(node: SKShapeNode, weapon: Weapon?)] = []
 	private var inventoryPausedGame = false
@@ -478,6 +479,7 @@ final class HudScene: SKScene {
 		missionEndLabel.text = text
 		missionEndLabel.alpha = text == nil ? 0 : 1
 		missionEndContainer.isHidden = text == nil
+		layoutMissionEndMenu()
 	}
 
 }
@@ -551,7 +553,8 @@ extension HudScene {
 		missionEndLabel.alpha = 0
 		missionEndContainer.addChild(missionEndLabel)
 
-		for control in missionEndControls where control.type == "meti" {
+		let optionControls = missionEndControls.filter { $0.type == "meti" }.sorted { $0.position.y < $1.position.y }
+		for control in optionControls {
 			let label = SKLabelNode(fontNamed: mafiaMenuFontName)
 			label.text = TextDb.get(Int(control.textId))
 			label.fontColor = .black
@@ -612,21 +615,39 @@ extension HudScene {
 		missionEndTitleLabel.fontSize = min(34, headerHeight * 0.68)
 		missionEndTitleLabel.position = missionEndHeaderNode.position
 
+		let optionControls = missionEndControls.filter { $0.type == "meti" }.sorted { $0.position.y < $1.position.y }
+		let optionFrames = optionControls.map { missionEndChildFrame(for: $0, in: bodyFrame, scale: scale) }
+
 		if let textSlot = missionEndControls.first(where: { $0.type == "tsil" }) {
-			let frame = missionEndChildFrame(for: textSlot, in: bodyFrame, scale: scale)
-			missionEndLabel.fontSize = min(30, frame.height * 0.85)
+			var frame = missionEndChildFrame(for: textSlot, in: bodyFrame, scale: scale)
+				.insetBy(dx: 12 * scale, dy: 4 * scale)
+			if let firstOptionFrame = optionFrames.first {
+				let minimumMessageY = firstOptionFrame.maxY + 16 * scale
+				let maximumMessageY = bodyFrame.maxY - frame.height / 2 - 8 * scale
+				if frame.midY < minimumMessageY {
+					let adjustedMidY = min(minimumMessageY, maximumMessageY)
+					frame.origin.y = adjustedMidY - frame.height / 2
+				}
+			}
+			missionEndLabel.fontSize = missionEndFontSize(for: frame, maximum: 24)
 			missionEndLabel.position = CGPoint(x: frame.midX, y: frame.midY)
 			missionEndLabel.preferredMaxLayoutWidth = frame.width
 		}
 
-		let optionControls = missionEndControls.filter { $0.type == "meti" }.sorted { $0.position.y < $1.position.y }
+		missionEndOptionFrames = []
 		for (index, control) in optionControls.enumerated() where missionEndOptionLabels.indices.contains(index) {
 			let frame = missionEndChildFrame(for: control, in: bodyFrame, scale: scale)
+				.insetBy(dx: 12 * scale, dy: 3 * scale)
 			let label = missionEndOptionLabels[index]
-			label.fontSize = min(30, frame.height * 0.85)
+			label.fontSize = missionEndFontSize(for: frame, maximum: 26)
 			label.position = CGPoint(x: frame.midX, y: frame.midY)
 			label.preferredMaxLayoutWidth = frame.width
+			missionEndOptionFrames.append(frame)
 		}
+	}
+
+	private func missionEndFontSize(for frame: CGRect, maximum: CGFloat) -> CGFloat {
+		return min(maximum, max(16, frame.height * 0.6))
 	}
 
 	private func missionEndScale() -> CGFloat {
@@ -1225,10 +1246,28 @@ extension HudScene {
 
 	func handlesTouchControl(at point: CGPoint) -> Bool {
 		guard showsTouchControls else { return false }
+		if isMissionEndVisible {
+			return true
+		}
 		if isInventoryVisible {
 			return true
 		}
 		return touchControlNode(at: point) != nil
+	}
+
+	private var isMissionEndVisible: Bool {
+		return missionEndContainer?.isHidden == false
+	}
+
+	private func handleMissionEndSelection(at point: CGPoint) -> Bool {
+		guard isMissionEndVisible else { return false }
+
+		for (index, frame) in missionEndOptionFrames.enumerated() where frame.contains(point) {
+			game.activateMissionEndOption(at: index)
+			return true
+		}
+
+		return false
 	}
 
 	private func touchControlNode(at point: CGPoint) -> SKNode? {
@@ -1265,6 +1304,9 @@ extension HudScene {
 
 		guard let touch = touches.first else { return }
 		let location = touch.location(in: self)
+		if handleMissionEndSelection(at: location) {
+			return
+		}
 		if handleInventorySelection(at: location) {
 			return
 		}
@@ -1325,7 +1367,11 @@ extension HudScene {
 	#elseif os(macOS)
 
 	override func mouseDown(with event: NSEvent) {
-		if handleInventorySelection(at: event.location(in: self)) {
+		let location = event.location(in: self)
+		if handleMissionEndSelection(at: location) {
+			return
+		}
+		if handleInventorySelection(at: location) {
 			return
 		}
 		super.mouseDown(with: event)
@@ -1333,6 +1379,18 @@ extension HudScene {
 
 	override func keyDown(with event: NSEvent) {
 		guard !event.isARepeat else { return }
+
+		if isMissionEndVisible {
+			switch event.keyCode {
+			case 36, 76: // return, keypad enter
+				game.activateMissionEndOption(at: 0)
+			case 53: // escape
+				game.activateMissionEndOption(at: 1)
+			default:
+				break
+			}
+			return
+		}
 
 		if event.keyCode == 53 { // escape
 			if inventoryOverlay.isHidden == false {

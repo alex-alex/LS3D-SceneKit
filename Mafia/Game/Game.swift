@@ -23,6 +23,7 @@ final class Game: NSObject {
 
 	var hud: HudScene!
 	var onMissionEnded: (() -> Void)?
+	var onMissionRestarted: (() -> Void)?
 
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
@@ -947,6 +948,19 @@ final class Game: NSObject {
 			DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
 				self?.onMissionEnded?()
 			}
+		}
+	}
+
+	func activateMissionEndOption(at index: Int) {
+		guard didEndMission else { return }
+
+		switch index {
+		case 0:
+			onMissionRestarted?()
+		case 1:
+			onMissionEnded?()
+		default:
+			break
 		}
 	}
 

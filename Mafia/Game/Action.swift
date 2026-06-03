@@ -52,6 +52,11 @@ enum Action {
 	}
 
 	var isEnabled: Bool {
-		return node.actionsEnabledInHierarchy
+		switch self {
+		case .action:
+			return true
+		default:
+			return node.actionsEnabledInHierarchy
+		}
 	}
 }

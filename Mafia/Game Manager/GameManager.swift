@@ -105,6 +105,9 @@ class GameManager {
 				game.onMissionEnded = { [weak self] in
 					self?.loadMenu()
 				}
+				game.onMissionRestarted = { [weak self] in
+					self?.loadMission(textId: textId, imageName: imageName, folder: folder)
+				}
 				DispatchQueue.main.async {
 					self.game = game
 					game.setup(in: self.view)
