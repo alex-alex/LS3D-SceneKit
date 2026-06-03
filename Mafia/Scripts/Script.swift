@@ -276,6 +276,8 @@ struct ScriptCommand {
 
 final class Script {
 
+	private static let isCommandLoggingEnabled = false
+
 	let uuid = NSUUID()
 	let queue: DispatchQueue
 	var completionHandler: (() -> Void)?
@@ -469,7 +471,9 @@ final class Script {
 			}
 			isRunning = false
 			completionHandler?()
-			print("END")
+			if Self.isCommandLoggingEnabled {
+				print("END")
+			}
 			return
 		}
 
@@ -482,7 +486,9 @@ final class Script {
 			return next()
 		}
 
-		print(">>> [\(node.name ?? "unnamed")] \(command.scriptLogDescription)")
+		if Self.isCommandLoggingEnabled {
+			print(">>> [\(node.name ?? "unnamed")] \(command.scriptLogDescription)")
+		}
 
 		performCommand(command: command)
 	}

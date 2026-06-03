@@ -447,9 +447,11 @@ final class Scene {
 	private var didStartScripts = false
 	private var lastActionAnimationId = 0
 	private var lastActionAnimationEndTime: TimeInterval = 0
+	private let nodesByNameLock = NSLock()
 	private let weaponsLock = NSLock()
 	private var weaponsByOwner: [ObjectIdentifier: [Weapon]] = [:]
 	private var nodesByName: [String: SCNNode] = [:]
+	private var missingNodeNames = Set<String>()
 
 	func weapons(for owner: SCNNode) -> [Weapon] {
 		weaponsLock.lock()
@@ -718,9 +720,7 @@ final class Scene {
 						y: objectNode.orientation.x,
 						z: objectNode.orientation.y
 					)
-					if let name = objectNode.name, nodesByName[name] == nil {
-						nodesByName[name] = objectNode
-					}
+					registerNodeName(objectNode)
 					self.rootNode.addChildNode(objectNode)
 
 				case .objDef:
@@ -1178,6 +1178,7 @@ final class Scene {
 
 	private func attachDifferenceFile(_ differenceFile: DifferenceFile, key: String) {
 		rootNode.addChildNode(differenceFile.rootNode)
+		registerNodeTree(differenceFile.rootNode)
 		loadedDifferenceFiles[key] = differenceFile
 		for (name, isEnabled) in differenceFile.animationStates {
 			guard let node = game.scnScene.rootNode.mafiaChildNode(named: name, recursively: true) else {
@@ -1227,6 +1228,7 @@ final class Scene {
 			pendingLoad.completion(.failure(SceneError()))
 		}
 		for differenceFile in loadedDifferenceFiles.values {
+			unregisterNodeTree(differenceFile.rootNode)
 			differenceFile.rootNode.removeFromParentNode()
 		}
 		loadedDifferenceFiles.removeAll()
@@ -3165,8 +3167,62 @@ final class Scene {
 		}
 	}
 
-	private func node(named name: String) -> SCNNode? {
-		return nodesByName[name] ?? rootNode.mafiaChildNode(named: name, recursively: true)
+	func node(named name: String) -> SCNNode? {
+		let lowercasedName = name.lowercased()
+		nodesByNameLock.lock()
+		let indexedNode = nodesByName[name] ?? nodesByName[lowercasedName]
+		let isKnownMissing = missingNodeNames.contains(lowercasedName)
+		nodesByNameLock.unlock()
+		if let indexedNode = indexedNode {
+			return indexedNode
+		}
+		guard !isKnownMissing else { return nil }
+		guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else {
+			nodesByNameLock.lock()
+			missingNodeNames.insert(lowercasedName)
+			nodesByNameLock.unlock()
+			return nil
+		}
+		registerNodeName(node)
+		return node
+	}
+
+	func registerNodeName(_ node: SCNNode) {
+		guard let name = node.name, !name.isEmpty else { return }
+		nodesByNameLock.lock()
+		defer { nodesByNameLock.unlock() }
+		let lowercasedName = name.lowercased()
+		missingNodeNames.remove(lowercasedName)
+		if nodesByName[name] == nil {
+			nodesByName[name] = node
+		}
+		if nodesByName[lowercasedName] == nil {
+			nodesByName[lowercasedName] = node
+		}
+	}
+
+	func registerNodeTree(_ node: SCNNode) {
+		registerNodeName(node)
+		for child in node.childNodes {
+			registerNodeTree(child)
+		}
+	}
+
+	private func unregisterNodeTree(_ node: SCNNode) {
+		if let name = node.name, !name.isEmpty {
+			let lowercasedName = name.lowercased()
+			nodesByNameLock.lock()
+			if nodesByName[name] === node {
+				nodesByName.removeValue(forKey: name)
+			}
+			if nodesByName[lowercasedName] === node {
+				nodesByName.removeValue(forKey: lowercasedName)
+			}
+			nodesByNameLock.unlock()
+		}
+		for child in node.childNodes {
+			unregisterNodeTree(child)
+		}
 	}
 
 }

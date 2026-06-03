@@ -1471,6 +1471,7 @@ extension Script {
 			let model = try loadModel(named: modelName)
 			model.name = (modelName as NSString).lastPathComponent
 			scene.rootNode.addChildNode(model)
+			scene.registerNodeName(model)
 			actors[actorId] = model
 		} catch {
 			print("Failed to create model '\(modelName)':", error)
@@ -2052,7 +2053,7 @@ extension Script {
 		if name.lowercased() == "root" {
 			return node
 		}
-		return scene.game.scnScene.rootNode.mafiaChildNode(named: name, recursively: true)
+		return scene.node(named: name)
 	}
 
 	private func node(forScriptId id: Int) -> SCNNode? {
