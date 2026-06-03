@@ -437,7 +437,7 @@ final class PlayerController {
 		}
 	}
 
-	private func isBlockedHorizontally() -> Bool {
+	private func isBlockedHorizontally(ignoringContactsBelow localY: SCNFloat? = nil) -> Bool {
 		guard let body = node.physicsBody else { return false }
 
 		scene.physicsWorld.updateCollisionPairs()
@@ -448,7 +448,17 @@ final class PlayerController {
 			guard otherNode !== node else { return false }
 
 			let normal = contact.contactNormal
-			return abs(normal.y) < minGroundNormalY
+			guard abs(normal.y) < minGroundNormalY else { return false }
+
+			if let localY = localY {
+				let parent = node.parent
+				let localContact = parent?.presentation.convertPosition(contact.contactPoint, from: nil) ?? contact.contactPoint
+				if localContact.y <= localY {
+					return false
+				}
+			}
+
+			return true
 		}
 	}
 
@@ -467,19 +477,32 @@ final class PlayerController {
 	}
 
 	private func tryStepUp(from start: SCNVector3) -> Bool {
-		guard verticalVelocity <= 0,
-			  let groundY = groundHeight(at: node.position) else { return false }
+		guard verticalVelocity <= 0 else { return false }
 
-		let stepHeight = groundY - start.y
-		guard stepHeight > 0, stepHeight <= maxStepHeight else { return false }
+		let attemptedPosition = node.position
+		node.position = SCNVector3(
+			x: attemptedPosition.x,
+			y: start.y + maxStepHeight,
+			z: attemptedPosition.z
+		)
 
-		node.position.y = groundY
-		scene.physicsWorld.updateCollisionPairs()
-		if isBlockedHorizontally() {
+		if isBlockedHorizontally(ignoringContactsBelow: start.y + maxStepHeight + 0.05) {
 			node.position.y = start.y
 			return false
 		}
 
+		guard let groundY = groundHeight(at: node.position) else {
+			node.position.y = start.y
+			return false
+		}
+
+		let stepHeight = groundY - start.y
+		guard stepHeight >= -0.03, stepHeight <= maxStepHeight else {
+			node.position.y = start.y
+			return false
+		}
+
+		node.position.y = groundY
 		standingY = groundY
 		return true
 	}
