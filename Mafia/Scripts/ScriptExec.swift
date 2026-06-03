@@ -1825,7 +1825,7 @@ extension Script {
 	}
 
 	private func stream_destroy(_ args: [Argument]) {
-		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let streamId = musicStreamId(from: args[0])
 		if let stream = streams.removeValue(forKey: streamId) {
 			DispatchQueue.main.async {
 				stream.destroy()
@@ -1835,7 +1835,7 @@ extension Script {
 	}
 
 	private func stream_fadevol(_ args: [Argument]) {
-		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let streamId = musicStreamId(from: args[0])
 		let duration = args[1].getValueOrVarValue(vars: vars)
 		let startVolume = args[2].getValueOrVarValueFloat(vars: vars)
 		let endVolume = args[3].getValueOrVarValueFloat(vars: vars)
@@ -1852,7 +1852,7 @@ extension Script {
 	}
 
 	private func stream_getpos(_ args: [Argument]) {
-		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let streamId = musicStreamId(from: args[0])
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		DispatchQueue.main.async {
 			let position = self.streams[streamId]?.positionMilliseconds ?? 0
@@ -1864,7 +1864,7 @@ extension Script {
 	}
 
 	private func stream_pause(_ args: [Argument]) {
-		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let streamId = musicStreamId(from: args[0])
 		if let stream = streams[streamId] {
 			DispatchQueue.main.async {
 				stream.pause()
@@ -1874,7 +1874,7 @@ extension Script {
 	}
 
 	private func stream_play(_ args: [Argument]) {
-		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let streamId = musicStreamId(from: args[0])
 		if let stream = streams[streamId] {
 			DispatchQueue.main.async {
 				stream.play()
@@ -1892,7 +1892,7 @@ extension Script {
 	}
 
 	private func playFilmMusicStream(_ args: [Argument]) {
-		let streamId = filmMusicStreamId(from: args)
+		let streamId = musicStreamId(from: args.first)
 		if let stream = streams[streamId] {
 			DispatchQueue.main.async {
 				stream.play()
@@ -1901,8 +1901,8 @@ extension Script {
 		next()
 	}
 
-	private func filmMusicStreamId(from args: [Argument]) -> Int {
-		let rawId = args.first?.getValueOrVarValue(vars: vars) ?? 0
+	private func musicStreamId(from argument: Argument?) -> Int {
+		let rawId = argument?.getValueOrVarValue(vars: vars) ?? 0
 		if streams[rawId] != nil {
 			return rawId
 		}
@@ -1910,7 +1910,7 @@ extension Script {
 	}
 
 	private func stream_setloop(_ args: [Argument]) {
-		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let streamId = musicStreamId(from: args[0])
 		let loops = args[1].getValueOrVarValue(vars: vars) != 0
 		if let stream = streams[streamId] {
 			DispatchQueue.main.async {
@@ -1921,7 +1921,7 @@ extension Script {
 	}
 
 	private func stream_stop(_ args: [Argument]) {
-		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let streamId = musicStreamId(from: args[0])
 		if let stream = streams[streamId] {
 			DispatchQueue.main.async {
 				stream.stop()
@@ -2405,6 +2405,65 @@ extension Script {
 
 final class ScriptMusicStream {
 
+	private let playback: ScriptMusicStreamPlayback
+
+	init?(url: URL) {
+		if url.pathExtension.lowercased() == "ogg" {
+			guard let playback = ScriptOggMusicStreamPlayback(url: url) else { return nil }
+			self.playback = playback
+		} else {
+			guard let playback = ScriptBufferedMusicStreamPlayback(url: url) else { return nil }
+			self.playback = playback
+		}
+	}
+
+	var positionMilliseconds: Int {
+		return playback.positionMilliseconds
+	}
+
+	func play() {
+		playback.play()
+	}
+
+	func pause() {
+		playback.pause()
+	}
+
+	func stop() {
+		playback.stop()
+	}
+
+	func destroy() {
+		playback.destroy()
+	}
+
+	func setLoop(_ loops: Bool) {
+		playback.setLoop(loops)
+	}
+
+	func setGamePaused(_ paused: Bool) {
+		playback.setGamePaused(paused)
+	}
+
+	func fadeVolume(from startVolume: Float, to endVolume: Float, duration: TimeInterval) {
+		playback.fadeVolume(from: startVolume, to: endVolume, duration: duration)
+	}
+
+}
+
+private protocol ScriptMusicStreamPlayback: AnyObject {
+	var positionMilliseconds: Int { get }
+	func play()
+	func pause()
+	func stop()
+	func destroy()
+	func setLoop(_ loops: Bool)
+	func setGamePaused(_ paused: Bool)
+	func fadeVolume(from startVolume: Float, to endVolume: Float, duration: TimeInterval)
+}
+
+private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback {
+
 	private enum PlaybackState {
 		case stopped
 		case playing
@@ -2429,7 +2488,7 @@ final class ScriptMusicStream {
 	}
 
 	init?(url: URL) {
-		guard let buffer = ScriptMusicStream.makeBuffer(url: url) else { return nil }
+		guard let buffer = ScriptBufferedMusicStreamPlayback.makeNativeBuffer(url: url) else { return nil }
 		self.buffer = buffer
 
 		engine.attach(playerNode)
@@ -2613,13 +2672,6 @@ final class ScriptMusicStream {
 		}
 	}
 
-	private static func makeBuffer(url: URL) -> AVAudioPCMBuffer? {
-		if url.pathExtension.lowercased() == "ogg" {
-			return makeOggBuffer(url: url)
-		}
-		return makeNativeBuffer(url: url)
-	}
-
 	private static func makeNativeBuffer(url: URL) -> AVAudioPCMBuffer? {
 		guard let file = try? AVAudioFile(forReading: url),
 			  file.length <= AVAudioFramePosition(UInt32.max),
@@ -2637,40 +2689,290 @@ final class ScriptMusicStream {
 		}
 	}
 
-	private static func makeOggBuffer(url: URL) -> AVAudioPCMBuffer? {
-		var decoded = OggVorbisDecodedAudio(channels: 0, sampleRate: 0, frameCount: 0, samples: nil)
-		guard OggVorbisDecodeFile(url.path, &decoded) else { return nil }
-		defer {
-			OggVorbisFreeDecodedAudio(&decoded)
-		}
+}
 
-		guard decoded.channels > 0,
-			  decoded.sampleRate > 0,
-			  decoded.frameCount > 0,
-			  let samples = decoded.samples,
+private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
+
+	private enum PlaybackState {
+		case stopped
+		case playing
+		case paused
+	}
+
+	private let engine = AVAudioEngine()
+	private var sourceNode: AVAudioSourceNode!
+	private let lock = NSLock()
+	private var stream: OpaquePointer?
+	private let sampleRate: Double
+	private let duration: TimeInterval
+	private var playbackState: PlaybackState = .stopped
+	private var loops = false
+	private var volume: Float = 1
+	private var fadeWorkItem: DispatchWorkItem?
+	private var samplePosition: Int64 = 0
+	private var isGamePaused = false
+	private var wasPlayingBeforeGamePause = false
+
+	init?(url: URL) {
+		guard let stream = OggVorbisStreamOpen(url.path) else { return nil }
+
+		let channels = OggVorbisStreamGetChannels(stream)
+		let sampleRate = OggVorbisStreamGetSampleRate(stream)
+		guard channels > 0,
+			  sampleRate > 0,
 			  let format = AVAudioFormat(
 				commonFormat: .pcmFormatFloat32,
-				sampleRate: Double(decoded.sampleRate),
-				channels: AVAudioChannelCount(decoded.channels),
+				sampleRate: Double(sampleRate),
+				channels: AVAudioChannelCount(channels),
 				interleaved: false
-			  ),
-			  let buffer = AVAudioPCMBuffer(
-				pcmFormat: format,
-				frameCapacity: AVAudioFrameCount(decoded.frameCount)
-			  ),
-			  let channelData = buffer.floatChannelData else {
+			  ) else {
+			OggVorbisStreamClose(stream)
 			return nil
 		}
 
-		buffer.frameLength = AVAudioFrameCount(decoded.frameCount)
-		let channelCount = Int(decoded.channels)
-		let frameCount = Int(decoded.frameCount)
-		for frameIndex in 0..<frameCount {
-			for channelIndex in 0..<channelCount {
-				channelData[channelIndex][frameIndex] = samples[frameIndex * channelCount + channelIndex]
+		self.stream = stream
+		self.sampleRate = Double(sampleRate)
+		self.duration = TimeInterval(OggVorbisStreamGetDuration(stream))
+
+		sourceNode = AVAudioSourceNode(format: format) { [weak self] _, _, frameCount, audioBufferList -> OSStatus in
+			self?.render(frameCount: frameCount, audioBufferList: audioBufferList) ?? 0
+		}
+
+		engine.attach(sourceNode)
+		engine.connect(sourceNode, to: engine.mainMixerNode, format: format)
+		do {
+			try engine.start()
+		} catch {
+			OggVorbisStreamClose(stream)
+			self.stream = nil
+			return nil
+		}
+	}
+
+	var positionMilliseconds: Int {
+		lock.lock()
+		let position = sampleRate > 0 ? TimeInterval(samplePosition) / sampleRate : 0
+		let isLooping = loops
+		let duration = self.duration
+		lock.unlock()
+
+		let normalizedPosition = isLooping && duration > 0 ? position.truncatingRemainder(dividingBy: duration) : position
+		let clampedPosition = duration > 0 ? min(normalizedPosition, duration) : normalizedPosition
+		return Int((max(0, clampedPosition) * 1000).rounded())
+	}
+
+	func play() {
+		runOnMain {
+			self.lock.lock()
+			defer { self.lock.unlock() }
+
+			switch self.playbackState {
+			case .playing:
+				return
+			case .paused:
+				self.playbackState = .playing
+			case .stopped:
+				if let stream = self.stream {
+					OggVorbisStreamSeekStart(stream)
+				}
+				self.samplePosition = 0
+				self.playbackState = .playing
 			}
 		}
-		return buffer
+	}
+
+	func pause() {
+		runOnMain {
+			self.lock.lock()
+			if self.playbackState == .playing {
+				self.playbackState = .paused
+			}
+			self.lock.unlock()
+		}
+	}
+
+	func stop() {
+		runOnMain {
+			self.stopPlaying(resetPosition: true)
+		}
+	}
+
+	func destroy() {
+		runOnMain {
+			self.fadeWorkItem?.cancel()
+			self.fadeWorkItem = nil
+			self.engine.stop()
+
+			self.lock.lock()
+			if let stream = self.stream {
+				OggVorbisStreamClose(stream)
+				self.stream = nil
+			}
+			self.playbackState = .stopped
+			self.samplePosition = 0
+			self.lock.unlock()
+		}
+	}
+
+	func setLoop(_ loops: Bool) {
+		runOnMain {
+			self.lock.lock()
+			self.loops = loops
+			self.lock.unlock()
+		}
+	}
+
+	func setGamePaused(_ paused: Bool) {
+		runOnMain {
+			self.lock.lock()
+			defer { self.lock.unlock() }
+
+			if paused {
+				guard !self.isGamePaused else { return }
+				self.isGamePaused = true
+				self.wasPlayingBeforeGamePause = self.playbackState == .playing
+				if self.wasPlayingBeforeGamePause {
+					self.playbackState = .paused
+				}
+			} else {
+				guard self.isGamePaused else { return }
+				self.isGamePaused = false
+				guard self.wasPlayingBeforeGamePause else { return }
+				self.wasPlayingBeforeGamePause = false
+				guard self.playbackState == .paused else { return }
+				self.playbackState = .playing
+			}
+		}
+	}
+
+	func fadeVolume(from startVolume: Float, to endVolume: Float, duration: TimeInterval) {
+		runOnMain {
+			self.fadeWorkItem?.cancel()
+			self.setVolume(startVolume)
+			guard duration > 0 else {
+				self.setVolume(endVolume)
+				return
+			}
+			self.scheduleFadeStep(startVolume: startVolume, endVolume: endVolume, duration: duration, startTime: Date.timeIntervalSinceReferenceDate)
+		}
+	}
+
+	private func render(frameCount: AVAudioFrameCount, audioBufferList: UnsafeMutablePointer<AudioBufferList>) -> OSStatus {
+		let buffers = UnsafeMutableAudioBufferListPointer(audioBufferList)
+		lock.lock()
+		defer { lock.unlock() }
+
+		guard playbackState == .playing,
+			  let stream = stream else {
+			fillSilence(buffers: buffers, from: 0, frameCount: frameCount)
+			return 0
+		}
+
+		var framesWritten: AVAudioFrameCount = 0
+		var didSeekForLoop = false
+		while framesWritten < frameCount {
+			let framesRequested = frameCount - framesWritten
+			var channelData: [UnsafeMutablePointer<Float>?] = buffers.map { buffer in
+				guard let data = buffer.mData else { return nil }
+				return data.assumingMemoryBound(to: Float.self).advanced(by: Int(framesWritten))
+			}
+
+			let framesRead = channelData.withUnsafeMutableBufferPointer { pointers in
+				OggVorbisStreamRead(stream, pointers.baseAddress, Int32(framesRequested))
+			}
+
+			if framesRead > 0 {
+				applyVolume(buffers: buffers, from: framesWritten, frameCount: AVAudioFrameCount(framesRead))
+				framesWritten += AVAudioFrameCount(framesRead)
+				samplePosition += Int64(framesRead)
+				didSeekForLoop = false
+			} else if loops, !didSeekForLoop, OggVorbisStreamSeekStart(stream) {
+				samplePosition = 0
+				didSeekForLoop = true
+			} else {
+				playbackState = .stopped
+				fillSilence(buffers: buffers, from: framesWritten, frameCount: frameCount - framesWritten)
+				break
+			}
+		}
+
+		return 0
+	}
+
+	private func stopPlaying(resetPosition: Bool) {
+		fadeWorkItem?.cancel()
+		fadeWorkItem = nil
+		lock.lock()
+		playbackState = .stopped
+		wasPlayingBeforeGamePause = false
+		if resetPosition {
+			if let stream = stream {
+				OggVorbisStreamSeekStart(stream)
+			}
+			samplePosition = 0
+		}
+		lock.unlock()
+	}
+
+	private func setVolume(_ volume: Float) {
+		let clampedVolume = min(1, max(0, volume))
+		lock.lock()
+		self.volume = clampedVolume
+		lock.unlock()
+	}
+
+	private func scheduleFadeStep(startVolume: Float, endVolume: Float, duration: TimeInterval, startTime: TimeInterval) {
+		let workItem = DispatchWorkItem { [weak self] in
+			guard let self = self else { return }
+			let elapsed = Date.timeIntervalSinceReferenceDate - startTime
+			let progress = min(1, max(0, Float(elapsed / duration)))
+			self.setVolume(startVolume + (endVolume - startVolume) * progress)
+			guard progress < 1 else {
+				self.fadeWorkItem = nil
+				return
+			}
+			self.scheduleFadeStep(startVolume: startVolume, endVolume: endVolume, duration: duration, startTime: startTime)
+		}
+		fadeWorkItem = workItem
+		DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16), execute: workItem)
+	}
+
+	private func fillSilence(
+		buffers: UnsafeMutableAudioBufferListPointer,
+		from startFrame: AVAudioFrameCount,
+		frameCount: AVAudioFrameCount
+	) {
+		guard frameCount > 0 else { return }
+		for buffer in buffers {
+			guard let data = buffer.mData else { continue }
+			let samples = data.assumingMemoryBound(to: Float.self).advanced(by: Int(startFrame))
+			for index in 0..<Int(frameCount) {
+				samples[index] = 0
+			}
+		}
+	}
+
+	private func applyVolume(
+		buffers: UnsafeMutableAudioBufferListPointer,
+		from startFrame: AVAudioFrameCount,
+		frameCount: AVAudioFrameCount
+	) {
+		guard volume != 1, frameCount > 0 else { return }
+		for buffer in buffers {
+			guard let data = buffer.mData else { continue }
+			let samples = data.assumingMemoryBound(to: Float.self).advanced(by: Int(startFrame))
+			for index in 0..<Int(frameCount) {
+				samples[index] *= volume
+			}
+		}
+	}
+
+	private func runOnMain(_ block: @escaping () -> Void) {
+		if Thread.isMainThread {
+			block()
+		} else {
+			DispatchQueue.main.async(execute: block)
+		}
 	}
 
 }

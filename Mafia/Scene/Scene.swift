@@ -2943,6 +2943,13 @@ final class Scene {
 		}
 	}
 
+	func destroyScriptMusicStreams() {
+		let allScripts = Array(initScripts.values) + Array(scripts.values)
+		for script in allScripts {
+			script.destroyMusicStreams()
+		}
+	}
+
 	private func setRecordSoundSchedulesPaused(_ isPaused: Bool) {
 		for scheduledSound in activeRecordSoundSchedules where !scheduledSound.didPlay {
 			if isPaused {

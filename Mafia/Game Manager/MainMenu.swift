@@ -20,6 +20,7 @@ class MainMenu {
 	private let menuDef: MenuDef
 	private let menuControls: [MenuDefControl]
 	private let entries: [MainMenuEntry]
+	private var menuChangeSoundSource: SCNAudioSource?
 
 	init(gameManager: GameManager) throws {
 		self.gameManager = gameManager
@@ -136,6 +137,7 @@ class MainMenu {
 		view.scene = scnScene
 		let menuScene = MainMenuScene(size: view.bounds.size, controls: menuControls, entries: entries)
 		menuScene.onSelectionChanged = { [weak self] index in
+			self?.playMenuChangeSound()
 			self?.selectEntry(at: index)
 		}
 		menuScene.onEntryActivated = { [weak self] index in
@@ -145,6 +147,7 @@ class MainMenu {
 		view.delegate = nil
 		view.pointOfView = cameraNode
 		view.audioListener = cameraRig
+		scene.startScripts()
 		selectEntry(at: 0, animated: false)
 	}
 
@@ -155,15 +158,35 @@ class MainMenu {
 		moveCamera(to: anchor, animated: animated)
 	}
 
+	private func playMenuChangeSound() {
+		if menuChangeSoundSource == nil {
+			let url = mainDirectory.appendingPathComponent("sounds/menuchange.wav")
+			guard let source = SCNAudioSource(url: url) else { return }
+			source.isPositional = false
+			source.load()
+			menuChangeSoundSource = source
+		}
+
+		guard let source = menuChangeSoundSource else { return }
+		scene.playAudio(source, on: scene.rootNode)
+	}
+
+	private func stopMenuScripts() {
+		scene.destroyScriptMusicStreams()
+	}
+
 	private func activateEntry(at index: Int) {
 		guard entries.indices.contains(index) else { return }
 
 		switch entries[index].action {
 		case .mission(let folder, let imageName):
+			stopMenuScripts()
 			gameManager?.loadMission(textId: 0, imageName: imageName, folder: folder)
 		case .saveGameSelector:
+			stopMenuScripts()
 			gameManager?.loadSaveGameSelector()
 		case .missionSelector:
+			stopMenuScripts()
 			gameManager?.loadMissionSelector()
 		case .none:
 			break

@@ -417,6 +417,10 @@ final class Script {
 
 	func enqueueEvent(_ eventId: String) {
 		queue.async {
+			let pendingEventIds = self.eventIdQueue[self.eventIdQueueStartIndex...]
+			if self.currentEventId == eventId || pendingEventIds.contains(eventId) {
+				return
+			}
 			self.eventIdQueue.append(eventId)
 			guard !self.isRunning else { return }
 			self.isRunning = true
@@ -445,6 +449,18 @@ final class Script {
 		queue.async {
 			for stream in self.streams.values {
 				stream.setGamePaused(paused)
+			}
+		}
+	}
+
+	func destroyMusicStreams() {
+		queue.async {
+			let streams = Array(self.streams.values)
+			self.streams.removeAll()
+			DispatchQueue.main.async {
+				for stream in streams {
+					stream.destroy()
+				}
 			}
 		}
 	}
