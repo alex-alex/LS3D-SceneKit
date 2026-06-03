@@ -359,7 +359,11 @@ final class Scene {
 		let _fileSize: Int32 = try stream.read()
 		let fileSize = Int(_fileSize)
 
-		stream.currentOffset = 160
+		let _: UInt16 = try stream.read() // version
+		let commentLength: UInt32 = try stream.read()
+		let sceneDataOffset = 72 + Int(commentLength)
+		guard sceneDataOffset <= fileSize else { throw SceneError() }
+		stream.currentOffset = sceneDataOffset
 
 		while stream.currentOffset < fileSize {
 			try readSection(stream: stream)
