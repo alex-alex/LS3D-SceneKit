@@ -19,26 +19,45 @@ extension Script {
 //		"{"
 //		"}"
 		case .actSetstate:				act_setstate(command.args)
-//		"autosavegame"
+		case .actorDelete:				actor_delete(command.args)
+		case .actorSetpos:				actor_setplacement(command.args)
 		case .actorSetplacement:		actor_setplacement(command.args)
+		case .cameraGetfov:				camera_getfov(command.args)
+		case .cameraSetfov:				camera_setfov(command.args)
+		case .cameraSetrange:			camera_setrange(command.args)
+		case .carEnableus:				car_enableus(command.args)
+		case .carForcestop:				car_forcestop(command.args)
+		case .carGetactlevel:			car_getactlevel(command.args)
+		case .carGetseatcount:			car_getseatcount(command.args)
 		case .carGetspeed:				car_getspeed(command.args)
+		case .carInwater:				car_inwater(command.args)
+		case .carLock:					car_lock(command.args)
+		case .carLockAll:				car_lock_all(command.args)
 		case .carMuststeal:				car_muststeal(command.args)
 		case .carRepair:				car_repair(command.args)
+		case .carSetactlevel:			car_setactlevel(command.args)
 		case .carSetspeed:				car_setspeed(command.args)
 		case .cleardifferences:			cleardifferences(command.args)
 		case .commandblock:				commandblock(command.args)
+		case .compareactors:			compareactors(command.args)
+		case .compareframes:			compareframes(command.args)
+		case .compareownerwith:			compareownerwith(command.args)
 		case .compareownerwithex:		compareownerwithex(command.args)
 		case .consoleAddtext:			console_addtext(command.args)
+		case .createPhysicalobject:		noop()
 		case .createweaponfromframe:		createweaponfromframe(command.args)
 		case .ctrlRead:					ctrl_read(command.args)
 		case .detectorInrange:			detector_inrange(command.args)
 		case .detectorIssignal:			detector_issignal(command.args)
 		case .detectorSetsignal:			detector_setsignal(command.args)
 		case .detectorWaitforuse:		detector_waitforuse(command.args)
-		case .dimAct:					noop()
-		case .dimFlt:					noop()
-		case .dimFrm:					noop()
+		case .dimAct:					dim_act(command.args)
+		case .dimFlt:					dim_flt(command.args)
+		case .dimFrm:					dim_frm(command.args)
+		case .destroyPhysicalobject:		destroy_physicalobject(command.args)
+		case .disablecolls:				disablecolls(command.args)
 		case .doorEnableus:				door_enableus(command.args)
+		case .doorGetstate:				door_getstate(command.args)
 		case .doorLock:					door_lock(command.args)
 		case .doorOpen:					door_open(command.args)
 		case .end:						end(command.args)
@@ -51,17 +70,39 @@ extension Script {
 		case .eventUseCb:				noop()
 		case .findactor:				findactor(command.args)
 		case .findframe:				findframe(command.args)
+		case .getactivecamera:			getactivecamera(command.args)
+		case .getactiveplayer:			getactiveplayer(command.args)
+		case .getactorframe:			getactorframe(command.args)
+		case .frmGetpos:				frm_getpos(command.args)
+		case .frmGetnumchildren:		frm_getnumchildren(command.args)
+		case .frmGetparent:				frm_getparent(command.args)
+		case .frmGetscale:				frm_getscale(command.args)
+		case .frmGetworldpos:			frm_getworldpos(command.args)
+		case .frmGetworldscale:			frm_getworldscale(command.args)
+		case .frmIson:					frm_ison(command.args)
+		case .frmSetpos:				frm_setpos(command.args)
 		case .frmSeton:					frm_seton(command.args)
+		case .frmSetscale:				frm_setscale(command.args)
 		case .garageEnablesteal:		garage_enablesteal(command.args)
 		case .getactorsdist:			getactorsdist(command.args)
 		case .getenemyaistate:			getenemyaistate(command.args)
+		case .getframefromactor:		getframefromactor(command.args)
+		case .getgametime:				getgametime(command.args)
+		case .getRemoteActor:			get_remote_actor(command.args)
+		case .getRemoteFloat:			get_remote_float(command.args)
+		case .getRemoteFrame:			get_remote_frame(command.args)
+		case .getticktime:				getticktime(command.args)
 		case .goto:						goto(command.args)
 		case .humanActivateweapon:		human_activateweapon(command.args)
 		case .humanAddweapon:			human_addweapon(command.args)
 		case .humanAnyweaponinhand:		human_anyweaponinhand(command.args)
 		case .humanAnyweaponininventory:	human_anyweaponininventory(command.args)
 		case .humanCanaddweapon:		human_canaddweapon(command.args)
+		case .humanCandie:				human_candie(command.args)
+		case .humanDeath:				human_death(command.args)
+		case .humanDelweapon:			human_delweapon(command.args)
 		case .humanGetactanimid:		human_getactanimid(command.args)
+		case .humanGetiteminrhand:		human_getiteminrhand(command.args)
 		case .humanGetproperty:			human_getproperty(command.args)
 		case .humanHolster:				human_holster(command.args)
 		case .humanIsweapon:			human_isweapon(command.args)
@@ -71,16 +112,27 @@ extension Script {
 		case .iffltinrange:				iffltinrange(command.args)
 		case .ifplayerstealcar:			ifplayerstealcar(command.args)
 		case .introSubtitleAdd:			subtitle_add(command.args)
+		case .inventoryClear:			inventory_clear(command.args)
 		case .iscarusable:				iscarusable(command.args)
 		case .label:					noop()
 		case .`let`:					`let`(command.args)
 		case .loaddifferences:			loaddifferences(command.args)
+		case .mathAbs:					math_abs(command.args)
+		case .mathCos:					math_cos(command.args)
+		case .mathSin:					math_sin(command.args)
 		case .missionObjectives:		mission_objectives(command.args)
 		case .missionObjectivesclear:	mission_objectivesclear(command.args)
+		case .missionObjectivesremove:	mission_objectivesremove(command.args)
+		case .modelCreate:				model_create(command.args)
+		case .modelDestroy:				model_destroy(command.args)
+		case .modelPlayanim:			model_playanim(command.args)
+		case .modelStopanim:			model_stopanim(command.args)
 		case .personPlayanim:			person_playanim(command.args)
 		case .personStopanim:			person_stopanim(command.args)
-		case .playerLockcontrols:		noop()
-		case .pmShowsymbol:				noop()
+		case .playerLockcontrols:		player_lockcontrols(command.args)
+		case .playsound:				playsound(command.args)
+		case .playsoundstop:			playsoundstop(command.args)
+		case .pmShowsymbol:				pm_showsymbol(command.args)
 		case .recload:					recload(command.args, full: false)
 		case .recloadfull:				recload(command.args, full: true)
 		case .recwaitforend:			recwaitforend(command.args)
@@ -90,8 +142,14 @@ extension Script {
 		case .rnd:						rnd(command.args)
 		case .setcompass:				setcompass(command.args)
 		case .setevent:					setevent(command.args)
+		case .setnullactor:				setnullactor(command.args)
+		case .setnullframe:				setnullframe(command.args)
 		case .setplayerfireevent:		setplayerfireevent(command.args)
 		case .setplayerhornevent:		setplayerhornevent(command.args)
+		case .settimeoutevent:			settimeoutevent(command.args)
+		case .soundGetvolume:			sound_getvolume(command.args)
+		case .soundSetvolume:			sound_setvolume(command.args)
+		case .soundfade:				soundfade(command.args)
 		case .streamCreate:				stream_create(command.args)
 		case .streamDestroy:			stream_destroy(command.args)
 		case .streamFadevol:			stream_fadevol(command.args)
@@ -101,6 +159,20 @@ extension Script {
 		case .streamSetloop:			stream_setloop(command.args)
 		case .streamStop:				stream_stop(command.args)
 		case .subtitleAdd:				subtitle_add(command.args)
+		case .timerGetinterval:			timer_getinterval(command.args)
+		case .timerSetinterval:			timer_setinterval(command.args)
+		case .timeroff:					timeroff(command.args)
+		case .timeron:					timeron(command.args)
+		case .vectAddVect:				vect_add_vect(command.args)
+		case .vectCopy:					vect_copy(command.args)
+		case .vectInverse:				vect_inverse(command.args)
+		case .vectMagnitude:			vect_magnitude(command.args)
+		case .vectMulScl:				vect_mul_scl(command.args)
+		case .vectMulVect:				vect_mul_vect(command.args)
+		case .vectSet:					vect_set(command.args)
+		case .vectSubVect:				vect_sub_vect(command.args)
+		case .versionIsEditor:			version_is_editor(command.args)
+		case .versionIsGermany:			version_is_germany(command.args)
 		case .wait:						wait(command.args)
 		case .zatmyse:					zatmyse(command.args)
 		case .unknown:					noop(); // print("UNKNOWN COMMAND: \(command.rawName)")
@@ -183,6 +255,13 @@ extension Script {
 		next()
 	}
 
+	private func actor_delete(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		actors[actorId]?.removeFromParentNode()
+		actors[actorId] = nil
+		next()
+	}
+
 	private func actor_setplacement(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let frameId = args[1].getValueOrVarValue(vars: vars)
@@ -198,6 +277,62 @@ extension Script {
 		next()
 	}
 
+	private func camera_getfov(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		DispatchQueue.main.async {
+			let fieldOfView = self.scene.game.cameraNode.camera?.fieldOfView ?? 0
+			self.queue.async {
+				self.vars[varId] = Float(fieldOfView)
+				self.next()
+			}
+		}
+	}
+
+	private func camera_setfov(_ args: [Argument]) {
+		let fieldOfView = args[0].getValueOrVarValueFloat(vars: vars)
+		DispatchQueue.main.async {
+			self.scene.game.cameraNode.camera?.fieldOfView = CGFloat(fieldOfView)
+		}
+		next()
+	}
+
+	private func camera_setrange(_ args: [Argument]) {
+		let near = args[0].getValueOrVarValueFloat(vars: vars)
+		let far = args[1].getValueOrVarValueFloat(vars: vars)
+		DispatchQueue.main.async {
+			self.scene.game.cameraNode.camera?.zNear = Double(near)
+			self.scene.game.cameraNode.camera?.zFar = Double(far)
+		}
+		next()
+	}
+
+	private func car_enableus(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let enabled = args[1].getValueOrVarValue(vars: vars) != 0
+		node(forScriptId: carId)?.actionsEnabled = enabled
+		next()
+	}
+
+	private func car_forcestop(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		stopCarPhysics(carId: carId, brakeCurrentVehicle: true)
+		next()
+	}
+
+	private func car_getactlevel(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = carActLevels[carId] ?? 1
+		next()
+	}
+
+	private func car_getseatcount(_ args: [Argument]) {
+		let _ = args[0].getValueOrVarValue(vars: vars) // carId
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = 4
+		next()
+	}
+
 	private func car_getspeed(_ args: [Argument]) {
 		let carId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
@@ -207,6 +342,26 @@ extension Script {
 			vars[varId] = 0
 		}
 		next()
+	}
+
+	private func car_inwater(_ args: [Argument]) {
+		let _ = args[0].getValueOrVarValue(vars: vars) // carId
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = 0
+		next()
+	}
+
+	private func car_lock(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let locked = args[1].getValueOrVarValue(vars: vars) != 0
+		if locked {
+			stopCarPhysics(carId: carId, brakeCurrentVehicle: true)
+		}
+		next()
+	}
+
+	private func car_lock_all(_ args: [Argument]) {
+		car_lock(args)
 	}
 
 	private func car_muststeal(_ args: [Argument]) {
@@ -222,6 +377,13 @@ extension Script {
 			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
 			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
 		}
+		next()
+	}
+
+	private func car_setactlevel(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let level = args[1].getValueOrVarValueFloat(vars: vars)
+		carActLevels[carId] = level
 		next()
 	}
 
@@ -300,9 +462,48 @@ extension Script {
 		let label1 = args[2].getString()
 		let label2 = args[3].getString()
 		if playerOwnerMatches(carId: carId) {
-			goto(label: label2)
-		} else {
 			goto(label: label1)
+		} else {
+			goto(label: label2)
+		}
+	}
+
+	private func compareactors(_ args: [Argument]) {
+		let actor1Id = args[0].getValueOrVarValue(vars: vars)
+		let actor2Id = args[1].getValueOrVarValue(vars: vars)
+		let varId = args[2].getValueOrVarValue(vars: vars)
+		if let actor1 = node(forScriptId: actor1Id),
+		   let actor2 = node(forScriptId: actor2Id),
+		   actor1 === actor2 {
+			vars[varId] = 1
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func compareframes(_ args: [Argument]) {
+		let frame1Id = args[0].getValueOrVarValue(vars: vars)
+		let frame2Id = args[1].getValueOrVarValue(vars: vars)
+		let varId = args[2].getValueOrVarValue(vars: vars)
+		if let frame1 = frames[frame1Id],
+		   let frame2 = frames[frame2Id],
+		   frame1 === frame2 {
+			vars[varId] = 1
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func compareownerwith(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let label1 = args[1].getString()
+		let label2 = args[2].getString()
+		if playerOwnerMatches(carId: carId) {
+			goto(label: label1)
+		} else {
+			goto(label: label2)
 		}
 	}
 
@@ -395,6 +596,39 @@ extension Script {
 		}
 	}
 
+	private func dim_act(_ args: [Argument]) {
+		let count = max(0, args[0].getValueOrVarValue(vars: vars))
+		actors.reserveCapacity(count)
+		next()
+	}
+
+	private func dim_flt(_ args: [Argument]) {
+		let count = max(0, args[0].getValueOrVarValue(vars: vars))
+		vars.reserveCapacity(count)
+		for varId in 0..<count where vars[varId] == nil {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func dim_frm(_ args: [Argument]) {
+		let count = max(0, args[0].getValueOrVarValue(vars: vars))
+		frames.reserveCapacity(count)
+		next()
+	}
+
+	private func destroy_physicalobject(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		frames[frameId]?.physicsBody = nil
+		next()
+	}
+
+	private func disablecolls(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		frames[frameId]?.physicsBody = nil
+		next()
+	}
+
 	private func door_enableus(_ args: [Argument]) {
 		let targetId = args[0].getValueOrVarValue(vars: vars)
 		let isEnabled = args[1].getValueOrVarValue(vars: vars) != 0
@@ -414,6 +648,18 @@ extension Script {
 				}
 			}
 		}
+		next()
+	}
+
+	private func door_getstate(_ args: [Argument]) {
+		let targetId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		guard let door = node(forScriptId: targetId)?.doorData else {
+			vars[varId] = 0
+			next()
+			return
+		}
+		vars[varId] = door.isOpen ? 0 : 1
 		next()
 	}
 
@@ -541,6 +787,33 @@ extension Script {
 		next()
 	}
 
+	private func getactivecamera(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let cameraFrame = SCNNode()
+		cameraFrame.name = "__active_camera_\(frameId)"
+		cameraFrame.transform = scene.rootNode.convertTransform(scene.game.cameraNode.presentation.worldTransform, from: nil)
+		scene.rootNode.addChildNode(cameraFrame)
+		frames[frameId] = cameraFrame
+		next()
+	}
+
+	private func getactiveplayer(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let playerNode = scene.playerNode {
+			actors[actorId] = playerNode
+		}
+		next()
+	}
+
+	private func getactorframe(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let frameId = args[1].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId) {
+			frames[frameId] = actor
+		}
+		next()
+	}
+
 	private func frm_seton(_ args: [Argument]) {
 		let frmId = args[0].getValueOrVarValue(vars: vars)
 		let setOn = args[1].getValueOrVarValue(vars: vars) == 1
@@ -551,6 +824,98 @@ extension Script {
 				sound.play()
 			}
 		}
+		next()
+	}
+
+	private func frm_getpos(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = frames[frameId] {
+			setVectorVariables(startingAt: varId, vector: frame.position)
+		} else {
+			setVectorVariables(startingAt: varId, vector: SCNVector3Zero)
+		}
+		next()
+	}
+
+	private func frm_getnumchildren(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = Float(frames[frameId]?.childNodes.count ?? 0)
+		next()
+	}
+
+	private func frm_getparent(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		guard let parent = frames[frameId]?.parent else {
+			vars[varId] = -1
+			next()
+			return
+		}
+		if let registeredParent = frames.first(where: { $0.value === parent }) {
+			vars[varId] = Float(registeredParent.key)
+		} else {
+			vars[varId] = -1
+		}
+		next()
+	}
+
+	private func frm_getscale(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = frames[frameId] {
+			setVectorVariables(startingAt: varId, vector: frame.scale)
+		} else {
+			setVectorVariables(startingAt: varId, vector: SCNVector3Zero)
+		}
+		next()
+	}
+
+	private func frm_getworldpos(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = frames[frameId] {
+			setVectorVariables(startingAt: varId, vector: frame.presentation.worldPosition)
+		} else {
+			setVectorVariables(startingAt: varId, vector: SCNVector3Zero)
+		}
+		next()
+	}
+
+	private func frm_getworldscale(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = frames[frameId] {
+			setVectorVariables(startingAt: varId, vector: worldScale(of: frame.presentation.worldTransform))
+		} else {
+			setVectorVariables(startingAt: varId, vector: SCNVector3Zero)
+		}
+		next()
+	}
+
+	private func frm_ison(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = frames[frameId] {
+			vars[varId] = frame.isHidden ? 0 : 1
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func frm_setpos(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		frames[frameId]?.position = vectorVariable(startingAt: varId)
+		next()
+	}
+
+	private func frm_setscale(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		frames[frameId]?.scale = vectorVariable(startingAt: varId)
 		next()
 	}
 
@@ -572,6 +937,81 @@ extension Script {
 		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
+		next()
+	}
+
+	private func getframefromactor(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let actorId = args[1].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId) {
+			frames[frameId] = actor
+		}
+		next()
+	}
+
+	private func getgametime(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		let elapsed = Date.timeIntervalSinceReferenceDate - scene.game.scriptStartTime
+		vars[varId] = Float(elapsed * 1000)
+		next()
+	}
+
+	private func get_remote_actor(_ args: [Argument]) {
+		let localActorId = args[0].getValueOrVarValue(vars: vars)
+		let remoteActorId = args[1].getValueOrVarValue(vars: vars)
+		let remoteSourceActorId = args[2].getValueOrVarValue(vars: vars)
+		guard let remoteScript = script(forActorId: remoteActorId) else {
+			actors[localActorId] = nil
+			next()
+			return
+		}
+		readRemoteScript(remoteScript) {
+			remoteScript.actors[remoteSourceActorId]
+		} completion: { actor in
+			self.actors[localActorId] = actor
+			self.next()
+		}
+	}
+
+	private func get_remote_float(_ args: [Argument]) {
+		let localVarId = args[0].getValueOrVarValue(vars: vars)
+		let remoteActorId = args[1].getValueOrVarValue(vars: vars)
+		let remoteVarId = args[2].getValueOrVarValue(vars: vars)
+		guard let remoteScript = script(forActorId: remoteActorId) else {
+			vars[localVarId] = 0
+			next()
+			return
+		}
+		readRemoteScript(remoteScript) {
+			remoteScript.vars[remoteVarId] ?? 0
+		} completion: { value in
+			self.vars[localVarId] = value
+			self.next()
+		}
+	}
+
+	private func get_remote_frame(_ args: [Argument]) {
+		let localFrameId = args[0].getValueOrVarValue(vars: vars)
+		let remoteActorId = args[1].getValueOrVarValue(vars: vars)
+		let remoteFrameId = args[2].getValueOrVarValue(vars: vars)
+		guard let remoteScript = script(forActorId: remoteActorId) else {
+			frames[localFrameId] = nil
+			next()
+			return
+		}
+		readRemoteScript(remoteScript) {
+			remoteScript.frames[remoteFrameId]
+		} completion: { frame in
+			self.frames[localFrameId] = frame
+			self.next()
+		}
+	}
+
+	private func getticktime(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		let now = Date.timeIntervalSinceReferenceDate
+		vars[varId] = Float((now - lastTickTime) * 1000)
+		lastTickTime = now
 		next()
 	}
 
@@ -654,11 +1094,64 @@ extension Script {
 		next()
 	}
 
+	private func human_candie(_ args: [Argument]) {
+		guard args.count > 1 else {
+			next()
+			return
+		}
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if isPlayerActor(actorId) {
+			vars[varId] = scene.game.playerHealth > 0 ? 1 : 0
+		} else if let actor = node(forScriptId: actorId) {
+			vars[varId] = humanEnergy(for: actor) > 0 ? 1 : 0
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func human_death(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if isPlayerActor(actorId) {
+			scene.game.setPlayerHealth(0)
+		} else if let actor = node(forScriptId: actorId) {
+			humanNode(for: actor)?.humanEnergy = 0
+			actor.actorState = .off
+			script(forActorId: actorId)?.setActorState(.off)
+		}
+		next()
+	}
+
+	private func human_delweapon(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let weaponId = args[1].getValueOrVarValue(vars: vars)
+		if let actor = weaponOwnerNode(forScriptId: actorId),
+		   var weapons = scene.weapons[actor] {
+			weapons.removeAll { $0.id == weaponId }
+			scene.weapons[actor] = weapons
+			refreshPlayerWeaponHudIfNeeded(for: actor)
+		}
+		next()
+	}
+
 	private func human_getactanimid(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		if actors[actorId] != nil {
 			vars[varId] = Float(scene.currentActionAnimationId())
+		}
+		next()
+	}
+
+	private func human_getiteminrhand(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if let actor = weaponOwnerNode(forScriptId: actorId),
+		   let weapon = scene.weapons[actor]?.first(where: { $0.position == .hand }) {
+			vars[varId] = Float(weapon.id)
+		} else {
+			vars[varId] = -1
 		}
 		next()
 	}
@@ -805,10 +1298,23 @@ extension Script {
 		next()
 	}
 
+	private func inventory_clear(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let actor = weaponOwnerNode(forScriptId: actorId) {
+			scene.weapons[actor] = []
+			refreshPlayerWeaponHudIfNeeded(for: actor)
+		}
+		next()
+	}
+
 	private func iscarusable(_ args: [Argument]) {
 		let carId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		vars[varId] = node(forScriptId: carId) != nil ? 1 : 0
+		if let car = node(forScriptId: carId) {
+			vars[varId] = car.actionsEnabledInHierarchy ? 1 : 0
+		} else {
+			vars[varId] = 0
+		}
 		next()
 	}
 
@@ -856,6 +1362,24 @@ extension Script {
 		next()
 	}
 
+	private func math_abs(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = abs(vars[varId] ?? 0)
+		next()
+	}
+
+	private func math_cos(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = cos(vars[varId] ?? 0)
+		next()
+	}
+
+	private func math_sin(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = sin(vars[varId] ?? 0)
+		next()
+	}
+
 	private func mission_objectives(_ args: [Argument]) {
 		let txtId = args[0].getValueOrVarValue(vars: vars)
 		if txtId >= 0 {
@@ -866,6 +1390,50 @@ extension Script {
 
 	private func mission_objectivesclear(_ args: [Argument]) {
 		scene.objectives.removeAll()
+		next()
+	}
+
+	private func mission_objectivesremove(_ args: [Argument]) {
+		let txtId = args[0].getValueOrVarValue(vars: vars)
+		scene.objectives.removeAll { $0 == txtId }
+		next()
+	}
+
+	private func model_create(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let modelName = normalizedModelName(args[1].getString())
+		do {
+			let model = try loadModel(named: modelName)
+			model.name = (modelName as NSString).lastPathComponent
+			scene.rootNode.addChildNode(model)
+			actors[actorId] = model
+		} catch {
+			print("Failed to create model '\(modelName)':", error)
+		}
+		next()
+	}
+
+	private func model_destroy(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		actors[actorId]?.removeFromParentNode()
+		actors[actorId] = nil
+		next()
+	}
+
+	private func model_playanim(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let animName = args[1].getString()
+		if let actor = node(forScriptId: actorId) {
+			DispatchQueue.main.async {
+				try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: actor)
+			}
+		}
+		next()
+	}
+
+	private func model_stopanim(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		node(forScriptId: actorId)?.removeAllAnimations()
 		next()
 	}
 
@@ -886,6 +1454,79 @@ extension Script {
 	private func person_stopanim(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		node(forScriptId: actorId)?.removeAllAnimations()
+		next()
+	}
+
+	private func player_lockcontrols(_ args: [Argument]) {
+		let isLocked = args[0].getValueOrVarValue(vars: vars) != 0
+		DispatchQueue.main.async {
+			self.scene.game.setPlayerControlsLocked(isLocked)
+		}
+		next()
+	}
+
+	private func playsound(_ args: [Argument]) {
+		let soundName = args[0].getString()
+		let frameId = args[1].getValueOrVarValue(vars: vars)
+		let radius = args[2].getValueOrVarValueFloat(vars: vars)
+		let volume = args[3].getValueOrVarValueFloat(vars: vars)
+		let playbackVarId = args.count > 4 ? args[4].getValueOrVarValue(vars: vars) : nil
+
+		guard let url = mafiaResourceURL(directory: "sounds", name: soundName),
+			  let source = SCNAudioSource(url: url) else {
+			if let playbackVarId = playbackVarId {
+				vars[playbackVarId] = 0
+			}
+			next()
+			return
+		}
+
+		source.volume = volume
+		source.isPositional = radius > 0
+		source.load()
+
+		let targetNode = frames[frameId] ?? scene.rootNode
+		let player = SCNAudioPlayer(source: source)
+		let playbackId = nextSoundPlaybackId
+		nextSoundPlaybackId += 1
+		let playback = ScriptSoundPlayback(node: targetNode, player: player)
+		soundPlaybacks[playbackId] = playback
+		player.didFinishPlayback = { [weak self, weak playback] in
+			guard let playback = playback else { return }
+			DispatchQueue.main.async {
+				playback.node.removeAudioPlayer(playback.player)
+				self?.queue.async {
+					self?.soundPlaybacks[playbackId] = nil
+				}
+			}
+		}
+		DispatchQueue.main.async {
+			targetNode.addAudioPlayer(player)
+		}
+		if let playbackVarId = playbackVarId {
+			vars[playbackVarId] = Float(playbackId)
+		}
+		next()
+	}
+
+	private func playsoundstop(_ args: [Argument]) {
+		let playbackId = args[0].getValueOrVarValue(vars: vars)
+		guard let playback = soundPlaybacks.removeValue(forKey: playbackId) else {
+			next()
+			return
+		}
+		playback.player.didFinishPlayback = nil
+		DispatchQueue.main.async {
+			playback.node.removeAudioPlayer(playback.player)
+		}
+		next()
+	}
+
+	private func pm_showsymbol(_ args: [Argument]) {
+		let symbolId = args[0].getValueOrVarValue(vars: vars)
+		if symbolId != 0 {
+			print("pm_showsymbol \(symbolId): police symbol HUD is not implemented")
+		}
 		next()
 	}
 
@@ -1002,12 +1643,38 @@ extension Script {
 		}
 	}
 
+	private func setnullactor(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		actors[actorId] = nil
+		next()
+	}
+
+	private func setnullframe(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		frames[frameId] = nil
+		next()
+	}
+
 	private func setplayerfireevent(_ args: [Argument]) {
 		setPlayerEvent(args, keyPath: \.playerFireEvent)
 	}
 
 	private func setplayerhornevent(_ args: [Argument]) {
 		setPlayerEvent(args, keyPath: \.playerHornEvent)
+	}
+
+	private func settimeoutevent(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let eventId = args[1].getString()
+
+		guard actorId != -1, eventId != "-1", let script = script(forActorId: actorId) else {
+			timeoutEventBinding = nil
+			next()
+			return
+		}
+
+		timeoutEventBinding = ScriptEventBinding(script: script, eventId: eventId)
+		next()
 	}
 
 	private func setPlayerEvent(_ args: [Argument], keyPath: ReferenceWritableKeyPath<Scene, ScriptEventBinding?>) {
@@ -1025,6 +1692,43 @@ extension Script {
 		} else {
 			scene[keyPath: keyPath] = nil
 		}
+		next()
+	}
+
+	private func sound_getvolume(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = frames[frameId],
+		   let sound = scene.sounds[frame] {
+			vars[varId] = sound.audioSource.volume
+		} else {
+			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func sound_setvolume(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let volume = args[1].getValueOrVarValueFloat(vars: vars)
+		if let frame = frames[frameId],
+		   let sound = scene.sounds[frame] {
+			sound.audioSource.volume = volume
+		}
+		next()
+	}
+
+	private func soundfade(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let duration = args[1].getValueOrVarValue(vars: vars)
+		let startVolume = args[2].getValueOrVarValueFloat(vars: vars)
+		let endVolume = args[3].getValueOrVarValueFloat(vars: vars)
+		guard let frame = frames[frameId],
+			  let sound = scene.sounds[frame] else {
+			next()
+			return
+		}
+		sound.audioSource.volume = startVolume
+		fadeSound(sound, from: startVolume, to: endVolume, duration: TimeInterval(max(0, duration)) / 1000)
 		next()
 	}
 
@@ -1132,6 +1836,110 @@ extension Script {
 		next()
 	}
 
+	private func timer_getinterval(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = currentTimerRemainingMilliseconds()
+		next()
+	}
+
+	private func timer_setinterval(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		startTimer(milliseconds: max(0, vars[varId] ?? 0))
+		next()
+	}
+
+	private func timeroff(_ args: [Argument]) {
+		timerGeneration += 1
+		timerEndTime = nil
+		timerRemainingMilliseconds = 0
+		next()
+	}
+
+	private func timeron(_ args: [Argument]) {
+		let seconds = args[3].getValueOrVarValueFloat(vars: vars)
+		startTimer(milliseconds: max(0, seconds * 1000))
+		next()
+	}
+
+	private func vect_add_vect(_ args: [Argument]) {
+		let targetVarId = args[0].getValueOrVarValue(vars: vars)
+		let sourceVarId = args[1].getValueOrVarValue(vars: vars)
+		setVectorVariables(startingAt: targetVarId, vector: vectorVariable(startingAt: targetVarId) + vectorVariable(startingAt: sourceVarId))
+		next()
+	}
+
+	private func vect_copy(_ args: [Argument]) {
+		let targetVarId = args[0].getValueOrVarValue(vars: vars)
+		let sourceVarId = args[1].getValueOrVarValue(vars: vars)
+		setVectorVariables(startingAt: targetVarId, vector: vectorVariable(startingAt: sourceVarId))
+		next()
+	}
+
+	private func vect_inverse(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		let vector = vectorVariable(startingAt: varId)
+		setVectorVariables(startingAt: varId, vector: SCNVector3(x: -vector.x, y: -vector.y, z: -vector.z))
+		next()
+	}
+
+	private func vect_magnitude(_ args: [Argument]) {
+		let vectorVarId = args[0].getValueOrVarValue(vars: vars)
+		let targetVarId = args[1].getValueOrVarValue(vars: vars)
+		vars[targetVarId] = vectorVariable(startingAt: vectorVarId).length
+		next()
+	}
+
+	private func vect_mul_scl(_ args: [Argument]) {
+		let vectorVarId = args[0].getValueOrVarValue(vars: vars)
+		let scalar = args[1].getValueOrVarValueFloat(vars: vars)
+		let vector = vectorVariable(startingAt: vectorVarId)
+		setVectorVariables(
+			startingAt: vectorVarId,
+			vector: SCNVector3(x: vector.x * SCNFloat(scalar), y: vector.y * SCNFloat(scalar), z: vector.z * SCNFloat(scalar))
+		)
+		next()
+	}
+
+	private func vect_mul_vect(_ args: [Argument]) {
+		let targetVarId = args[0].getValueOrVarValue(vars: vars)
+		let sourceVarId = args[1].getValueOrVarValue(vars: vars)
+		let target = vectorVariable(startingAt: targetVarId)
+		let source = vectorVariable(startingAt: sourceVarId)
+		setVectorVariables(
+			startingAt: targetVarId,
+			vector: SCNVector3(x: target.x * source.x, y: target.y * source.y, z: target.z * source.z)
+		)
+		next()
+	}
+
+	private func vect_set(_ args: [Argument]) {
+		let vectorVarId = args[0].getValueOrVarValue(vars: vars)
+		let x = args[1].getValueOrVarValueFloat(vars: vars)
+		let y = args[2].getValueOrVarValueFloat(vars: vars)
+		let z = args[3].getValueOrVarValueFloat(vars: vars)
+		setVectorVariables(startingAt: vectorVarId, vector: SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z)))
+		next()
+	}
+
+	private func vect_sub_vect(_ args: [Argument]) {
+		let targetVarId = args[0].getValueOrVarValue(vars: vars)
+		let sourceVarId = args[1].getValueOrVarValue(vars: vars)
+		setVectorVariables(startingAt: targetVarId, vector: vectorVariable(startingAt: targetVarId) - vectorVariable(startingAt: sourceVarId))
+		next()
+	}
+
+	private func version_is_editor(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = 0
+		next()
+	}
+
+	private func version_is_germany(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = 0
+		next()
+	}
+
 	private func wait(_ args: [Argument]) {
 		let delay = args[0].getValueOrVarValue(vars: vars)
 		if beginCommandBlockAsyncOperation() {
@@ -1183,6 +1991,19 @@ extension Script {
 		return scene.scripts[name] ?? scene.initScripts[name]
 	}
 
+	private func readRemoteScript<T>(_ remoteScript: Script, read: @escaping () -> T, completion: @escaping (T) -> Void) {
+		if remoteScript === self {
+			completion(read())
+			return
+		}
+		remoteScript.queue.async {
+			let value = read()
+			self.queue.async {
+				completion(value)
+			}
+		}
+	}
+
 	private func holsterWeapons(for actor: SCNNode) {
 		if let weapons = scene.weapons[actor] {
 			for weapon in weapons {
@@ -1216,6 +2037,17 @@ extension Script {
 		return scene.game.mode == .car && scene.game.vehicle != nil
 	}
 
+	private func stopCarPhysics(carId: Int, brakeCurrentVehicle: Bool) {
+		if brakeCurrentVehicle, playerOwnerMatches(carId: carId) {
+			scene.game.vehicle?.updateControls(throttle: 0, brake: true, steering: 0)
+			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
+			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
+			return
+		}
+		node(forScriptId: carId)?.physicsBody?.velocity = SCNVector3Zero
+		node(forScriptId: carId)?.physicsBody?.angularVelocity = SCNVector4Zero
+	}
+
 	private func isPlayerActor(_ actorId: Int) -> Bool {
 		guard let actor = node(forScriptId: actorId),
 			  let playerNode = scene.playerNode else { return false }
@@ -1236,6 +2068,97 @@ extension Script {
 			soundRelativeName = "music/" + normalizedName
 		}
 		return mafiaResourceURL(directory: "sounds", name: soundRelativeName)
+	}
+
+	private func currentTimerRemainingMilliseconds() -> Float {
+		if let timerEndTime = timerEndTime {
+			return Float(max(0, timerEndTime - Date.timeIntervalSinceReferenceDate) * 1000)
+		}
+		return timerRemainingMilliseconds
+	}
+
+	private func startTimer(milliseconds: Float) {
+		timerGeneration += 1
+		timerRemainingMilliseconds = milliseconds
+		guard milliseconds > 0 else {
+			timerEndTime = nil
+			if let timeoutEventBinding = timeoutEventBinding {
+				timeoutEventBinding.script.enqueueEvent(timeoutEventBinding.eventId)
+			}
+			return
+		}
+
+		let generation = timerGeneration
+		let seconds = TimeInterval(milliseconds) / 1000
+		timerEndTime = Date.timeIntervalSinceReferenceDate + seconds
+		queue.asyncAfter(deadline: .now() + seconds) {
+			guard self.timerGeneration == generation else { return }
+			self.timerEndTime = nil
+			self.timerRemainingMilliseconds = 0
+			guard let timeoutEventBinding = self.timeoutEventBinding else { return }
+			timeoutEventBinding.script.enqueueEvent(timeoutEventBinding.eventId)
+		}
+	}
+
+	private func fadeSound(_ sound: Sound, from startVolume: Float, to endVolume: Float, duration: TimeInterval) {
+		guard duration > 0 else {
+			sound.audioSource.volume = endVolume
+			return
+		}
+		let startTime = Date.timeIntervalSinceReferenceDate
+		scheduleSoundFadeStep(sound, startVolume: startVolume, endVolume: endVolume, duration: duration, startTime: startTime)
+	}
+
+	private func scheduleSoundFadeStep(
+		_ sound: Sound,
+		startVolume: Float,
+		endVolume: Float,
+		duration: TimeInterval,
+		startTime: TimeInterval
+	) {
+		queue.asyncAfter(deadline: .now() + .milliseconds(50)) {
+			let elapsed = Date.timeIntervalSinceReferenceDate - startTime
+			let progress = min(1, Float(elapsed / duration))
+			sound.audioSource.volume = startVolume + (endVolume - startVolume) * progress
+			if progress < 1 {
+				self.scheduleSoundFadeStep(
+					sound,
+					startVolume: startVolume,
+					endVolume: endVolume,
+					duration: duration,
+					startTime: startTime
+				)
+			}
+		}
+	}
+
+	private func normalizedModelName(_ name: String) -> String {
+		let normalizedName = name
+			.replacingOccurrences(of: "\\", with: "/")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		let withoutExtension = (normalizedName as NSString).deletingPathExtension
+		return withoutExtension.contains("/") ? withoutExtension : "models/" + withoutExtension
+	}
+
+	private func setVectorVariables(startingAt varId: Int, vector: SCNVector3) {
+		vars[varId] = Float(vector.x)
+		vars[varId + 1] = Float(vector.y)
+		vars[varId + 2] = Float(vector.z)
+	}
+
+	private func vectorVariable(startingAt varId: Int) -> SCNVector3 {
+		return SCNVector3(
+			x: SCNFloat(vars[varId] ?? 0),
+			y: SCNFloat(vars[varId + 1] ?? 0),
+			z: SCNFloat(vars[varId + 2] ?? 0)
+		)
+	}
+
+	private func worldScale(of transform: SCNMatrix4) -> SCNVector3 {
+		let x = SCNVector3(x: transform.m11, y: transform.m12, z: transform.m13).length
+		let y = SCNVector3(x: transform.m21, y: transform.m22, z: transform.m23).length
+		let z = SCNVector3(x: transform.m31, y: transform.m32, z: transform.m33).length
+		return SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
 	}
 
 	private func beginPendingEnemyTalk() -> ScriptEnemyTalkOperation {

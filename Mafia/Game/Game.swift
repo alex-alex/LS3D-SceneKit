@@ -86,7 +86,9 @@ final class Game: NSObject {
 	var lastControl: Control?
 	var playerHealth = 100
 	private var activeControls: Set<Control> = []
+	private(set) var arePlayerControlsLocked = false
 	private(set) var isGamePaused = false
+	let scriptStartTime = Date.timeIntervalSinceReferenceDate
 	private var lastUpdateTime: TimeInterval?
 	private let playerExitDistance: SCNFloat = 1.8
 	private let playerExitHeightOffset: SCNFloat = 0.5
@@ -1461,6 +1463,7 @@ extension Game {
 	}
 
 	func pressControl(_ control: Control) {
+		guard !arePlayerControlsLocked else { return }
 		lastControl = control
 		activeControls.insert(control)
 	}
@@ -1476,13 +1479,25 @@ extension Game {
 	}
 
 	func isControlPressed(_ control: Control) -> Bool {
+		guard !arePlayerControlsLocked else { return false }
 		return activeControls.contains(control)
 	}
 
 	func consumeLastControl(_ control: Control) -> Bool {
+		guard !arePlayerControlsLocked else { return false }
 		guard lastControl == control else { return false }
 		lastControl = nil
 		return true
+	}
+
+	func setPlayerControlsLocked(_ isLocked: Bool) {
+		arePlayerControlsLocked = isLocked
+		if isLocked {
+			activeControls.removeAll()
+			lastControl = nil
+			playerController?.stop()
+			vehicle?.updateControls(throttle: 0, brake: true, steering: 0)
+		}
 	}
 
 	func setPlayerCrouching(_ isCrouching: Bool) {

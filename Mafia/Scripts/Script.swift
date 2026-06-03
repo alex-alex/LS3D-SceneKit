@@ -84,15 +84,32 @@ enum Argument {
 
 enum ScriptCommandName: String {
 	case actSetstate = "act_setstate"
+	case actorDelete = "actor_delete"
+	case actorSetpos = "actor_setpos"
 	case actorSetplacement = "actor_setplacement"
+	case cameraGetfov = "camera_getfov"
+	case cameraSetfov = "camera_setfov"
+	case cameraSetrange = "camera_setrange"
 	case carGetspeed = "car_getspeed"
+	case carEnableus = "car_enableus"
+	case carForcestop = "car_forcestop"
+	case carGetactlevel = "car_getactlevel"
+	case carGetseatcount = "car_getseatcount"
+	case carInwater = "car_inwater"
+	case carLock = "car_lock"
+	case carLockAll = "car_lock_all"
 	case carMuststeal = "car_muststeal"
 	case carRepair = "car_repair"
+	case carSetactlevel = "car_setactlevel"
 	case carSetspeed = "car_setspeed"
 	case cleardifferences
 	case commandblock
+	case compareactors
+	case compareframes
+	case compareownerwith
 	case compareownerwithex
 	case consoleAddtext = "console_addtext"
+	case createPhysicalobject = "create_physicalobject"
 	case createweaponfromframe
 	case ctrlRead = "ctrl_read"
 	case detectorInrange = "detector_inrange"
@@ -102,7 +119,10 @@ enum ScriptCommandName: String {
 	case dimAct = "dim_act"
 	case dimFlt = "dim_flt"
 	case dimFrm = "dim_frm"
+	case destroyPhysicalobject = "destroy_physicalobject"
+	case disablecolls
 	case doorEnableus = "door_enableus"
+	case doorGetstate = "door_getstate"
 	case doorLock = "door_lock"
 	case doorOpen = "door_open"
 	case end
@@ -115,17 +135,39 @@ enum ScriptCommandName: String {
 	case eventUseCb = "event_use_cb"
 	case findactor
 	case findframe
+	case getactivecamera
+	case getactiveplayer
+	case getactorframe
+	case frmGetpos = "frm_getpos"
+	case frmGetnumchildren = "frm_getnumchildren"
+	case frmGetparent = "frm_getparent"
+	case frmGetscale = "frm_getscale"
+	case frmGetworldpos = "frm_getworldpos"
+	case frmGetworldscale = "frm_getworldscale"
+	case frmIson = "frm_ison"
+	case frmSetpos = "frm_setpos"
 	case frmSeton = "frm_seton"
+	case frmSetscale = "frm_setscale"
 	case garageEnablesteal = "garage_enablesteal"
 	case getactorsdist
 	case getenemyaistate
+	case getframefromactor
+	case getgametime
+	case getRemoteActor = "get_remote_actor"
+	case getRemoteFloat = "get_remote_float"
+	case getRemoteFrame = "get_remote_frame"
+	case getticktime
 	case goto
 	case humanActivateweapon = "human_activateweapon"
 	case humanAddweapon = "human_addweapon"
 	case humanAnyweaponinhand = "human_anyweaponinhand"
 	case humanAnyweaponininventory = "human_anyweaponininventory"
 	case humanCanaddweapon = "human_canaddweapon"
+	case humanCandie = "human_candie"
+	case humanDeath = "human_death"
+	case humanDelweapon = "human_delweapon"
 	case humanGetactanimid = "human_getactanimid"
+	case humanGetiteminrhand = "human_getiteminrhand"
 	case humanGetproperty = "human_getproperty"
 	case humanHolster = "human_holster"
 	case humanIsweapon = "human_isweapon"
@@ -135,15 +177,26 @@ enum ScriptCommandName: String {
 	case iffltinrange
 	case ifplayerstealcar
 	case introSubtitleAdd = "intro_subtitle_add"
+	case inventoryClear = "inventory_clear"
 	case iscarusable
 	case label
 	case `let` = "let"
 	case loaddifferences
+	case mathAbs = "math_abs"
+	case mathCos = "math_cos"
+	case mathSin = "math_sin"
 	case missionObjectives = "mission_objectives"
 	case missionObjectivesclear = "mission_objectivesclear"
+	case missionObjectivesremove = "mission_objectivesremove"
+	case modelCreate = "model_create"
+	case modelDestroy = "model_destroy"
+	case modelPlayanim = "model_playanim"
+	case modelStopanim = "model_stopanim"
 	case personPlayanim = "person_playanim"
 	case personStopanim = "person_stopanim"
 	case playerLockcontrols = "player_lockcontrols"
+	case playsound
+	case playsoundstop
 	case pmShowsymbol = "pm_showsymbol"
 	case recload
 	case recloadfull
@@ -154,8 +207,14 @@ enum ScriptCommandName: String {
 	case rnd
 	case setcompass
 	case setevent
+	case setnullactor
+	case setnullframe
 	case setplayerfireevent
 	case setplayerhornevent
+	case settimeoutevent
+	case soundGetvolume = "sound_getvolume"
+	case soundSetvolume = "sound_setvolume"
+	case soundfade
 	case streamCreate = "stream_create"
 	case streamDestroy = "stream_destroy"
 	case streamFadevol = "stream_fadevol"
@@ -165,6 +224,20 @@ enum ScriptCommandName: String {
 	case streamSetloop = "stream_setloop"
 	case streamStop = "stream_stop"
 	case subtitleAdd = "subtitle_add"
+	case timerGetinterval = "timer_getinterval"
+	case timerSetinterval = "timer_setinterval"
+	case timeroff
+	case timeron
+	case vectAddVect = "vect_add_vect"
+	case vectCopy = "vect_copy"
+	case vectInverse = "vect_inverse"
+	case vectMagnitude = "vect_magnitude"
+	case vectMulScl = "vect_mul_scl"
+	case vectMulVect = "vect_mul_vect"
+	case vectSet = "vect_set"
+	case vectSubVect = "vect_sub_vect"
+	case versionIsEditor = "version_is_editor"
+	case versionIsGermany = "version_is_germany"
 	case wait
 	case zatmyse
 	case unknown
@@ -173,6 +246,16 @@ enum ScriptCommandName: String {
 final class ScriptEnemyTalkOperation {
 	var isComplete = false
 	var waiters: [() -> Void] = []
+}
+
+final class ScriptSoundPlayback {
+	let node: SCNNode
+	let player: SCNAudioPlayer
+
+	init(node: SCNNode, player: SCNAudioPlayer) {
+		self.node = node
+		self.player = player
+	}
 }
 
 struct ScriptCommand {
@@ -219,9 +302,17 @@ final class Script {
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
 	var vars: [Int: Float] = [:]
+	var carActLevels: [Int: Float] = [:]
+	var soundPlaybacks: [Int: ScriptSoundPlayback] = [:]
+	var nextSoundPlaybackId = 1
 	var streams: [Int: ScriptMusicStream] = [:]
 	var nextStreamId = 1
 	var pendingEnemyTalk: ScriptEnemyTalkOperation?
+	var lastTickTime = Date.timeIntervalSinceReferenceDate
+	var timeoutEventBinding: ScriptEventBinding?
+	var timerEndTime: TimeInterval?
+	var timerRemainingMilliseconds: Float = 0
+	var timerGeneration = 0
 
 	var signal = false
 
@@ -242,8 +333,8 @@ final class Script {
 		let lines = string.components(separatedBy: .newlines)
 		var parsed: [ScriptCommand] = []
 		var lineNum = 0
-		for line in lines {
-			let line = line.trimmingCharacters(in: .whitespaces)
+		for (sourceLineIndex, rawLine) in lines.enumerated() {
+			let line = rawLine.trimmingCharacters(in: .whitespaces)
 			guard !line.isEmpty && !line.hasPrefix("//") else { continue }
 			let scanner = Scanner(string: line)
 			var _command: NSString?
@@ -260,7 +351,7 @@ final class Script {
 				events[label] = lineNum
 			}
 
-			let args = getArgumentsForCommand(str: commandStr, scanner: scanner)
+			let args = getArgumentsForCommand(str: commandStr, scanner: scanner, sourceLine: line, lineNumber: sourceLineIndex + 1)
 			parsed.append(ScriptCommand(name: ScriptCommandName(rawValue: commandStr) ?? .unknown, rawName: commandStr, args: args))
 			lineNum += 1
 		}
