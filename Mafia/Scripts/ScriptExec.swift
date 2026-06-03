@@ -25,6 +25,7 @@ extension Script {
 		case .cameraGetfov:				camera_getfov(command.args)
 		case .cameraSetfov:				camera_setfov(command.args)
 		case .cameraSetrange:			camera_setrange(command.args)
+		case .carBreakmotor:			car_breakmotor(command.args)
 		case .carEnableus:				car_enableus(command.args)
 		case .carForcestop:				car_forcestop(command.args)
 		case .carGetactlevel:			car_getactlevel(command.args)
@@ -317,6 +318,16 @@ extension Script {
 		next()
 	}
 
+	private func car_breakmotor(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let isBroken = args[1].getValueOrVarValue(vars: vars) != 0
+		setCarUsable(carId: carId, isUsable: !isBroken)
+		if isBroken {
+			stopCarPhysics(carId: carId, brakeCurrentVehicle: true)
+		}
+		next()
+	}
+
 	private func car_forcestop(_ args: [Argument]) {
 		let carId = args[0].getValueOrVarValue(vars: vars)
 		stopCarPhysics(carId: carId, brakeCurrentVehicle: true)
@@ -377,6 +388,7 @@ extension Script {
 
 	private func car_repair(_ args: [Argument]) {
 		let carId = args[0].getValueOrVarValue(vars: vars)
+		setCarUsable(carId: carId, isUsable: true)
 		if playerOwnerMatches(carId: carId) {
 			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
 			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
@@ -1035,13 +1047,13 @@ extension Script {
 		var didActivateWeapon = false
 		scene.updateWeaponsIfPresent(for: actor) { weapons in
 			guard let selectedWeapon = weapons.first(where: { $0.id == weaponId }) else { return }
-		for weapon in weapons {
-			weapon.position = weapon === selectedWeapon ? .hand : .inventory
-		}
+			for weapon in weapons {
+				weapon.position = weapon === selectedWeapon ? .hand : .inventory
+			}
 			didActivateWeapon = true
 		}
 		if didActivateWeapon {
-		refreshPlayerWeaponHudIfNeeded(for: actor)
+			refreshPlayerWeaponHudIfNeeded(for: actor)
 		}
 		next()
 	}
@@ -1133,7 +1145,7 @@ extension Script {
 		let weaponId = args[1].getValueOrVarValue(vars: vars)
 		if let actor = weaponOwnerNode(forScriptId: actorId) {
 			scene.updateWeaponsIfPresent(for: actor) { weapons in
-			weapons.removeAll { $0.id == weaponId }
+				weapons.removeAll { $0.id == weaponId }
 			}
 			refreshPlayerWeaponHudIfNeeded(for: actor)
 		}
@@ -1187,11 +1199,15 @@ extension Script {
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		guard let actor = node(forScriptId: actorId),
 			  let owner = scene.humanVehicleOwners[ObjectIdentifier(actor)] else {
+			actors[varId] = nil
+			frames[varId] = nil
 			vars[varId] = -1
 			next()
 			return
 		}
-		vars[varId] = Float(scriptId(for: owner) ?? -1)
+		actors[varId] = owner
+		frames[varId] = nil
+		vars[varId] = Float(varId)
 		next()
 	}
 
@@ -1354,8 +1370,13 @@ extension Script {
 	private func iscarusable(_ args: [Argument]) {
 		let carId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
+		guard carId >= 0 else {
+			vars[varId] = 0
+			next()
+			return
+		}
 		if let car = node(forScriptId: carId) {
-			vars[varId] = car.actionsEnabledInHierarchy ? 1 : 0
+			vars[varId] = isCarUsable(car) ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}
@@ -2084,11 +2105,11 @@ extension Script {
 		if actor === scene.playerNode || actor.name == scene.playerNode?.name,
 		   let playerNode = scene.playerNode {
 			scene.updateWeaponsIfPresent(for: playerNode) { weapons in
-			for weapon in weapons {
-				weapon.position = .inventory
+				for weapon in weapons {
+					weapon.position = .inventory
+				}
 			}
 		}
-	}
 	}
 
 	private func canAddWeapon(weaponId: Int) -> Bool {
@@ -2117,14 +2138,30 @@ extension Script {
 		return owner === car || owner.name == car.name
 	}
 
-	private func scriptId(for target: SCNNode) -> Int? {
-		if let actor = actors.first(where: { $0.value === target || $0.value.name == target.name }) {
-			return actor.key
+	private func setCarUsable(carId: Int, isUsable: Bool) {
+		guard let car = node(forScriptId: carId) else { return }
+		for key in carUsabilityKeys(for: car) {
+			if isUsable {
+				scene.unusableCarIds.remove(key)
+			} else {
+				scene.unusableCarIds.insert(key)
+			}
 		}
-		if let frame = frames.first(where: { $0.value === target || $0.value.name == target.name }) {
-			return frame.key
+	}
+
+	private func isCarUsable(_ car: SCNNode) -> Bool {
+		return carUsabilityKeys(for: car).allSatisfy { !scene.unusableCarIds.contains($0) }
+	}
+
+	private func carUsabilityKeys(for car: SCNNode) -> Set<ObjectIdentifier> {
+		var nodes = Set<SCNNode>([car])
+		if let body = car.mafiaChildNode(named: "BODY", recursively: false) {
+			nodes.insert(body)
 		}
-		return nil
+		if car.name?.uppercased() == "BODY", let parent = car.parent {
+			nodes.insert(parent)
+		}
+		return Set(nodes.map(ObjectIdentifier.init))
 	}
 
 	private func placeHuman(_ actor: SCNNode, inCar car: SCNNode, seatId: Int) {

@@ -90,6 +90,7 @@ enum ScriptCommandName: String {
 	case cameraGetfov = "camera_getfov"
 	case cameraSetfov = "camera_setfov"
 	case cameraSetrange = "camera_setrange"
+	case carBreakmotor = "car_breakmotor"
 	case carGetspeed = "car_getspeed"
 	case carEnableus = "car_enableus"
 	case carForcestop = "car_forcestop"

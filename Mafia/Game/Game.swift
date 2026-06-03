@@ -1390,17 +1390,14 @@ extension Game {
 			})!
 			scene.actions.remove(at: index)
 
-			let playerKey = ObjectIdentifier(scene.playerNode!)
-			if scene.weapons[playerKey] == nil {
-				scene.weapons[playerKey] = []
+			scene.updateWeapons(for: scene.playerNode!) { weapons in
+				for weapon in weapons {
+					weapon.position = .inventory
+				}
+				weapons.append(weapon)
+				weapon.position = .hand
 			}
 
-			for weapon in scene.weapons[playerKey]! {
-				weapon.position = .inventory
-			}
-
-			scene.weapons[playerKey]!.append(weapon)
-			weapon.position = .hand
 			refreshPlayerStatusHud()
 
 		case .door(let node):
@@ -1541,24 +1538,25 @@ extension Game {
 	}
 
 	func holsterPlayerWeapons() {
-		guard let playerNode = scene.playerNode,
-			  let weapons = scene.weapons[ObjectIdentifier(playerNode)] else { return }
-		for weapon in weapons {
-			weapon.position = .inventory
+		guard let playerNode = scene.playerNode else { return }
+		let didUpdateWeapons = scene.updateWeaponsIfPresent(for: playerNode) { weapons in
+			for weapon in weapons {
+				weapon.position = .inventory
+			}
 		}
+		guard didUpdateWeapons else { return }
 		refreshPlayerStatusHud()
 	}
 
 	func dropPlayerWeapon() {
 		guard let playerNode = scene.playerNode,
-			  var weapons = scene.weapons[ObjectIdentifier(playerNode)],
-			  let index = weapons.firstIndex(where: { $0.position == .hand }) else { return }
-
-		let weapon = weapons.remove(at: index)
+			  let weapon = scene.weapons(for: playerNode).first(where: { $0.position == .hand }) else { return }
 		guard let dropNode = droppedWeaponNode(for: weapon, from: playerNode) else { return }
 
+		scene.updateWeaponsIfPresent(for: playerNode) { weapons in
+			weapons.removeAll { $0 === weapon }
+		}
 		weapon.position = .inventory
-		scene.weapons[ObjectIdentifier(playerNode)] = weapons
 		scene.rootNode.addChildNode(dropNode)
 		scene.actions.append(.weapon(dropNode, weapon))
 		hud?.showConsoleText("Dropped \(weapon.name)")
@@ -1614,15 +1612,16 @@ extension Game {
 
 	func playerInventoryWeapons() -> [Weapon] {
 		guard let playerNode = scene.playerNode else { return [] }
-		return scene.weapons[ObjectIdentifier(playerNode)] ?? []
+		return scene.weapons(for: playerNode)
 	}
 
 	func equipPlayerWeapon(_ selectedWeapon: Weapon?) {
-		guard let playerNode = scene.playerNode,
-			  let weapons = scene.weapons[ObjectIdentifier(playerNode)] else { return }
+		guard let playerNode = scene.playerNode else { return }
 
-		for weapon in weapons {
-			weapon.position = selectedWeapon.map { weapon === $0 } == true ? .hand : .inventory
+		scene.updateWeaponsIfPresent(for: playerNode) { weapons in
+			for weapon in weapons {
+				weapon.position = selectedWeapon.map { weapon === $0 } == true ? .hand : .inventory
+			}
 		}
 
 		if let selectedWeapon = selectedWeapon {
@@ -2090,9 +2089,8 @@ extension Game {
 	}
 
 	func equippedPlayerWeapon() -> Weapon? {
-		guard let playerNode = scene.playerNode,
-			  let weapons = scene.weapons[ObjectIdentifier(playerNode)] else { return nil }
-		return weapons.first { $0.position == .hand }
+		guard let playerNode = scene.playerNode else { return nil }
+		return scene.weapons(for: playerNode).first { $0.position == .hand }
 	}
 
 	func refreshPlayerStatusHud() {

@@ -437,6 +437,7 @@ final class Scene {
 
 	var sounds: [SCNNode: Sound] = [:]
 	var humanVehicleOwners: [ObjectIdentifier: SCNNode] = [:]
+	var unusableCarIds = Set<ObjectIdentifier>()
 	var actions: [Action] = []
 	var environmentLights: [EnvironmentLight] = []
 	var trafficSettings: TrafficSettings?

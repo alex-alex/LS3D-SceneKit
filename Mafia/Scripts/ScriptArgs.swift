@@ -117,6 +117,7 @@ extension Script {
 		case "camera_getfov":			return getArgs_camera_getfov(scanner)
 		case "camera_setfov":			return getArgs_camera_setfov(scanner)
 		case "camera_setrange":			return getArgs_camera_setrange(scanner)
+		case "car_breakmotor":			return getArgs_car_breakmotor(scanner)
 		case "car_enableus":			return getArgs_car_enableus(scanner)
 		case "car_forcestop":			return getArgs_car_forcestop(scanner)
 		case "car_getactlevel":			return getArgs_car_getactlevel(scanner)
@@ -296,6 +297,10 @@ extension Script {
 	}
 
 	private func getArgs_car_enableus(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_car_breakmotor(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
