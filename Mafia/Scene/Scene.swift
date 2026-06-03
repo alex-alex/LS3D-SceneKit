@@ -1226,10 +1226,6 @@ final class Scene {
 		}
 
 		let differenceRoots = loadedDifferenceFiles.values.map { $0.rootNode }
-		guard !differenceRoots.isEmpty else {
-			print("== Record Playback skipped: no differences loaded for \(record.name)")
-			return
-		}
 		let recordRoots = differenceRoots + [rootNode, game.scnScene.rootNode]
 
 		print("== Playing Record: \(record.name) full=\(full)")
