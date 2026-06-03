@@ -188,6 +188,12 @@ private final class ScheduledRecordSound {
 	}
 }
 
+private struct RecordSoundBinding {
+	let fileName: String
+	let url: URL
+	let node: SCNNode
+}
+
 private final class ActiveRecordPlayback {
 	let name: String
 	let duration: TimeInterval
@@ -1879,7 +1885,7 @@ final class Scene {
 			return (try? recordAnimationRoot(for: animationPath, in: node).matches) ?? 0
 		}
 
-		let directAnimationEvents = record.animationEvents.filter { $0.animationId == animation.id }
+		let directAnimationEvents = recordAnimationEvents(for: animation, record: record)
 		let animationEvents: [RecordAnimationEvent]
 		let sourcePrefix: String
 		if directAnimationEvents.isEmpty {
@@ -2048,27 +2054,44 @@ final class Scene {
 		}
 	}
 
+	private func recordAnimationEvents(
+		for animation: RecordAnimation,
+		record: Record
+	) -> [RecordAnimationEvent] {
+		return record.animationEvents.filter {
+			$0.animationId == animation.id || $0.animationId == animation.index
+		}
+	}
+
+	private func recordHasAnimationEvents(
+		for animation: RecordAnimation,
+		record: Record
+	) -> Bool {
+		return record.animationEvents.contains {
+			$0.animationId == animation.id || $0.animationId == animation.index
+		}
+	}
+
 	private func recordSequenceAnimationEvents(
 		animation: RecordAnimation,
 		record: Record
 	) -> (animation: RecordAnimation, events: [RecordAnimationEvent])? {
-		let eventAnimationIds = Set(record.animationEvents.map(\.animationId))
 		guard let animationIndex = record.animations.firstIndex(where: { $0.id == animation.id }),
-			  !eventAnimationIds.contains(animation.id) else {
+			  !recordHasAnimationEvents(for: animation, record: record) else {
 			return nil
 		}
 
 		var missingStartIndex = animationIndex
 		while missingStartIndex > 0 {
 			let previousAnimation = record.animations[missingStartIndex - 1]
-			guard !eventAnimationIds.contains(previousAnimation.id) else { break }
+			guard !recordHasAnimationEvents(for: previousAnimation, record: record) else { break }
 			missingStartIndex -= 1
 		}
 
 		var missingEndIndex = animationIndex
 		while missingEndIndex + 1 < record.animations.count {
 			let nextAnimation = record.animations[missingEndIndex + 1]
-			guard !eventAnimationIds.contains(nextAnimation.id) else { break }
+			guard !recordHasAnimationEvents(for: nextAnimation, record: record) else { break }
 			missingEndIndex += 1
 		}
 
@@ -2077,27 +2100,40 @@ final class Scene {
 		guard donorIndex < record.animations.count else { return nil }
 
 		let donorAnimation = record.animations[donorIndex]
-		let donorEvents = record.animationEvents.filter { $0.animationId == donorAnimation.id }
+		let donorEvents = recordAnimationEvents(for: donorAnimation, record: record)
 		guard !donorEvents.isEmpty else { return nil }
 		return (donorAnimation, donorEvents)
 	}
 
 	private func playRecordSounds(_ record: Record) {
-		let soundsByName = Dictionary(
-			loadedDifferenceFiles.values
-				.flatMap { $0.sounds }
-				.map { ($0.name.lowercased(), $0) },
-			uniquingKeysWith: { first, _ in first }
-		)
+		var soundsByName: [String: RecordSoundBinding] = [:]
+		for (node, sound) in sounds {
+			guard let name = node.name, !name.isEmpty else { continue }
+			soundsByName[name.lowercased()] = RecordSoundBinding(
+				fileName: sound.url.lastPathComponent,
+				url: sound.url,
+				node: node
+			)
+		}
+		for sound in loadedDifferenceFiles.values.flatMap({ $0.sounds }) {
+			guard let url = mafiaResourceURL(directory: "sounds", name: sound.fileName) else {
+				continue
+			}
+			soundsByName[sound.name.lowercased()] = RecordSoundBinding(
+				fileName: sound.fileName,
+				url: url,
+				node: sound.node
+			)
+		}
 
 		guard !soundsByName.isEmpty else {
-			print("== Record Sounds skipped: no difference sounds")
+			print("== Record Sounds skipped: no scene or difference sounds")
 			return
 		}
 
 		let soundEvents = record.timedEvents
 			.filter { !$0.isStop }
-			.compactMap { event -> (event: RecordTimedEvent, sound: DifferenceSound)? in
+			.compactMap { event -> (event: RecordTimedEvent, sound: RecordSoundBinding)? in
 				guard let sound = soundsByName[event.name.lowercased()] else { return nil }
 				return (event, sound)
 			}
@@ -2114,16 +2150,11 @@ final class Scene {
 		)
 		var scheduledCount = 0
 		for (event, sound) in soundEvents {
-			guard let url = mafiaResourceURL(directory: "sounds", name: sound.fileName) else {
-				print("== Record Sound missing: \(sound.fileName)")
-				continue
-			}
-
 			let scheduledSound = ScheduledRecordSound(
-				url: url,
+				url: sound.url,
 				node: sound.node,
 				fallbackNode: rootNode,
-				soundName: sound.name,
+				soundName: event.name,
 				fileName: sound.fileName,
 				eventTime: event.time
 			)

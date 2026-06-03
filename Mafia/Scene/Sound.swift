@@ -18,6 +18,7 @@ final class Sound {
 	let scene: Scene
 	let node: SCNNode
 	let sourceType: SourceType
+	let url: URL
 
 	let audioSource: SCNAudioSource
 
@@ -32,6 +33,7 @@ final class Sound {
 //		print("SOUND src:", objectNode.name, sound)
 
 		let url = mainDirectory.appendingPathComponent("sounds/" + sound.lowercased())
+		self.url = url
 		audioSource = SCNAudioSource(url: url)!
 		//scene.sounds[objectNode] = source
 		//objectNode.runAction(SCNAction.playAudio(source, waitForCompletion: true), forKey: "sound")

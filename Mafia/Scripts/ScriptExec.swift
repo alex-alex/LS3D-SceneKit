@@ -147,9 +147,11 @@ extension Script {
 		case .setplayerfireevent:		setplayerfireevent(command.args)
 		case .setplayerhornevent:		setplayerhornevent(command.args)
 		case .settimeoutevent:			settimeoutevent(command.args)
+		case .getfilmmusic:				getfilmmusic(command.args)
 		case .soundGetvolume:			sound_getvolume(command.args)
 		case .soundSetvolume:			sound_setvolume(command.args)
 		case .soundfade:				soundfade(command.args)
+		case .setfilmmusic:				setfilmmusic(command.args)
 		case .streamCreate:				stream_create(command.args)
 		case .streamDestroy:			stream_destroy(command.args)
 		case .streamFadevol:			stream_fadevol(command.args)
@@ -1811,6 +1813,32 @@ extension Script {
 			}
 		}
 		next()
+	}
+
+	private func getfilmmusic(_ args: [Argument]) {
+		playFilmMusicStream(args)
+	}
+
+	private func setfilmmusic(_ args: [Argument]) {
+		playFilmMusicStream(args)
+	}
+
+	private func playFilmMusicStream(_ args: [Argument]) {
+		let streamId = filmMusicStreamId(from: args)
+		if let stream = streams[streamId] {
+			DispatchQueue.main.async {
+				stream.play()
+			}
+		}
+		next()
+	}
+
+	private func filmMusicStreamId(from args: [Argument]) -> Int {
+		let rawId = args.first?.getValueOrVarValue(vars: vars) ?? 0
+		if streams[rawId] != nil {
+			return rawId
+		}
+		return Int(vars[rawId] ?? 0)
 	}
 
 	private func stream_setloop(_ args: [Argument]) {

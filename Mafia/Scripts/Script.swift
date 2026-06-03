@@ -138,6 +138,7 @@ enum ScriptCommandName: String {
 	case getactivecamera
 	case getactiveplayer
 	case getactorframe
+	case getfilmmusic
 	case frmGetpos = "frm_getpos"
 	case frmGetnumchildren = "frm_getnumchildren"
 	case frmGetparent = "frm_getparent"
@@ -207,6 +208,7 @@ enum ScriptCommandName: String {
 	case rnd
 	case setcompass
 	case setevent
+	case setfilmmusic
 	case setnullactor
 	case setnullframe
 	case setplayerfireevent

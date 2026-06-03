@@ -162,6 +162,7 @@ extension Script {
 		case "getactivecamera":			return getArgs_getactivecamera(scanner)
 		case "getactiveplayer":			return getArgs_getactiveplayer(scanner)
 		case "getactorframe":			return getArgs_getactorframe(scanner)
+		case "getfilmmusic":			return getArgs_getfilmmusic(scanner)
 		case "frm_getpos":				return getArgs_frm_getpos(scanner)
 		case "frm_getnumchildren":		return getArgs_frm_getnumchildren(scanner)
 		case "frm_getparent":			return getArgs_frm_getparent(scanner)
@@ -228,6 +229,7 @@ extension Script {
 		case "recunload":				return []
 		case "setcompass":				return getArgs_setcompass(scanner)
 		case "setevent":				return getArgs_setevent(scanner)
+		case "setfilmmusic":			return getArgs_setfilmmusic(scanner)
 		case "setnullactor":			return getArgs_setnullactor(scanner)
 		case "setnullframe":			return getArgs_setnullframe(scanner)
 		case "setplayerfireevent":		return getArgs_setplayerevent(scanner)
@@ -875,6 +877,22 @@ extension Script {
 
 	private func getArgs_stream_stop(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_getfilmmusic(_ scanner: Scanner) -> [Argument] {
+		return getArgs_optionalStreamId(scanner)
+	}
+
+	private func getArgs_setfilmmusic(_ scanner: Scanner) -> [Argument] {
+		return getArgs_optionalStreamId(scanner)
+	}
+
+	private func getArgs_optionalStreamId(_ scanner: Scanner) -> [Argument] {
+		var args: [Argument] = []
+		while let arg = scanVarOrValueOptional(scanner) {
+			args.append(arg)
+		}
+		return args
 	}
 
 	private func getArgs_subtitle_add(_ scanner: Scanner) -> [Argument] {

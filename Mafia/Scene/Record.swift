@@ -15,6 +15,7 @@ private let recordCameraCutTimeEpsilon: TimeInterval = 0.005
 
 struct RecordAnimation {
 	let id: Int
+	let index: Int
 	let name: String
 }
 
@@ -167,10 +168,10 @@ final class Record {
 		stream.currentOffset += 4
 
 		var loadedAnimations: [RecordAnimation] = []
-		for _ in 0 ..< animationNamesCount {
+		for index in 0 ..< Int(animationNamesCount) {
 			let rawId: UInt32 = try stream.read()
 			let animationName: String = try stream.read(maxLength: 48, encoding: .windowsCP1250)
-			loadedAnimations.append(RecordAnimation(id: Int(rawId), name: animationName))
+			loadedAnimations.append(RecordAnimation(id: Int(rawId), index: index, name: animationName))
 		}
 
 		var bindingMetadata: [RecordModelBindingMetadata] = []
@@ -685,7 +686,12 @@ final class Record {
 				currentOffset += entrySize
 			}
 
-			guard run.count >= 3 else { continue }
+			guard run.filter({
+				if case .speech = $0.chunk {
+					return true
+				}
+				return false
+			}).count >= 2 else { continue }
 			for (offset, chunk) in run where !acceptedOffsets.contains(offset) {
 				acceptedOffsets.insert(offset)
 				switch chunk {
@@ -1225,7 +1231,7 @@ private extension Data {
 			return .ignored
 		}
 
-		guard dialogId >= 1_000_000,
+		guard dialogId > 1,
 			  dialogId <= 99_999_999 else {
 			return nil
 		}
