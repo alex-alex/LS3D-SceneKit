@@ -66,6 +66,7 @@ final class PlayerController {
 	private let maxStepHeight: SCNFloat = 0.45
 	private let maxGroundSnapDistance: SCNFloat = 2.0
 	private let groundProbeLift: SCNFloat = 0.55
+	private let groundProbeRadius: SCNFloat = 0.22
 	private let minGroundNormalY: SCNFloat = 0.65
 	private let minLookPitch: SCNFloat = -0.65
 	private let maxLookPitch: SCNFloat = 0.45
@@ -509,20 +510,34 @@ final class PlayerController {
 
 	private func groundHeight(at localPosition: SCNVector3) -> SCNFloat? {
 		let parent = node.parent
-		let worldPosition = parent?.presentation.convertPosition(localPosition, to: nil) ?? localPosition
-		let from = SCNVector3(x: worldPosition.x, y: worldPosition.y + groundProbeLift, z: worldPosition.z)
-		let to = SCNVector3(x: worldPosition.x, y: worldPosition.y - maxGroundSnapDistance, z: worldPosition.z)
-		let hits = scene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
-			SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking,
-			SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
-		])
+		let probeOffsets = [
+			SCNVector3Zero,
+			SCNVector3(x: groundProbeRadius, y: 0, z: 0),
+			SCNVector3(x: -groundProbeRadius, y: 0, z: 0),
+			SCNVector3(x: 0, y: 0, z: groundProbeRadius),
+			SCNVector3(x: 0, y: 0, z: -groundProbeRadius)
+		]
+		var highestGroundY: SCNFloat?
 
-		for hit in hits where isGroundHit(hit) {
-			let localContact = parent?.presentation.convertPosition(hit.worldCoordinates, from: nil) ?? hit.worldCoordinates
-			return localContact.y
+		for offset in probeOffsets {
+			let probePosition = localPosition + offset
+			let worldPosition = parent?.presentation.convertPosition(probePosition, to: nil) ?? probePosition
+			let from = SCNVector3(x: worldPosition.x, y: worldPosition.y + groundProbeLift, z: worldPosition.z)
+			let to = SCNVector3(x: worldPosition.x, y: worldPosition.y - maxGroundSnapDistance, z: worldPosition.z)
+			let hits = scene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
+				SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking,
+				SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
+			])
+
+			for hit in hits where isGroundHit(hit) {
+				let localContact = parent?.presentation.convertPosition(hit.worldCoordinates, from: nil) ?? hit.worldCoordinates
+				if highestGroundY == nil || localContact.y > highestGroundY! {
+					highestGroundY = localContact.y
+				}
+			}
 		}
 
-		return nil
+		return highestGroundY
 	}
 
 	private func isGroundHit(_ hit: SCNHitTestResult) -> Bool {

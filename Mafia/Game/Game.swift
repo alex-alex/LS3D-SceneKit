@@ -243,7 +243,6 @@ final class Game: NSObject {
 		// -----
 
 		if let playerNode = scene.playerNode {
-			playerNode.position.y += 0.5
 			playerController = PlayerController(node: playerNode, scene: scnScene)
 		}
 
