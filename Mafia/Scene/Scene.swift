@@ -2692,6 +2692,9 @@ final class Scene {
 				  let playback = playback else { return }
 			self.activeRecordNames.remove(playback.name)
 			self.activeRecordPlaybacks.removeValue(forKey: self.recordKey(for: playback.name))
+			if self.activeRecordPlaybacks.isEmpty {
+				self.stopRecordPlayback()
+			}
 		}
 		playback.workItem = workItem
 		playback.deadline = Date.timeIntervalSinceReferenceDate + delay
@@ -2712,6 +2715,9 @@ final class Scene {
 				activeRecordNames.remove(playback.name)
 			}
 			activeRecordPlaybacks.removeValue(forKey: key)
+		}
+		if !expiredKeys.isEmpty, activeRecordPlaybacks.isEmpty {
+			stopRecordPlayback()
 		}
 	}
 
@@ -2814,10 +2820,6 @@ final class Scene {
 		game?.isCutsceneCameraActive = false
 		if let restore = recordCameraRestore,
 		   let game = game {
-			let cameraContainer = game.cameraContainer
-			cameraContainer.removeFromParentNode()
-			restore.parent?.addChildNode(cameraContainer)
-			cameraContainer.transform = restore.transform
 			game.cameraNode.position = restore.cameraPosition
 			game.cameraNode.eulerAngles = restore.cameraEulerAngles
 			if let fieldOfView = restore.cameraFieldOfView {
@@ -2826,6 +2828,7 @@ final class Scene {
 			if let nearPlane = restore.cameraNearPlane {
 				game.cameraNode.camera?.zNear = nearPlane
 			}
+			game.restoreGameplayCamera()
 		}
 		recordCameraRestore = nil
 		activeRecordNames.removeAll()

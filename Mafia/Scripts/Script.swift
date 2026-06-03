@@ -276,7 +276,13 @@ struct ScriptCommand {
 
 final class Script {
 
-	private static let isCommandLoggingEnabled = false
+	private static var isCommandLoggingEnabled = false
+
+	@discardableResult
+	static func toggleCommandLogging() -> Bool {
+		isCommandLoggingEnabled.toggle()
+		return isCommandLoggingEnabled
+	}
 
 	let uuid = NSUUID()
 	let queue: DispatchQueue

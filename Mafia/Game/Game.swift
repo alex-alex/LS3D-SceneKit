@@ -524,7 +524,7 @@ final class Game: NSObject {
 
 	private func vehicleLongitudinalSpeed() -> SCNFloat {
 		guard let vehicle = vehicle else { return 0 }
-		guard let velocity = vehicle.node.physicsBody?.velocity else { return 0 }
+		let velocity = vehicle.velocity
 
 		let forward = vehicle.node.presentation.worldFront
 		return velocity.x * forward.x + velocity.z * forward.z
@@ -642,27 +642,39 @@ final class Game: NSObject {
 		}
 		playerNode.physicsBody = nil
 
-		let bounds = vehicle.node.boundingBox
-		let seatPosition = SCNVector3(
-			x: (bounds.min.x + bounds.max.x) / 2,
-			y: bounds.min.y + (bounds.max.y - bounds.min.y) * 0.55,
-			z: (bounds.min.z + bounds.max.z) / 2
-		)
-		playerNode.worldPosition = vehicle.node.presentation.convertPosition(seatPosition, to: nil)
+		let seatPosition = playerSeatPosition(in: vehicle.node)
+		vehicle.node.addChildNode(playerNode)
+		playerNode.position = seatPosition
 		let yaw = vehicleYaw()
 		if let playerController = playerController {
 			playerController.face(worldYaw: yaw)
 		} else {
-			playerNode.eulerAngles = SCNVector3(x: 0, y: yaw, z: 0)
+			playerNode.eulerAngles = SCNVector3Zero
 		}
-		playerNode.isHidden = true
+		playerNode.isHidden = false
 	}
 
 	private func syncPlayerToVehicle() {
 		guard let playerNode = scene.playerNode,
 			  let vehicle = vehicle else { return }
 
-		playerNode.worldPosition = vehicle.node.presentation.worldPosition
+		if playerNode.parent !== vehicle.node {
+			vehicle.node.addChildNode(playerNode)
+		}
+		playerNode.position = playerSeatPosition(in: vehicle.node)
+		playerNode.isHidden = false
+	}
+
+	private func playerSeatPosition(in body: SCNNode) -> SCNVector3 {
+		let bounds = body.boundingBox
+		let width = bounds.max.x - bounds.min.x
+		let height = bounds.max.y - bounds.min.y
+		let length = bounds.max.z - bounds.min.z
+		return SCNVector3(
+			x: (bounds.min.x + bounds.max.x) / 2 - width * 0.16,
+			y: bounds.min.y + height * 0.12,
+			z: (bounds.min.z + bounds.max.z) / 2 + length * 0.12
+		)
 	}
 
 	private func horizontalVehicleRight() -> SCNVector3 {
@@ -847,6 +859,21 @@ final class Game: NSObject {
 		}
 		refreshPlayerStatusHud()
 		scene.startScripts()
+	}
+
+	func restoreGameplayCamera() {
+		cameraContainer.removeFromParentNode()
+		configureCamera(for: mode)
+		if mode == .walk, let playerNode = scene.playerNode {
+			playerNode.addChildNode(cameraContainer)
+		} else if mode == .walk {
+			scene.rootNode.addChildNode(cameraContainer)
+		} else {
+			scnScene.rootNode.addChildNode(cameraContainer)
+			if mode == .car {
+				resetCarCameraFollow()
+			}
+		}
 	}
 
 	func setCutsceneOverlayVisible(_ isVisible: Bool) {
@@ -1315,7 +1342,7 @@ extension Game: SCNSceneRendererDelegate {
 
 		vehicle?.updateAudio(isActive: mode == .car)
 
-		let vehicleVelocity = vehicle?.node.physicsBody?.velocity ?? SCNVector3Zero
+		let vehicleVelocity = vehicle?.velocity ?? SCNVector3Zero
 		let vehicleSpeed = sqrt(
 			vehicleVelocity.x * vehicleVelocity.x +
 			vehicleVelocity.y * vehicleVelocity.y +

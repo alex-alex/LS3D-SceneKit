@@ -1404,6 +1404,12 @@ extension HudScene {
 			return
 		}
 
+		if event.keyCode == 34 { // I
+			game.pressControl(.INVENTORY)
+			toggleInventory()
+			return
+		}
+
 		guard !game.isGamePaused else { return }
 
 		if event.keyCode == 36 || event.keyCode == 76 { // return, keypad enter
@@ -1414,6 +1420,13 @@ extension HudScene {
 
 		SCNTransaction.begin()
 		SCNTransaction.animationDuration = 0.2
+
+		if event.keyCode == 35 { // P
+			let isEnabled = Script.toggleCommandLogging()
+			showConsoleText("Script logging \(isEnabled ? "enabled" : "disabled")")
+			SCNTransaction.commit()
+			return
+		}
 
 		if event.keyCode == 8 { // C
 			clearVehicleControls()
@@ -1456,10 +1469,6 @@ extension HudScene {
 		case 15, 37: // R, L
 			game.pressControl(.RELOAD)
 			game.reloadPlayerWeapon()
-
-		case 34: // I
-			game.pressControl(.INVENTORY)
-			game.openInventory()
 
 		case 31: // O
 			game.showObjectives()

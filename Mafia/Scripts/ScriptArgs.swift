@@ -646,27 +646,23 @@ extension Script {
 	}
 
 	private func getArgs_if(_ scanner: Scanner) -> [Argument] {
-		guard let token1 = scanParamOptional(scanner),
-			  let arg1 = parseVarOrNumberToken(token1) else { return [] }
-
-		let op: String
-		if scanner.scanString("=", into: nil) {
-			op = "="
-		} else if scanner.scanString("!", into: nil) {
-			op = "!"
-		} else if scanner.scanString("<", into: nil) {
-			op = "<"
-		} else if scanner.scanString(">", into: nil) {
-			op = ">"
-		} else {
+		let startIndex = scanner.string.index(scanner.string.startIndex, offsetBy: scanner.scanLocation)
+		let rawCondition = String(scanner.string[startIndex...])
+		guard let operatorIndex = rawCondition.firstIndex(where: { "=!<>".contains($0) }) else {
 			scriptArgumentFatalError("Expected comparison operator")
 		}
-		scanner.scanCharacters(from: .whitespaces, into: nil)
 
-		guard let token2 = scanParamOptional(scanner),
-			  let arg2 = parseVarOrNumberToken(token2),
-			  let label1 = scanParamOptional(scanner),
-			  let label2 = scanParamOptional(scanner) else { return [] }
+		let token1 = rawCondition[..<operatorIndex].trimmingCharacters(in: .whitespacesAndNewlines)
+		let op = String(rawCondition[operatorIndex])
+		let remainingTokens = rawCondition[rawCondition.index(after: operatorIndex)...]
+			.split(whereSeparator: { $0 == "," || $0.isWhitespace })
+			.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "!")) }
+
+		guard let arg1 = parseVarOrNumberToken(token1),
+			  remainingTokens.count >= 3,
+			  let arg2 = parseVarOrNumberToken(String(remainingTokens[0])) else { return [] }
+		let label1 = String(remainingTokens[1])
+		let label2 = String(remainingTokens[2])
 		return [arg1, .label(op), arg2, .label(label1), .label(label2)]
 	}
 

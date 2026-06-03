@@ -58,6 +58,9 @@ final class Vehicle {
 			velocity.z * velocity.z
 		))
 	}
+	var velocity: SCNVector3 {
+		return node.physicsBody?.velocity ?? SCNVector3Zero
+	}
 	var vehicleSteering: CGFloat = 0 {
 		didSet {
 			if vehicleSteering < -maximumSteering {
@@ -87,6 +90,12 @@ final class Vehicle {
 		self.node = taxiNode
 
 		Vehicle.attachChassisVisuals(from: node, to: taxiNode)
+		Vehicle.detachChassisForPhysics(
+			scene: scene,
+			vehicleRoot: node,
+			chassisNode: taxiNode,
+			wheelNodes: [whl0, whr0, whl1, whr1]
+		)
 
 		taxiNode.physicsBody = SCNPhysicsBody(
 			type: .dynamic,
@@ -206,6 +215,25 @@ final class Vehicle {
 			let worldTransform = childNode.worldTransform
 			chassisNode.addChildNode(childNode)
 			childNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
+		}
+	}
+
+	private static func detachChassisForPhysics(
+		scene: SCNScene,
+		vehicleRoot: SCNNode,
+		chassisNode: SCNNode,
+		wheelNodes: [SCNNode]
+	) {
+		let parentNode = vehicleRoot.parent ?? scene.rootNode
+		let chassisWorldTransform = chassisNode.worldTransform
+		let wheelWorldTransforms = wheelNodes.map(\.worldTransform)
+
+		parentNode.addChildNode(chassisNode)
+		chassisNode.transform = parentNode.convertTransform(chassisWorldTransform, from: nil)
+
+		for (wheelNode, worldTransform) in zip(wheelNodes, wheelWorldTransforms) {
+			chassisNode.addChildNode(wheelNode)
+			wheelNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
 		}
 	}
 
@@ -546,7 +574,6 @@ private final class VehicleAudio {
 		node.addAudioPlayer(player)
 		currentLoopName = soundName
 		currentLoopPlayer = player
-		VehicleSoundLog.log("Playing vehicle loop '\(soundName)' on node '\(node.name ?? "<unnamed>")'")
 	}
 
 	private func updateBrakeLoop(on node: SCNNode, speed: CGFloat, isBraking: Bool) {

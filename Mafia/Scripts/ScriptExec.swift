@@ -10,6 +10,12 @@ import Foundation
 import AVFoundation
 import SceneKit
 
+private let scriptNullActorNode: SCNNode = {
+	let node = SCNNode()
+	node.name = "NULL"
+	return node
+}()
+
 extension Script {
 
 	private static let loopYieldInterval: DispatchTimeInterval = .milliseconds(16)
@@ -477,8 +483,9 @@ extension Script {
 		let carId = args[1].getValueOrVarValue(vars: vars)
 		let label1 = args[2].getString()
 		let label2 = args[3].getString()
-		if humanOwnerMatches(actorId: actorId, carId: carId) ||
-			(isPlayerActor(actorId) && playerOwnerMatches(carId: carId)) {
+		let humanMatches = humanOwnerMatches(actorId: actorId, carId: carId)
+		let playerMatches = isPlayerActor(actorId) && playerOwnerMatches(carId: carId)
+		if humanMatches || playerMatches {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
@@ -782,7 +789,9 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
 			let name = args[1].getString()
-			if let node = findNode(named: name) {
+			if name.lowercased() == "null" {
+				actors[actorId] = scriptNullActorNode
+			} else if let node = findNode(named: name) {
 				actors[actorId] = node
 			}
 		} else {
@@ -1198,7 +1207,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		guard let actor = node(forScriptId: actorId),
-			  let owner = scene.humanVehicleOwners[ObjectIdentifier(actor)] else {
+			  let owner = ownerNode(forActorId: actorId) else {
 			actors[varId] = nil
 			frames[varId] = nil
 			vars[varId] = -1
@@ -2124,6 +2133,9 @@ extension Script {
 	}
 
 	private func playerOwnerMatches(carId: Int) -> Bool {
+		if node(forScriptId: carId)?.name?.lowercased() == "null" {
+			return scene.game.mode != .car || scene.game.vehicle == nil
+		}
 		if let carNode = node(forScriptId: carId) {
 			return scene.game.playerOwnerMatches(carNode: carNode)
 		}
@@ -2132,11 +2144,21 @@ extension Script {
 
 	private func humanOwnerMatches(actorId: Int, carId: Int) -> Bool {
 		guard let actor = node(forScriptId: actorId),
-			  let car = node(forScriptId: carId),
-			  let owner = scene.humanVehicleOwners[ObjectIdentifier(actor)] else {
+			  let car = node(forScriptId: carId) else {
 			return false
 		}
+		guard let owner = ownerNode(forActorId: actorId) else {
+			return car.name?.lowercased() == "null"
+		}
 		return owner === car || owner.name == car.name
+	}
+
+	private func ownerNode(forActorId actorId: Int) -> SCNNode? {
+		guard let actor = node(forScriptId: actorId) else { return nil }
+		if isPlayerActor(actorId), scene.game.mode == .car {
+			return scene.game.vehicle?.scriptNode
+		}
+		return scene.humanVehicleOwners[ObjectIdentifier(actor)]
 	}
 
 	private func setCarUsable(carId: Int, isUsable: Bool) {
@@ -2166,26 +2188,48 @@ extension Script {
 	}
 
 	private func placeHuman(_ actor: SCNNode, inCar car: SCNNode, seatId: Int) {
-		let body = car.mafiaChildNode(named: "BODY", recursively: false) ?? car
+		let body = carBodyNode(for: car)
 		let bounds = body.boundingBox
 		let width = bounds.max.x - bounds.min.x
 		let height = bounds.max.y - bounds.min.y
 		let length = bounds.max.z - bounds.min.z
 		guard width > 0, height > 0, length > 0 else {
 			actor.worldPosition = car.presentation.worldPosition
-			actor.isHidden = true
+			removePhysicsBodies(from: actor)
+			actor.isHidden = false
 			return
 		}
 
 		let isLeftSeat = seatId == 0 || seatId == 2
 		let isFrontSeat = seatId == 0 || seatId == 1
 		let seatPosition = SCNVector3(
-			x: (bounds.min.x + bounds.max.x) / 2 + (isLeftSeat ? -width : width) * 0.18,
-			y: bounds.min.y + height * 0.55,
-			z: (bounds.min.z + bounds.max.z) / 2 + (isFrontSeat ? length : -length) * 0.18
+			x: (bounds.min.x + bounds.max.x) / 2 + (isLeftSeat ? -width : width) * 0.16,
+			y: bounds.min.y + height * 0.12,
+			z: (bounds.min.z + bounds.max.z) / 2 + (isFrontSeat ? length : -length) * 0.12
 		)
-		actor.worldPosition = body.presentation.convertPosition(seatPosition, to: nil)
-		actor.isHidden = true
+		removePhysicsBodies(from: actor)
+		body.addChildNode(actor)
+		actor.position = seatPosition
+		actor.eulerAngles = SCNVector3Zero
+		actor.isHidden = false
+	}
+
+	private func carBodyNode(for car: SCNNode) -> SCNNode {
+		if let body = car.mafiaChildNode(named: "BODY", recursively: false) {
+			return body
+		}
+		if let vehicle = scene.game.vehicle,
+		   vehicle.scriptNode === car || vehicle.scriptNode.name == car.name {
+			return vehicle.node
+		}
+		return car
+	}
+
+	private func removePhysicsBodies(from node: SCNNode) {
+		node.physicsBody = nil
+		for child in node.childNodes {
+			removePhysicsBodies(from: child)
+		}
 	}
 
 	private func stopCarPhysics(carId: Int, brakeCurrentVehicle: Bool) {
