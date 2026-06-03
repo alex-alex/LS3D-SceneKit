@@ -17,6 +17,10 @@ final class HudScene: SKScene {
 	var compass: SKSpriteNode!
 	var compassNeedle: SKSpriteNode!
 	var actionButton: SKSpriteNode!
+	var speedometer: SKSpriteNode!
+	var speedometerNeedle: SKShapeNode!
+	var revCounter: SKSpriteNode!
+	var revCounterNeedle: SKShapeNode!
 	var inventoryButton: SKShapeNode!
 	var reloadButton: SKShapeNode!
 	var dropButton: SKShapeNode!
@@ -143,6 +147,36 @@ final class HudScene: SKScene {
 		actionButton.size = CGSize(width: 44, height: 43)
 		addChild(actionButton)
 
+		let speedometerTexture = HudScene.spriteTexture(
+			imageName: "2int.tga",
+			rect: CGRect(x: 94, y: 0, width: 162, height: 163),
+			masksBlack: true
+		)
+		speedometer = SKSpriteNode(texture: speedometerTexture)
+		speedometer.anchorPoint = CGPoint(x: 0, y: 0)
+		speedometer.isHidden = true
+		speedometer.size = CGSize(width: 220, height: 221)
+		speedometer.zPosition = 800
+		addChild(speedometer)
+		speedometerNeedle = HudScene.instrumentNeedle(length: 93, width: 5)
+		speedometerNeedle.position = CGPoint(x: speedometer.size.width * 0.5, y: speedometer.size.height * 0.5)
+		speedometer.addChild(speedometerNeedle)
+
+		let revCounterTexture = HudScene.spriteTexture(
+			imageName: "2int.tga",
+			rect: CGRect(x: 109, y: 165, width: 76, height: 76),
+			masksBlack: true
+		)
+		revCounter = SKSpriteNode(texture: revCounterTexture)
+		revCounter.anchorPoint = CGPoint(x: 0, y: 0)
+		revCounter.isHidden = true
+		revCounter.size = CGSize(width: 108, height: 108)
+		revCounter.zPosition = 801
+		addChild(revCounter)
+		revCounterNeedle = HudScene.instrumentNeedle(length: 43, width: 4)
+		revCounterNeedle.position = CGPoint(x: revCounter.size.width * 0.5, y: revCounter.size.height * 0.5)
+		revCounter.addChild(revCounterNeedle)
+
 		renderButtons()
 
 		objectivesNode = SKNode()
@@ -219,6 +253,10 @@ final class HudScene: SKScene {
 	private func layoutHud() {
 		guard compass != nil,
 				  actionButton != nil,
+				  speedometer != nil,
+				  speedometerNeedle != nil,
+				  revCounter != nil,
+				  revCounterNeedle != nil,
 				  objectivesNode != nil,
 				  consoleLabel != nil,
 				  subtitleLabel != nil,
@@ -244,6 +282,11 @@ final class HudScene: SKScene {
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 104)
+		speedometer.position = CGPoint(x: size.width - speedometer.size.width - 18, y: 18)
+		revCounter.position = CGPoint(
+			x: speedometer.position.x - revCounter.size.width - 10,
+			y: 18
+		)
 		objectivesNode.position = CGPoint(x: size.width/2, y: size.height * 2 / 3)
 		consoleLabel.position = CGPoint(x: 24, y: actionButton.position.y + actionButton.size.height / 2 + 36)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
@@ -272,13 +315,19 @@ final class HudScene: SKScene {
 	func updateVehicleSpeed(_ speed: CGFloat, vehicleSpeed: CGFloat, force: CGFloat, isVisible: Bool) {
 		if wasSpeedVisible != isVisible {
 			wasSpeedVisible = isVisible
-			speedLabel.isHidden = !isGameplayHudVisible(isVisible)
+			speedometer.isHidden = !isGameplayHudVisible(isVisible)
+			revCounter.isHidden = !isGameplayHudVisible(isVisible)
+			speedLabel.isHidden = true
 		}
+		speedometer.isHidden = !isGameplayHudVisible(isVisible)
+		revCounter.isHidden = !isGameplayHudVisible(isVisible)
+		speedLabel.isHidden = true
 		guard isVisible else { return }
 
 		let bodySpeed = Int(speed.rounded())
 		let wheelSpeed = Int(vehicleSpeed.rounded())
 		let engineForce = Int(force.rounded())
+		updateInstrumentNeedles(speed: vehicleSpeed, force: force)
 		let speedText = "Body \(bodySpeed)  Vehicle \(wheelSpeed)  Force \(engineForce)"
 		if lastSpeedText != speedText {
 			lastSpeedText = speedText
@@ -407,6 +456,41 @@ final class HudScene: SKScene {
 		return requestedVisibility && !isCutsceneOverlayVisible
 	}
 
+	private func updateInstrumentNeedles(speed: CGFloat, force: CGFloat) {
+		speedometerNeedle.zRotation = HudScene.gaugeNeedleAngle(
+			progress: max(0, min(1, speed / 240))
+		)
+		revCounterNeedle.zRotation = HudScene.gaugeNeedleAngle(
+			progress: max(0, min(1, abs(force) / 6500))
+		)
+	}
+
+	private static func gaugeNeedleAngle(progress: CGFloat) -> CGFloat {
+		let startAngle = CGFloat.pi * 1.25
+		let sweep = CGFloat.pi * 1.5
+		return startAngle - sweep * progress
+	}
+
+	private static func instrumentNeedle(length: CGFloat, width: CGFloat) -> SKShapeNode {
+		let path = CGMutablePath()
+		path.move(to: CGPoint(x: -length * 0.12, y: 0))
+		path.addLine(to: CGPoint(x: length, y: 0))
+
+		let needle = SKShapeNode(path: path)
+		needle.strokeColor = SKColor(red: 0.58, green: 0.02, blue: 0.02, alpha: 1)
+		needle.lineWidth = width
+		needle.lineCap = .round
+		needle.zPosition = 5
+
+		let hub = SKShapeNode(circleOfRadius: width * 1.35)
+		hub.fillColor = SKColor(red: 0.35, green: 0.01, blue: 0.01, alpha: 1)
+		hub.strokeColor = SKColor.clear
+		hub.zPosition = 6
+		needle.addChild(hub)
+
+		return needle
+	}
+
 	func setActionButtonVisible(_ isVisible: Bool) {
 		actionButton.isHidden = !isGameplayHudVisible(isVisible)
 	}
@@ -425,6 +509,8 @@ final class HudScene: SKScene {
 		if isVisible {
 			compass.isHidden = true
 			actionButton.isHidden = true
+			speedometer.isHidden = true
+			revCounter.isHidden = true
 			speedLabel.isHidden = true
 			playerStatusLabel.isHidden = true
 			crosshairNode.isHidden = true
@@ -445,7 +531,9 @@ final class HudScene: SKScene {
 			cutsceneFadeOverlay.isHidden = true
 			cutsceneFadeOverlay.alpha = 0
 			healthHudPanel.isHidden = false
-			speedLabel.isHidden = !wasSpeedVisible
+			speedometer.isHidden = !wasSpeedVisible
+			revCounter.isHidden = !wasSpeedVisible
+			speedLabel.isHidden = true
 			objectivesNode.isHidden = objectivesNode.children.isEmpty
 			consoleLabel.alpha = consoleLabel.hasActions() ? 1 : 0
 			layoutTouchButtons()

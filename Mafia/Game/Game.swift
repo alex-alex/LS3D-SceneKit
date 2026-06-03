@@ -1863,7 +1863,7 @@ extension Game {
 
 		let labelNode = SCNNode(geometry: text)
 		labelNode.name = "\(npcHealthLabelNodeNamePrefix)\(ObjectIdentifier(humanNode).hashValue)__"
-		labelNode.scale = SCNVector3(x: -0.007, y: -0.007, z: 0.007)
+		labelNode.scale = SCNVector3(x: -0.007, y: 0.007, z: 0.007)
 		labelNode.constraints = [SCNBillboardConstraint()]
 		labelNode.renderingOrder = 1000
 		return labelNode
