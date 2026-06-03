@@ -115,6 +115,10 @@ extension Script {
 				self.hasPendingNext = true
 				return
 			}
+			guard self.canRunForActorState() else {
+				self.hasPendingNext = true
+				return
+			}
 
 			if !self.executingEvent, self.commandBlockDepth == 0, let eventId = self.dequeueEventId() {
 				self.currentEventId = eventId
@@ -168,7 +172,13 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let state = args[1].getString().lowercased()
 		if let target = node(forScriptId: actorId) {
-			target.actionsEnabled = state != "inactive"
+			if let actorState = ActorState(rawValue: state) {
+				if actorId == -1 {
+					markSelfActorStateApplied()
+				}
+				target.actorState = actorState
+				script(forActorId: actorId)?.setActorState(actorState)
+			}
 		}
 		next()
 	}

@@ -166,11 +166,22 @@ func mafiaMapURL(named name: String) -> URL? {
 private var nodeTypeKey: UInt8 = 0
 private var followsCameraKey: UInt8 = 0
 private var doorDataKey: UInt8 = 0
+private var actorStateKey: UInt8 = 0
 private var actionsEnabledKey: UInt8 = 0
 private var humanEnergyKey: UInt8 = 0
 private var vehicleModelNameKey: UInt8 = 0
 private var recordSourcePositionKey: UInt8 = 0
 private var recordSourceOrientationVectorKey: UInt8 = 0
+
+enum ActorState: String {
+	case active
+	case inactive
+	case off
+
+	var canRunScript: Bool {
+		return self == .active
+	}
+}
 
 final class DoorData {
 	let open1: UInt8
@@ -329,6 +340,19 @@ extension SCNNode {
 			current = node.parent
 		}
 		return true
+	}
+
+	var actorState: ActorState {
+		get {
+			let rawValue: NSString = associatedObject(self, key: &actorStateKey) {
+				return ActorState.active.rawValue as NSString
+			}
+			return ActorState(rawValue: rawValue as String) ?? .active
+		}
+		set {
+			associateObject(self, key: &actorStateKey, value: newValue.rawValue as NSString)
+			actionsEnabled = newValue.canRunScript
+		}
 	}
 
 	var humanEnergy: Float? {

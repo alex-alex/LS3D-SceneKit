@@ -1015,6 +1015,8 @@ final class Scene {
 				replacedScriptsByDifferenceName[script.name] = existingScript
 			}
 			let loadedScript = Script(script: script.source, scene: self, node: differenceFile.rootNode)
+			loadedScript.node.actorState = .active
+			loadedScript.applyDeclaredInitialActorState()
 			scripts[script.name] = loadedScript
 			if didStartScripts {
 				loadedScript.start()
@@ -2809,8 +2811,15 @@ final class Scene {
 		return lastActionAnimationId
 	}
 
-	private func attachScript(_ scriptString: String, named name: String, to node: SCNNode) {
+	private func attachScript(
+		_ scriptString: String,
+		named name: String,
+		to node: SCNNode,
+		initialState: ActorState = .active
+	) {
+		node.actorState = initialState
 		let script = Script(script: scriptString, scene: self, node: node)
+		script.applyDeclaredInitialActorState()
 		self.scripts[name] = script
 	}
 

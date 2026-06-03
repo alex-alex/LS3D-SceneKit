@@ -214,6 +214,7 @@ final class Script {
 	var commandBlockDepth = 0
 	var pendingCommandBlockAsyncOperations = 0
 	var isWaitingForCommandBlockAsyncOperations = false
+	var didApplySelfActorState = false
 
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
@@ -275,6 +276,41 @@ final class Script {
 		}
 	}
 
+	func applyDeclaredInitialActorState() {
+		guard let command = commands.first,
+			  command.name == .actSetstate,
+			  command.args.count >= 2,
+			  command.args[0].getValueOrVarValue(vars: vars) == -1,
+			  let state = ActorState(rawValue: command.args[1].getString().lowercased()) else {
+			return
+		}
+		node.actorState = state
+	}
+
+	func markSelfActorStateApplied() {
+		didApplySelfActorState = true
+	}
+
+	func setActorState(_ state: ActorState) {
+		node.actorState = state
+		queue.async {
+			guard state.canRunScript else { return }
+			guard self.isRunning else {
+				guard !self.commands.isEmpty else { return }
+				self.isRunning = true
+				self.run()
+				return
+			}
+			if self.hasPendingNext {
+				self.hasPendingNext = false
+				self.next()
+			} else if self.hasPendingRun {
+				self.hasPendingRun = false
+				self.run()
+			}
+		}
+	}
+
 	func enqueueEvent(_ eventId: String) {
 		queue.async {
 			self.eventIdQueue.append(eventId)
@@ -311,6 +347,10 @@ final class Script {
 
 	func run() {
 		guard !isPaused else {
+			hasPendingRun = true
+			return
+		}
+		guard canRunForActorState() else {
 			hasPendingRun = true
 			return
 		}
@@ -353,6 +393,21 @@ final class Script {
 
 	var hasQueuedEvent: Bool {
 		return eventIdQueueStartIndex < eventIdQueue.count
+	}
+
+	func canRunForActorState() -> Bool {
+		if node.actorState.canRunScript {
+			return true
+		}
+		guard !didApplySelfActorState,
+			  let selfActorStateLine = commands.firstIndex(where: { command in
+			command.name == .actSetstate &&
+			command.args.count >= 2 &&
+			command.args[0].getValueOrVarValue(vars: vars) == -1
+		}) else {
+			return false
+		}
+		return currentLine <= selfActorStateLine
 	}
 
 	func dequeueEventId() -> String? {
