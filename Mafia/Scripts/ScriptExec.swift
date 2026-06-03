@@ -1028,16 +1028,21 @@ extension Script {
 	private func human_activateweapon(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let weaponId = args[1].getValueOrVarValue(vars: vars)
-		guard let actor = weaponOwnerNode(forScriptId: actorId),
-			  let weapons = scene.weapons[ObjectIdentifier(actor)],
-			  let selectedWeapon = weapons.first(where: { $0.id == weaponId }) else {
+		guard let actor = weaponOwnerNode(forScriptId: actorId) else {
 			next()
 			return
 		}
+		var didActivateWeapon = false
+		scene.updateWeaponsIfPresent(for: actor) { weapons in
+			guard let selectedWeapon = weapons.first(where: { $0.id == weaponId }) else { return }
 		for weapon in weapons {
 			weapon.position = weapon === selectedWeapon ? .hand : .inventory
 		}
+			didActivateWeapon = true
+		}
+		if didActivateWeapon {
 		refreshPlayerWeaponHudIfNeeded(for: actor)
+		}
 		next()
 	}
 
@@ -1053,11 +1058,7 @@ extension Script {
 		}
 		let weapon = Weapon(id: weaponId, clipAmmo: clipAmmo, restAmmo: restAmmo)
 		weapon.position = .inventory
-		let actorKey = ObjectIdentifier(actor)
-		if scene.weapons[actorKey] == nil {
-			scene.weapons[actorKey] = []
-		}
-		scene.weapons[actorKey]?.append(weapon)
+		scene.appendWeapon(weapon, for: actor)
 		refreshPlayerWeaponHudIfNeeded(for: actor)
 		next()
 	}
@@ -1066,8 +1067,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		if let actor = weaponOwnerNode(forScriptId: actorId),
-			let weapons = scene.weapons[ObjectIdentifier(actor)],
-			weapons.contains(where: { $0.position == .hand }) {
+		   scene.weapons(for: actor).contains(where: { $0.position == .hand }) {
 			vars[varId] = 1
 		} else {
 			vars[varId] = 0
@@ -1079,8 +1079,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		if let actor = weaponOwnerNode(forScriptId: actorId),
-		   let weapons = scene.weapons[ObjectIdentifier(actor)],
-		   !weapons.isEmpty {
+		   !scene.weapons(for: actor).isEmpty {
 			vars[varId] = 1
 		} else {
 			vars[varId] = 0
@@ -1132,10 +1131,10 @@ extension Script {
 	private func human_delweapon(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let weaponId = args[1].getValueOrVarValue(vars: vars)
-		if let actor = weaponOwnerNode(forScriptId: actorId),
-		   var weapons = scene.weapons[ObjectIdentifier(actor)] {
+		if let actor = weaponOwnerNode(forScriptId: actorId) {
+			scene.updateWeaponsIfPresent(for: actor) { weapons in
 			weapons.removeAll { $0.id == weaponId }
-			scene.weapons[ObjectIdentifier(actor)] = weapons
+			}
 			refreshPlayerWeaponHudIfNeeded(for: actor)
 		}
 		next()
@@ -1175,7 +1174,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		if let actor = weaponOwnerNode(forScriptId: actorId),
-		   let weapon = scene.weapons[ObjectIdentifier(actor)]?.first(where: { $0.position == .hand }) {
+		   let weapon = scene.weapons(for: actor).first(where: { $0.position == .hand }) {
 			vars[varId] = Float(weapon.id)
 		} else {
 			vars[varId] = -1
@@ -1228,7 +1227,8 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		let weaponId = args[2].getValueOrVarValue(vars: vars)
-		if let actor = weaponOwnerNode(forScriptId: actorId), let weapons = scene.weapons[ObjectIdentifier(actor)], weapons.contains(where: { $0.id == weaponId }) {
+		if let actor = weaponOwnerNode(forScriptId: actorId),
+		   scene.weapons(for: actor).contains(where: { $0.id == weaponId }) {
 			vars[varId] = 1
 		} else {
 			vars[varId] = 0
@@ -1345,7 +1345,7 @@ extension Script {
 	private func inventory_clear(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if let actor = weaponOwnerNode(forScriptId: actorId) {
-			scene.weapons[ObjectIdentifier(actor)] = []
+			scene.setWeapons([], for: actor)
 			refreshPlayerWeaponHudIfNeeded(for: actor)
 		}
 		next()
@@ -2075,19 +2075,20 @@ extension Script {
 	}
 
 	private func holsterWeapons(for actor: SCNNode) {
-		if let weapons = scene.weapons[ObjectIdentifier(actor)] {
+		scene.updateWeaponsIfPresent(for: actor) { weapons in
 			for weapon in weapons {
 				weapon.position = .inventory
 			}
 		}
 
 		if actor === scene.playerNode || actor.name == scene.playerNode?.name,
-		   let playerNode = scene.playerNode,
-		   let weapons = scene.weapons[ObjectIdentifier(playerNode)] {
+		   let playerNode = scene.playerNode {
+			scene.updateWeaponsIfPresent(for: playerNode) { weapons in
 			for weapon in weapons {
 				weapon.position = .inventory
 			}
 		}
+	}
 	}
 
 	private func canAddWeapon(weaponId: Int) -> Bool {

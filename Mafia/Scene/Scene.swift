@@ -436,7 +436,6 @@ final class Scene {
 	var scripts: [String: Script] = [:]
 
 	var sounds: [SCNNode: Sound] = [:]
-	var weapons: [ObjectIdentifier: [Weapon]] = [:]
 	var humanVehicleOwners: [ObjectIdentifier: SCNNode] = [:]
 	var actions: [Action] = []
 	var environmentLights: [EnvironmentLight] = []
@@ -447,7 +446,43 @@ final class Scene {
 	private var didStartScripts = false
 	private var lastActionAnimationId = 0
 	private var lastActionAnimationEndTime: TimeInterval = 0
+	private let weaponsLock = NSLock()
+	private var weaponsByOwner: [ObjectIdentifier: [Weapon]] = [:]
 	private var nodesByName: [String: SCNNode] = [:]
+
+	func weapons(for owner: SCNNode) -> [Weapon] {
+		weaponsLock.lock()
+		defer { weaponsLock.unlock() }
+		return weaponsByOwner[ObjectIdentifier(owner)] ?? []
+	}
+
+	func appendWeapon(_ weapon: Weapon, for owner: SCNNode) {
+		weaponsLock.lock()
+		defer { weaponsLock.unlock() }
+		weaponsByOwner[ObjectIdentifier(owner), default: []].append(weapon)
+	}
+
+	func setWeapons(_ weapons: [Weapon], for owner: SCNNode) {
+		weaponsLock.lock()
+		defer { weaponsLock.unlock() }
+		weaponsByOwner[ObjectIdentifier(owner)] = weapons
+	}
+
+	func updateWeapons(for owner: SCNNode, _ update: (inout [Weapon]) -> Void) {
+		weaponsLock.lock()
+		defer { weaponsLock.unlock() }
+		update(&weaponsByOwner[ObjectIdentifier(owner), default: []])
+	}
+
+	@discardableResult
+	func updateWeaponsIfPresent(for owner: SCNNode, _ update: (inout [Weapon]) -> Void) -> Bool {
+		weaponsLock.lock()
+		defer { weaponsLock.unlock() }
+		let ownerKey = ObjectIdentifier(owner)
+		guard weaponsByOwner[ownerKey] != nil else { return false }
+		update(&weaponsByOwner[ownerKey]!)
+		return true
+	}
 	private var pendingDoorDataByName: [String: DoorData] = [:]
 	private var pendingPhysicalDataByName: [String: PhysicalData] = [:]
 	private var pendingScriptStringsByName: [String: String] = [:]
