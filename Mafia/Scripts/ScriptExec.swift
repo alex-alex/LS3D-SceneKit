@@ -906,20 +906,15 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let name = args[1].getString()
 		guard let url = musicStreamURL(named: name),
-			  let source = SCNAudioSource(url: url) else {
+			  let stream = ScriptMusicStream(url: url) else {
 			vars[varId] = 0
 			next()
 			return
 		}
 
-		source.isPositional = false
-		source.loops = false
-		source.volume = 1
-		source.load()
-
 		let streamId = nextStreamId
 		nextStreamId += 1
-		streams[streamId] = ScriptMusicStream(source: source, url: url, node: scene.rootNode)
+		streams[streamId] = stream
 		vars[varId] = Float(streamId)
 		next()
 	}
@@ -1134,25 +1129,33 @@ final class ScriptMusicStream {
 		case paused
 	}
 
-	private let source: SCNAudioSource
-	private let url: URL
-	private let node: SCNNode
-	private var player: SCNAudioPlayer?
+	private let engine = AVAudioEngine()
+	private let playerNode = AVAudioPlayerNode()
+	private let buffer: AVAudioPCMBuffer
 	private var playbackState: PlaybackState = .stopped
 	private var startsAt: TimeInterval?
 	private var accumulatedPosition: TimeInterval = 0
 	private var loops = false
 	private var volume: Float = 1
 	private var fadeWorkItem: DispatchWorkItem?
-	private lazy var duration: TimeInterval? = {
-		guard let file = try? AVAudioFile(forReading: url) else { return nil }
-		return TimeInterval(file.length) / file.processingFormat.sampleRate
-	}()
+	private var playbackGeneration = 0
 
-	init(source: SCNAudioSource, url: URL, node: SCNNode) {
-		self.source = source
-		self.url = url
-		self.node = node
+	private var duration: TimeInterval {
+		return TimeInterval(buffer.frameLength) / buffer.format.sampleRate
+	}
+
+	init?(url: URL) {
+		guard let buffer = ScriptMusicStream.makeBuffer(url: url) else { return nil }
+		self.buffer = buffer
+
+		engine.attach(playerNode)
+		engine.connect(playerNode, to: engine.mainMixerNode, format: buffer.format)
+		playerNode.volume = volume
+		do {
+			try engine.start()
+		} catch {
+			return nil
+		}
 	}
 
 	var positionMilliseconds: Int {
@@ -1168,14 +1171,15 @@ final class ScriptMusicStream {
 
 			case .paused:
 				self.startsAt = Date.timeIntervalSinceReferenceDate
-				(self.player?.audioNode as? AVAudioPlayerNode)?.play()
+				self.playerNode.play()
 				self.playbackState = .playing
 
 			case .stopped:
 				self.accumulatedPosition = 0
 				self.startsAt = Date.timeIntervalSinceReferenceDate
 				self.playbackState = .playing
-				self.addPlayer()
+				self.scheduleBuffer()
+				self.playerNode.play()
 			}
 		}
 	}
@@ -1185,7 +1189,7 @@ final class ScriptMusicStream {
 			guard self.playbackState == .playing else { return }
 			self.accumulatedPosition = self.currentPosition()
 			self.startsAt = nil
-			(self.player?.audioNode as? AVAudioPlayerNode)?.pause()
+			self.playerNode.pause()
 			self.playbackState = .paused
 		}
 	}
@@ -1198,12 +1202,20 @@ final class ScriptMusicStream {
 
 	func destroy() {
 		stop()
+		runOnMain {
+			self.engine.stop()
+		}
 	}
 
 	func setLoop(_ loops: Bool) {
 		runOnMain {
+			guard self.loops != loops else { return }
 			self.loops = loops
-			self.source.loops = loops
+			guard self.playbackState == .playing else { return }
+			self.accumulatedPosition = 0
+			self.startsAt = Date.timeIntervalSinceReferenceDate
+			self.scheduleBuffer()
+			self.playerNode.play()
 		}
 	}
 
@@ -1219,23 +1231,19 @@ final class ScriptMusicStream {
 		}
 	}
 
-	private func addPlayer() {
-		removePlayer()
-		source.loops = loops
-		source.volume = volume
-
-		let audioPlayer = SCNAudioPlayer(source: source)
-		player = audioPlayer
-		audioPlayer.didFinishPlayback = { [weak self, weak audioPlayer] in
+	private func scheduleBuffer() {
+		playbackGeneration += 1
+		let generation = playbackGeneration
+		playerNode.stop()
+		let options: AVAudioPlayerNodeBufferOptions = loops ? [.loops] : []
+		playerNode.scheduleBuffer(buffer, at: nil, options: options) { [weak self] in
 			DispatchQueue.main.async {
 				guard let self = self,
-					  let audioPlayer = audioPlayer,
-					  let currentPlayer = self.player,
-					  currentPlayer === audioPlayer else { return }
+					  self.playbackGeneration == generation,
+					  !self.loops else { return }
 				self.stopPlaying(resetPosition: true)
 			}
 		}
-		node.addAudioPlayer(audioPlayer)
 	}
 
 	private func stopPlaying(resetPosition: Bool) {
@@ -1246,14 +1254,8 @@ final class ScriptMusicStream {
 		}
 		startsAt = nil
 		playbackState = .stopped
-		removePlayer()
-	}
-
-	private func removePlayer() {
-		guard let player = player else { return }
-		player.didFinishPlayback = nil
-		node.removeAudioPlayer(player)
-		self.player = nil
+		playbackGeneration += 1
+		playerNode.stop()
 	}
 
 	private func currentPosition() -> TimeInterval {
@@ -1264,16 +1266,16 @@ final class ScriptMusicStream {
 			position = accumulatedPosition
 		}
 
-		if loops, let duration = duration, duration > 0 {
+		if loops, duration > 0 {
 			return position.truncatingRemainder(dividingBy: duration)
 		}
-		return max(0, position)
+		return max(0, min(position, duration))
 	}
 
 	private func setVolume(_ volume: Float) {
 		let clampedVolume = min(1, max(0, volume))
 		self.volume = clampedVolume
-		source.volume = clampedVolume
+		playerNode.volume = clampedVolume
 	}
 
 	private func scheduleFadeStep(startVolume: Float, endVolume: Float, duration: TimeInterval, startTime: TimeInterval) {
@@ -1298,6 +1300,66 @@ final class ScriptMusicStream {
 		} else {
 			DispatchQueue.main.async(execute: block)
 		}
+	}
+
+	private static func makeBuffer(url: URL) -> AVAudioPCMBuffer? {
+		if url.pathExtension.lowercased() == "ogg" {
+			return makeOggBuffer(url: url)
+		}
+		return makeNativeBuffer(url: url)
+	}
+
+	private static func makeNativeBuffer(url: URL) -> AVAudioPCMBuffer? {
+		guard let file = try? AVAudioFile(forReading: url),
+			  file.length <= AVAudioFramePosition(UInt32.max),
+			  let buffer = AVAudioPCMBuffer(
+				pcmFormat: file.processingFormat,
+				frameCapacity: AVAudioFrameCount(file.length)
+			  ) else {
+			return nil
+		}
+		do {
+			try file.read(into: buffer)
+			return buffer
+		} catch {
+			return nil
+		}
+	}
+
+	private static func makeOggBuffer(url: URL) -> AVAudioPCMBuffer? {
+		var decoded = OggVorbisDecodedAudio(channels: 0, sampleRate: 0, frameCount: 0, samples: nil)
+		guard OggVorbisDecodeFile(url.path, &decoded) else { return nil }
+		defer {
+			OggVorbisFreeDecodedAudio(&decoded)
+		}
+
+		guard decoded.channels > 0,
+			  decoded.sampleRate > 0,
+			  decoded.frameCount > 0,
+			  let samples = decoded.samples,
+			  let format = AVAudioFormat(
+				commonFormat: .pcmFormatFloat32,
+				sampleRate: Double(decoded.sampleRate),
+				channels: AVAudioChannelCount(decoded.channels),
+				interleaved: false
+			  ),
+			  let buffer = AVAudioPCMBuffer(
+				pcmFormat: format,
+				frameCapacity: AVAudioFrameCount(decoded.frameCount)
+			  ),
+			  let channelData = buffer.floatChannelData else {
+			return nil
+		}
+
+		buffer.frameLength = AVAudioFrameCount(decoded.frameCount)
+		let channelCount = Int(decoded.channels)
+		let frameCount = Int(decoded.frameCount)
+		for frameIndex in 0..<frameCount {
+			for channelIndex in 0..<channelCount {
+				channelData[channelIndex][frameIndex] = samples[frameIndex * channelCount + channelIndex]
+			}
+		}
+		return buffer
 	}
 
 }

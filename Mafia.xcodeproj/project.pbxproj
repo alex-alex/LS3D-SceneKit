@@ -103,6 +103,10 @@
 		FA9C95FA2002A545005FBB66 /* Weapon.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F82002A544005FBB66 /* Weapon.swift */; };
 		FA9C95FC2002E1EB005FBB66 /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95FB2002E1EB005FBB66 /* Control.swift */; };
 		FA9C95FD2002E1EB005FBB66 /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95FB2002E1EB005FBB66 /* Control.swift */; };
+		FADE02000000000000000001 /* OggVorbisDecoder.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000004 /* OggVorbisDecoder.c */; };
+		FADE02000000000000000002 /* OggVorbisDecoder.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000004 /* OggVorbisDecoder.c */; };
+		FADE02000000000000000003 /* stb_vorbis.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000005 /* stb_vorbis.c */; };
+		FADE02000000000000000004 /* stb_vorbis.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000005 /* stb_vorbis.c */; };
 		FABBB1A21D621E49006A39F8 /* TextDb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBB1A11D621E49006A39F8 /* TextDb.swift */; };
 		FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */; };
 		FAFBDFC21D607F5B008523A9 /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFBDFC11D607F5B008523A9 /* Scene.swift */; };
@@ -178,6 +182,10 @@
 		FA9C95F42001B967005FBB66 /* ScriptExec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptExec.swift; sourceTree = "<group>"; };
 		FA9C95F82002A544005FBB66 /* Weapon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weapon.swift; sourceTree = "<group>"; };
 		FA9C95FB2002E1EB005FBB66 /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
+		FADE01000000000000000001 /* Mafia-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Mafia-Bridging-Header.h"; sourceTree = "<group>"; };
+		FADE01000000000000000003 /* OggVorbisDecoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OggVorbisDecoder.h; sourceTree = "<group>"; };
+		FADE01000000000000000004 /* OggVorbisDecoder.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = OggVorbisDecoder.c; sourceTree = "<group>"; };
+		FADE01000000000000000005 /* stb_vorbis.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stb_vorbis.c; sourceTree = "<group>"; };
 		FABBB1A11D621E49006A39F8 /* TextDb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextDb.swift; sourceTree = "<group>"; };
 		FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AnimationLoader.swift; sourceTree = "<group>"; };
 		FAFBDFC11D607F5B008523A9 /* Scene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
@@ -224,10 +232,12 @@
 		FA0A0D621D5FB07100878046 /* Mafia */ = {
 			isa = PBXGroup;
 			children = (
+				FADE01000000000000000001 /* Mafia-Bridging-Header.h */,
 				FA6ABE9F20081B3000BB3BBD /* Utilities */,
 				FA2FE8BB200FE4510057A80E /* Game Manager */,
 				FA6ABE9E20081AF300BB3BBD /* HUD */,
 				FA6ABE9720081A5900BB3BBD /* Game */,
+				FADE01000000000000000002 /* Audio */,
 				FA37F09D204C8A4F001FF8A7 /* Models */,
 				FA37F0B1204C9238001FF8A7 /* Collisions */,
 				FA518F28200F6450004069D4 /* Animations */,
@@ -353,6 +363,16 @@
 				FA4B741B200812D200E0A66F /* PlayerController.swift */,
 			);
 			path = Game;
+			sourceTree = "<group>";
+		};
+		FADE01000000000000000002 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				FADE01000000000000000003 /* OggVorbisDecoder.h */,
+				FADE01000000000000000004 /* OggVorbisDecoder.c */,
+				FADE01000000000000000005 /* stb_vorbis.c */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 		FA6ABE9C20081ACD00BB3BBD /* Scripts */ = {
@@ -564,6 +584,7 @@
 				FA8A00010000000000000001 /* Road.swift in Sources */,
 				FA8A00010000000000000003 /* TrafficManager.swift in Sources */,
 				FA2FE8BD200FE4610057A80E /* GameManager.swift in Sources */,
+				FADE02000000000000000001 /* OggVorbisDecoder.c in Sources */,
 				FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */,
 				FA9C95F52001B967005FBB66 /* ScriptExec.swift in Sources */,
 				FA518F2A200F6467004069D4 /* AnimationFace.swift in Sources */,
@@ -591,6 +612,7 @@
 				FA0D45581D610BB500B7C721 /* SceneCache.swift in Sources */,
 				FA0D455A1D610BB500B7C721 /* MissionEffects.swift in Sources */,
 				FAFE4FAC1D75E95A00BB2FB0 /* Collisions.swift in Sources */,
+				FADE02000000000000000003 /* stb_vorbis.c in Sources */,
 				FA37F0A7204C8C8F001FF8A7 /* CMAccelerationUtils.swift in Sources */,
 				FA37F0B9204C92BA001FF8A7 /* CollisionXTOBB.swift in Sources */,
 				FA37F0A9204C8D26001FF8A7 /* InputStreamUtils.swift in Sources */,
@@ -618,6 +640,7 @@
 				FA8A00010000000000000004 /* TrafficManager.swift in Sources */,
 				FA2FE8BE200FE4610057A80E /* GameManager.swift in Sources */,
 				FA6DAAF51D67709C002017DE /* ImageUtils.swift in Sources */,
+				FADE02000000000000000002 /* OggVorbisDecoder.c in Sources */,
 				FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */,
 				FA518F2B200F6467004069D4 /* AnimationFace.swift in Sources */,
 				FA37F0B7204C9289001FF8A7 /* CollisionAABB.swift in Sources */,
@@ -641,6 +664,7 @@
 				FA6DAAF91D67709C002017DE /* SceneCache.swift in Sources */,
 				FA0D455B1D610BB500B7C721 /* MissionEffects.swift in Sources */,
 				FA7E391120013DCC00C86A72 /* Sound.swift in Sources */,
+				FADE02000000000000000004 /* stb_vorbis.c in Sources */,
 				FA50107D20018F2D00B24CE6 /* Collisions.swift in Sources */,
 				FA4B74162006428200E0A66F /* Record.swift in Sources */,
 				FA355C44200923E600512DC0 /* GameViewController.swift in Sources */,
@@ -807,6 +831,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Mafia/Mafia-Bridging-Header.h";
 				SWIFT_VERSION = 4.0;
 			};
 			name = Debug;
@@ -823,6 +848,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 10.14;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Mafia/Mafia-Bridging-Header.h";
 				SWIFT_VERSION = 4.0;
 			};
 			name = Release;
@@ -841,6 +867,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Mafia/Mafia-Bridging-Header.h";
 				SWIFT_VERSION = 4.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -860,6 +887,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = iphoneos;
+				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Mafia/Mafia-Bridging-Header.h";
 				SWIFT_VERSION = 4.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_PRODUCT = YES;
