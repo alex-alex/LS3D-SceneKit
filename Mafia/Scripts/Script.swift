@@ -300,6 +300,7 @@ final class Script {
 
 	let scene: Scene
 	let node: SCNNode
+	let name: String
 	var commands: [ScriptCommand]!
 	var labels: [String: Int] = [:]
 	var events: [String: Int] = [:]
@@ -331,10 +332,11 @@ final class Script {
 
 	var signal = false
 
-	init(script: String, scene: Scene, node: SCNNode) {
+	init(script: String, scene: Scene, node: SCNNode, name: String = "") {
 		self.queue = DispatchQueue(label: "script", qos: .background)
 		self.scene = scene
 		self.node = node
+		self.name = name
 		self.commands = parse(string: script)
 	}
 

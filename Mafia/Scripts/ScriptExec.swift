@@ -1811,8 +1811,14 @@ extension Script {
 	private func stream_create(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let name = args[1].getString()
-		guard let url = musicStreamURL(named: name),
-			  let stream = ScriptMusicStream(url: url) else {
+		guard let url = musicStreamURL(named: name) else {
+			print("== Music stream_create failed: missing '\(name)'")
+			vars[varId] = 0
+			next()
+			return
+		}
+		guard let stream = ScriptMusicStream(url: url) else {
+			print("== Music stream_create failed: cannot open '\(url.path)'")
 			vars[varId] = 0
 			next()
 			return
@@ -1822,6 +1828,7 @@ extension Script {
 		nextStreamId += 1
 		streams[streamId] = stream
 		vars[varId] = Float(streamId)
+		print("== Music stream_create: var \(varId) -> stream \(streamId), \(url.lastPathComponent)")
 		next()
 	}
 
@@ -1843,6 +1850,7 @@ extension Script {
 		let startVolume = args[2].getValueOrVarValueFloat(vars: vars)
 		let endVolume = args[3].getValueOrVarValueFloat(vars: vars)
 		if let stream = streams[streamId] {
+			print("== Music stream_fadevol: stream \(streamId), \(duration)ms, \(startVolume) -> \(endVolume)")
 			DispatchQueue.main.async {
 				stream.fadeVolume(
 					from: startVolume,
@@ -1850,6 +1858,8 @@ extension Script {
 					duration: TimeInterval(max(0, duration)) / 1000
 				)
 			}
+		} else {
+			print("== Music stream_fadevol skipped: missing stream \(streamId)")
 		}
 		next()
 	}
@@ -1869,9 +1879,12 @@ extension Script {
 	private func stream_pause(_ args: [Argument]) {
 		let streamId = musicStreamId(from: args[0])
 		if let stream = streams[streamId] {
+			print("== Music stream_pause: stream \(streamId)")
 			DispatchQueue.main.async {
 				stream.pause()
 			}
+		} else {
+			print("== Music stream_pause skipped: missing stream \(streamId)")
 		}
 		next()
 	}
@@ -1879,9 +1892,12 @@ extension Script {
 	private func stream_play(_ args: [Argument]) {
 		let streamId = musicStreamId(from: args[0])
 		if let stream = streams[streamId] {
+			print("== Music stream_play: stream \(streamId)")
 			DispatchQueue.main.async {
 				stream.play()
 			}
+		} else {
+			print("== Music stream_play skipped: missing stream \(streamId)")
 		}
 		next()
 	}
@@ -1890,9 +1906,12 @@ extension Script {
 		let streamId = musicStreamId(from: args[0])
 		let position = args[1].getValueOrVarValue(vars: vars)
 		if let stream = streams[streamId] {
+			print("== Music stream_setpos: stream \(streamId), \(position)ms")
 			DispatchQueue.main.async {
 				stream.setPosition(milliseconds: position)
 			}
+		} else {
+			print("== Music stream_setpos skipped: missing stream \(streamId)")
 		}
 		next()
 	}
@@ -1901,6 +1920,7 @@ extension Script {
 		let varId = args.first?.getValueOrVarValue(vars: vars) ?? 0
 		let slot = args.count > 1 ? args[1].getValueOrVarValue(vars: vars) : 0
 		guard let stream = scene.filmMusicStream(at: slot) else {
+			print("== Music getfilmmusic missing: slot \(slot), var \(varId)")
 			vars[varId] = 0
 			next()
 			return
@@ -1911,6 +1931,7 @@ extension Script {
 		streams[streamId] = stream
 		sharedStreamIds.insert(streamId)
 		vars[varId] = Float(streamId)
+		print("== Music getfilmmusic: slot \(slot) -> stream \(streamId), var \(varId)")
 		next()
 	}
 
@@ -1919,6 +1940,9 @@ extension Script {
 		if let stream = streams[streamId] {
 			scene.addFilmMusicStream(stream)
 			sharedStreamIds.insert(streamId)
+			print("== Music setfilmmusic: stream \(streamId)")
+		} else {
+			print("== Music setfilmmusic skipped: missing stream \(streamId)")
 		}
 		next()
 	}
@@ -2788,6 +2812,8 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 	private var samplePosition: Int64 = 0
 	private var isGamePaused = false
 	private var wasPlayingBeforeGamePause = false
+	private var didLogFirstRender = false
+	private var didLogEndOfStream = false
 
 	init?(url: URL) {
 		guard let stream = OggVorbisStreamOpen(url.path) else { return nil }
@@ -2974,6 +3000,10 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 			}
 
 			if framesRead > 0 {
+				if !didLogFirstRender {
+					print("== Music OGG render: first frames \(framesRead), channels \(buffers.count), volume \(volume)")
+					didLogFirstRender = true
+				}
 				applyVolume(buffers: buffers, from: framesWritten, frameCount: AVAudioFrameCount(framesRead))
 				framesWritten += AVAudioFrameCount(framesRead)
 				samplePosition += Int64(framesRead)
@@ -2982,6 +3012,10 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 				samplePosition = 0
 				didSeekForLoop = true
 			} else {
+				if !didLogEndOfStream {
+					print("== Music OGG render: end of stream at sample \(samplePosition)")
+					didLogEndOfStream = true
+				}
 				playbackState = .stopped
 				OggVorbisStreamSeekStart(stream)
 				samplePosition = 0

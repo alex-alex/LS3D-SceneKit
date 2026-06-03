@@ -118,6 +118,7 @@ final class Game: NSObject {
 	private let skyboxFallbackNode = SCNNode()
 	private var lastActionButtonUpdateTime: TimeInterval = 0
 	private var isActionButtonVisible = false
+	private var areCollisionWireframesVisible = false
 	private let actionButtonUpdateInterval: TimeInterval = 0.15
 	private let actionDistanceSquared: Float = 4
 	private let vehicleOwnerMatchDistanceSquared: Float = 36
@@ -202,7 +203,7 @@ final class Game: NSObject {
 		progressHandler?(0.72)
 
 		if let collisions = try? Collisions(name: "missions/"+missionName, scene: scnScene) {
-			collisions.node.name = "__colliions__"
+			collisions.node.name = "__collisions__"
 			scnScene.rootNode.addChildNode(collisions.node)
 			print("== Loaded Scene Collisions")
 		} else {
@@ -1477,6 +1478,14 @@ extension Game {
 	func showObjectives() {
 		pressControl(.OBJECTIVES)
 		hud?.showCurrentObjectives(scene.objectives)
+	}
+
+	func toggleCollisionWireframes() {
+		areCollisionWireframesVisible.toggle()
+		scnScene.rootNode
+			.mafiaChildNode(named: "__collisions__", recursively: false)?
+			.setCollisionWireframesVisible(areCollisionWireframesVisible)
+		hud?.showConsoleText("Collision wireframes \(areCollisionWireframesVisible ? "on" : "off")")
 	}
 
 	func setVehicleStealEnabled(carId: Int, node: SCNNode?, enabled: Bool) {

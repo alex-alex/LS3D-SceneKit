@@ -54,6 +54,10 @@ private final class SceneNodeLookup {
 		return nodesByName[name]?.first
 	}
 
+	func firstNode(named name: String, in rootNode: SCNNode) -> SCNNode? {
+		return nodesByName[name]?.first { $0.isDescendantNode(of: rootNode) }
+	}
+
 	func directChild(named name: String, in node: SCNNode) -> SCNNode? {
 		return node.childNodes.first { $0.name == name }
 	}
@@ -101,14 +105,17 @@ final class Collisions {
 		let comps = name.split(separator: ".")
 		if comps.count > 1 {
 			guard comps.count == 2 else { fatalError() }
-			guard let parent = nodeLookup.firstNode(named: String(comps[0])) else { return nil }
+			guard let root = rootNode.collisionLinkRoot(for: type),
+				  let parent = nodeLookup.firstNode(named: String(comps[0]), in: root) else { return nil }
 			return nodeLookup.directChild(named: String(comps[1]), in: parent)
 		} else {
 			var node: SCNNode?
 			if type == 1 {
-				node = nodeLookup.directChild(named: String(comps[0]), in: rootNode.childNodes[0])
+				node = rootNode.collisionLinkRoot(for: type)
+					.flatMap { nodeLookup.directChild(named: String(comps[0]), in: $0) }
 			} else if type == 2 {
-				node = nodeLookup.directChild(named: String(comps[0]), in: rootNode.childNodes[1])
+				node = rootNode.collisionLinkRoot(for: type)
+					.flatMap { nodeLookup.directChild(named: String(comps[0]), in: $0) }
 			}
 
 			if node == nil {
@@ -238,12 +245,14 @@ final class Collisions {
 		stream.currentOffset += 4
 
 		var nodesVertices: [UInt32: [SCNVector3]] = [:]
+		var horizontalFaces: [(linkId: UInt32, vertices: [SCNVector3])] = []
 		print("=== numFaces:", numFaces)
 
 		for _ in 0 ..< numFaces {
 			try autoreleasepool {
 				let face = try Triangle(stream: stream)
 				if let (node, vertices) = face.getVertices(treeKlz: self) {
+					horizontalFaces.append((node, vertices))
 					if nodesVertices[node] == nil {
 						nodesVertices[node] = vertices
 					} else {
@@ -272,7 +281,8 @@ final class Collisions {
 //				geometry.firstMaterial?.isDoubleSided = true
 //				geometry.firstMaterial?.diffuse.contents = SKColor.random()
 				node.transform = _node.worldTransform
-				//node.geometry = geometry
+				node.geometry = geometry
+				node.configureAsCollisionWireframe()
 				node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: geometry, options: [
 					.type: SCNPhysicsShape.ShapeType.concavePolyhedron.rawValue
 				]))
@@ -283,6 +293,7 @@ final class Collisions {
 		node.addChildNode(facesNode)
 
 		print("=== Loaded Scene Collision Faces")
+		addVehicleRaycastGround(from: horizontalFaces)
 
 		for _ in 0 ..< numAABBs {
 			try autoreleasepool {
@@ -341,6 +352,60 @@ final class Collisions {
 		//print("offset:", stream.currentOffset)
 
 		stream.close()
+	}
+
+	private func addVehicleRaycastGround(from faces: [(linkId: UInt32, vertices: [SCNVector3])]) {
+		let groundNode = SCNNode()
+		groundNode.name = "__vehicle_raycast_ground__"
+
+		var addedCount = 0
+		for face in faces {
+			autoreleasepool {
+				guard let linkedNode = getNode(linkId: face.linkId) else { return }
+				let vertices = face.vertices.map { linkedNode.convertPosition($0, to: nil) }
+				guard let groundPatch = vehicleRaycastGroundPatch(for: vertices) else { return }
+				groundNode.addChildNode(groundPatch)
+				addedCount += 1
+			}
+		}
+
+		node.addChildNode(groundNode)
+		print("=== Loaded Vehicle Raycast Ground:", addedCount)
+	}
+
+	private func vehicleRaycastGroundPatch(for vertices: [SCNVector3]) -> SCNNode? {
+		guard vertices.count == 3 else { return nil }
+		let edgeA = vertices[1] - vertices[0]
+		let edgeB = vertices[2] - vertices[0]
+		let normal = edgeA.cross(edgeB).normalized
+		guard abs(normal.y) > 0.65 else { return nil }
+
+		let minX = vertices.map(\.x).min() ?? 0
+		let maxX = vertices.map(\.x).max() ?? 0
+		let minY = vertices.map(\.y).min() ?? 0
+		let maxY = vertices.map(\.y).max() ?? 0
+		let minZ = vertices.map(\.z).min() ?? 0
+		let maxZ = vertices.map(\.z).max() ?? 0
+		let width = max(maxX - minX, 0.05)
+		let height = max(maxY - minY, 0.08)
+		let length = max(maxZ - minZ, 0.05)
+
+		let box = SCNBox(
+			width: CGFloat(width),
+			height: CGFloat(height),
+			length: CGFloat(length),
+			chamferRadius: 0
+		)
+		let patchNode = SCNNode(geometry: box)
+		patchNode.position = SCNVector3(
+			x: (minX + maxX) / 2,
+			y: (minY + maxY) / 2,
+			z: (minZ + maxZ) / 2
+		)
+		patchNode.configureAsCollisionWireframe()
+		patchNode.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
+		patchNode.physicsBody?.configureAsWorldCollider()
+		return patchNode
 	}
 
 }

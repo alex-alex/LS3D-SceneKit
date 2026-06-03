@@ -25,10 +25,8 @@ struct Cylinder {
 		//let _node = treeKlz.getNode(linkId: volume.linkId!)
 		let node = SCNNode()
 		let cylinder = SCNCylinder(radius: CGFloat(radius), height: 1000)
-//		cylinder.firstMaterial = SCNMaterial()
-//		cylinder.firstMaterial?.cullMode = .front
-//		cylinder.firstMaterial?.diffuse.contents = SKColor.blue
-//		node.geometry = cylinder
+		node.geometry = cylinder
+		node.configureAsCollisionWireframe()
 		node.position = SCNVector3(position.x, 0, position.y)
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: cylinder, options: nil))
 		node.physicsBody?.configureAsWorldCollider()

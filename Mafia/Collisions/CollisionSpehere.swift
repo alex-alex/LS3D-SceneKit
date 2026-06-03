@@ -23,10 +23,8 @@ struct Sphere {
 	func getNode(treeKlz: Collisions) -> SCNNode {
 		let node = SCNNode()
 		let sphere = SCNSphere(radius: CGFloat(radius))
-//		sphere.firstMaterial = SCNMaterial()
-//		sphere.firstMaterial?.cullMode = .front
-//		sphere.firstMaterial?.diffuse.contents = SKColor.cyan
-//		node.geometry = sphere
+		node.geometry = sphere
+		node.configureAsCollisionWireframe()
 		node.position = position
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: sphere, options: nil))
 		node.physicsBody?.configureAsWorldCollider()

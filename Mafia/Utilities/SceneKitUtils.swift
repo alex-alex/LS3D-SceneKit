@@ -46,6 +46,157 @@ extension SCNPhysicsBody {
 }
 
 extension SCNNode {
+	func configureAsCollisionWireframe() {
+		guard let geometry = geometry else { return }
+		geometry.firstMaterial = SCNMaterial.collisionWireframeMaterial
+	}
+
+	func setCollisionWireframesVisible(_ isVisible: Bool) {
+		if let geometry = geometry {
+			geometry.firstMaterial?.transparency = isVisible ? 1 : 0
+		}
+
+		for child in childNodes {
+			child.setCollisionWireframesVisible(isVisible)
+		}
+	}
+
+	func isDescendantNode(of ancestor: SCNNode) -> Bool {
+		var node = parent
+		while let currentNode = node {
+			if currentNode === ancestor {
+				return true
+			}
+			node = currentNode.parent
+		}
+		return false
+	}
+
+	func collisionLinkRoot(for linkType: Int) -> SCNNode? {
+		switch linkType {
+		case 1:
+			return mafiaChildNode(named: "__model__", recursively: false)
+		case 2:
+			return mafiaChildNode(named: "__scene__", recursively: false)
+		default:
+			return nil
+		}
+	}
+
+	var physicsBodyCount: Int {
+		let ownCount = physicsBody == nil ? 0 : 1
+		return childNodes.reduce(ownCount) { $0 + $1.physicsBodyCount }
+	}
+
+	func nearestPhysicsBodyDistance(to position: SCNVector3) -> SCNFloat? {
+		var nearestDistanceSquared: SCNFloat?
+		collectNearestPhysicsBodyDistanceSquared(to: position, nearestDistanceSquared: &nearestDistanceSquared)
+		return nearestDistanceSquared.map(sqrt)
+	}
+
+	func nearestGeometryBoundsDistance(to position: SCNVector3) -> SCNFloat? {
+		return nearestGeometryBounds(to: position)?.horizontalDistance
+	}
+
+	func nearestGeometryBounds(to position: SCNVector3) -> (horizontalDistance: SCNFloat, minY: SCNFloat, maxY: SCNFloat)? {
+		var nearestDistanceSquared: SCNFloat?
+		var nearestYBounds: (min: SCNFloat, max: SCNFloat)?
+		collectNearestGeometryBounds(
+			to: position,
+			nearestDistanceSquared: &nearestDistanceSquared,
+			nearestYBounds: &nearestYBounds
+		)
+		guard let nearestDistanceSquared = nearestDistanceSquared,
+			  let nearestYBounds = nearestYBounds else { return nil }
+		return (sqrt(nearestDistanceSquared), nearestYBounds.min, nearestYBounds.max)
+	}
+
+	private func collectNearestGeometryBounds(
+		to position: SCNVector3,
+		nearestDistanceSquared: inout SCNFloat?,
+		nearestYBounds: inout (min: SCNFloat, max: SCNFloat)?
+	) {
+		if geometry != nil {
+			let bounds = worldBoundingBox
+			let dx: SCNFloat
+			if position.x < bounds.min.x {
+				dx = bounds.min.x - position.x
+			} else if position.x > bounds.max.x {
+				dx = position.x - bounds.max.x
+			} else {
+				dx = 0
+			}
+			let dz: SCNFloat
+			if position.z < bounds.min.z {
+				dz = bounds.min.z - position.z
+			} else if position.z > bounds.max.z {
+				dz = position.z - bounds.max.z
+			} else {
+				dz = 0
+			}
+			let distanceSquared = dx * dx + dz * dz
+			if nearestDistanceSquared == nil || distanceSquared < nearestDistanceSquared! {
+				nearestDistanceSquared = distanceSquared
+				nearestYBounds = (bounds.min.y, bounds.max.y)
+			}
+		}
+
+		for child in childNodes {
+			child.collectNearestGeometryBounds(
+				to: position,
+				nearestDistanceSquared: &nearestDistanceSquared,
+				nearestYBounds: &nearestYBounds
+			)
+		}
+	}
+
+	private var worldBoundingBox: (min: SCNVector3, max: SCNVector3) {
+		let bounds = boundingBox
+		let xs = [bounds.min.x, bounds.max.x]
+		let ys = [bounds.min.y, bounds.max.y]
+		let zs = [bounds.min.z, bounds.max.z]
+		var worldMin = SCNVector3(x: SCNFloat.greatestFiniteMagnitude, y: SCNFloat.greatestFiniteMagnitude, z: SCNFloat.greatestFiniteMagnitude)
+		var worldMax = SCNVector3(x: -SCNFloat.greatestFiniteMagnitude, y: -SCNFloat.greatestFiniteMagnitude, z: -SCNFloat.greatestFiniteMagnitude)
+
+		for x in xs {
+			for y in ys {
+				for z in zs {
+					let point = presentation.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil)
+					worldMin.x = min(worldMin.x, point.x)
+					worldMin.y = min(worldMin.y, point.y)
+					worldMin.z = min(worldMin.z, point.z)
+					worldMax.x = max(worldMax.x, point.x)
+					worldMax.y = max(worldMax.y, point.y)
+					worldMax.z = max(worldMax.z, point.z)
+				}
+			}
+		}
+
+		return (worldMin, worldMax)
+	}
+
+	private func collectNearestPhysicsBodyDistanceSquared(
+		to position: SCNVector3,
+		nearestDistanceSquared: inout SCNFloat?
+	) {
+		if physicsBody != nil {
+			let nodePosition = presentation.worldPosition
+			let dx = nodePosition.x - position.x
+			let dz = nodePosition.z - position.z
+			let distanceSquared = dx * dx + dz * dz
+			if nearestDistanceSquared == nil || distanceSquared < nearestDistanceSquared! {
+				nearestDistanceSquared = distanceSquared
+			}
+		}
+
+		for child in childNodes {
+			child.collectNearestPhysicsBodyDistanceSquared(
+				to: position,
+				nearestDistanceSquared: &nearestDistanceSquared
+			)
+		}
+	}
+
 	func convexHullPhysicsShapeFromGeometryHierarchy() -> SCNPhysicsShape? {
 		var shapes: [SCNPhysicsShape] = []
 		var transforms: [NSValue] = []
@@ -66,6 +217,19 @@ extension SCNNode {
 		for child in mafiaChildNodes {
 			child.collectConvexHullPhysicsShapes(relativeTo: rootNode, shapes: &shapes, transforms: &transforms)
 		}
+	}
+}
+
+private extension SCNMaterial {
+	static var collisionWireframeMaterial: SCNMaterial {
+		let material = SCNMaterial()
+		material.diffuse.contents = SKColor.green
+		material.emission.contents = SKColor.green
+		material.lightingModel = .constant
+		material.isDoubleSided = true
+		material.fillMode = .lines
+		material.transparency = 0
+		return material
 	}
 }
 
@@ -92,6 +256,20 @@ func += (lhs: inout SCNVector4, rhs: SCNVector4) {
 extension SCNVector3 {
 	var length: Float {
 		return sqrtf(Float(x * x + y * y + z * z))
+	}
+
+	var normalized: SCNVector3 {
+		let vectorLength = SCNFloat(length)
+		guard vectorLength > 0.0001 else { return SCNVector3Zero }
+		return SCNVector3(x: x / vectorLength, y: y / vectorLength, z: z / vectorLength)
+	}
+
+	func cross(_ vector: SCNVector3) -> SCNVector3 {
+		return SCNVector3(
+			x: y * vector.z - z * vector.y,
+			y: z * vector.x - x * vector.z,
+			z: x * vector.y - y * vector.x
+		)
 	}
 }
 

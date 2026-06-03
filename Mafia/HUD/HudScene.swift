@@ -1516,6 +1516,12 @@ extension HudScene {
 			return
 		}
 
+		if event.keyCode == 40 { // K
+			game.toggleCollisionWireframes()
+			SCNTransaction.commit()
+			return
+		}
+
 		if event.keyCode == 8 { // C
 			clearVehicleControls()
 			clearWalkingControls()

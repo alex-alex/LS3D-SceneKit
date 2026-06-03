@@ -518,6 +518,7 @@ final class Scene {
 	private var activeRecordNames = Set<String>()
 	private var activeRecordPlaybacks: [String: ActiveRecordPlayback] = [:]
 	private var activeRecordEventSchedules: [ScheduledRecordEvent] = []
+	private var activeRecordEventScriptNames = Set<String>()
 	private let filmMusicStreamsLock = NSLock()
 	private var filmMusicStreams: [Int: ScriptMusicStream] = [:]
 	private var nextFilmMusicSlot = 0
@@ -971,7 +972,7 @@ final class Scene {
 
 					let scriptLength: UInt32 = try stream.read()
 					let scriptStr: String = try stream.read(maxLength: Int(scriptLength))
-					let script = Script(script: scriptStr, scene: self, node: self.rootNode)
+					let script = Script(script: scriptStr, scene: self, node: self.rootNode, name: name)
 					self.initScripts[name] = script
 				}
 			}
@@ -1209,7 +1210,7 @@ final class Scene {
 			if replacedScriptsByDifferenceName[script.name] == nil, let existingScript = scripts[script.name] {
 				replacedScriptsByDifferenceName[script.name] = existingScript
 			}
-			let loadedScript = Script(script: script.source, scene: self, node: differenceFile.rootNode)
+			let loadedScript = Script(script: script.source, scene: self, node: differenceFile.rootNode, name: script.name)
 			loadedScript.node.actorState = .active
 			loadedScript.applyDeclaredInitialActorState()
 			scripts[script.name] = loadedScript
@@ -2430,6 +2431,7 @@ final class Scene {
 		let events = record.timedEvents.filter { !$0.isStop }
 		guard !events.isEmpty else { return }
 
+		activeRecordEventScriptNames.formUnion(events.map(\.name))
 		print("== Record Events scheduling: \(events.count)")
 		for event in events {
 			let scheduledEvent = ScheduledRecordEvent(recordName: record.name, event: event)
@@ -2890,6 +2892,7 @@ final class Scene {
 			scheduledEvent.workItem?.cancel()
 		}
 		activeRecordEventSchedules.removeAll()
+		activeRecordEventScriptNames.removeAll()
 		filmMusicStreamsLock.lock()
 		let filmMusicStreams = Array(self.filmMusicStreams.values)
 		self.filmMusicStreams.removeAll()
@@ -2926,7 +2929,8 @@ final class Scene {
 		if isPaused {
 			for script in allScripts {
 				let scriptId = ObjectIdentifier(script)
-				guard !excludedScriptIds.contains(scriptId) else { continue }
+				guard !excludedScriptIds.contains(scriptId),
+					  !activeRecordEventScriptNames.contains(script.name) else { continue }
 				cutscenePausedScriptIds.insert(scriptId)
 				script.setPaused(true)
 			}
@@ -3169,7 +3173,7 @@ final class Scene {
 		initialState: ActorState = .active
 	) {
 		node.actorState = initialState
-		let script = Script(script: scriptString, scene: self, node: node)
+		let script = Script(script: scriptString, scene: self, node: node, name: name)
 		script.applyDeclaredInitialActorState()
 		self.scripts[name] = script
 	}

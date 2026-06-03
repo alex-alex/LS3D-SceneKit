@@ -32,12 +32,6 @@ struct XTOBB {
 		guard let _node = treeKlz.getNode(linkId: volume.linkId!) else { return SCNNode() }
 
 		let node = SCNNode()
-//		let box = SCNBox(width: CGFloat(maxExtent.x-minExtent.x), height: CGFloat(maxExtent.y-minExtent.y), length: CGFloat(maxExtent.z-minExtent.z), chamferRadius: 0)
-//		box.firstMaterial = SCNMaterial()
-//		box.firstMaterial?.cullMode = .front
-//		box.firstMaterial?.diffuse.contents = SKColor.green
-//		node.geometry = box
-//		node.transform = transform
 
 		if volume.mtlId == MaterialDef.crashCollisionId {
 			guard let shape = _node.convexHullPhysicsShapeFromGeometryHierarchy() else { return node }
@@ -57,6 +51,8 @@ struct XTOBB {
 				length: CGFloat(maxExtent.z - minExtent.z),
 				chamferRadius: 0
 			)
+			node.geometry = box
+			node.configureAsCollisionWireframe()
 			node.transform = transform
 			node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
 			node.physicsBody?.configureAsWorldCollider()

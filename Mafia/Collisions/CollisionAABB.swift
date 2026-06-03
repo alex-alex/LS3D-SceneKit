@@ -29,10 +29,8 @@ struct AABB {
 			length: CGFloat(max.z-min.z),
 			chamferRadius: 0
 		)
-//		box.firstMaterial = SCNMaterial()
-//		box.firstMaterial?.cullMode = .front
-//		box.firstMaterial?.diffuse.contents = SKColor.red
-//		node.geometry = box
+		node.geometry = box
+		node.configureAsCollisionWireframe()
 		node.position = SCNVector3(
 			CGFloat(min.x+(max.x-min.x)/2),
 			CGFloat(min.y+(max.y-min.y)/2),

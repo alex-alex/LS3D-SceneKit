@@ -32,10 +32,8 @@ struct OBB {
 			length: CGFloat(maxExtent.z-minExtent.z),
 			chamferRadius: 0
 		)
-//		box.firstMaterial = SCNMaterial()
-//		box.firstMaterial?.cullMode = .front
-//		box.firstMaterial?.diffuse.contents = SKColor.magenta
-//		node.geometry = box
+		node.geometry = box
+		node.configureAsCollisionWireframe()
 		node.transform = transform
 		node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
 		node.physicsBody?.configureAsWorldCollider()
