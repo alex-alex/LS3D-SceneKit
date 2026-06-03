@@ -51,14 +51,15 @@ struct XTOBB {
 			_node.physicsBody?.allowsResting = true
 			_node.physicsBody?.configureAsDynamicObjectCollider()
 		} else {
-//			let convertedTransform = _node.convertTransform(transform, from: treeKlz.rootNode)
-//			let shape = SCNPhysicsShape(shapes: [SCNPhysicsShape(geometry: box, options: nil)], transforms: [NSValue(scnMatrix4: transform)])
-//			node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
-
-//			let shape = SCNPhysicsShape(node: _node, options: [
-//				SCNPhysicsShape.Option.type: SCNPhysicsShape.ShapeType.concavePolyhedron
-//			])
-//			_node.physicsBody = SCNPhysicsBody(type: .static, shape: shape)
+			let box = SCNBox(
+				width: CGFloat(maxExtent.x - minExtent.x),
+				height: CGFloat(maxExtent.y - minExtent.y),
+				length: CGFloat(maxExtent.z - minExtent.z),
+				chamferRadius: 0
+			)
+			node.transform = transform
+			node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: box, options: nil))
+			node.physicsBody?.configureAsWorldCollider()
 		}
 
 		return node

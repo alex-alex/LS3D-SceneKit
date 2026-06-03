@@ -62,6 +62,11 @@ final class PlayerController {
 	private let stopAcceleration: SCNFloat = 24
 	private let turnSpeed: SCNFloat = 2.8
 	private let jumpSpeed: SCNFloat = 5.2
+	private let gravity: SCNFloat = 12
+	private let maxStepHeight: SCNFloat = 0.45
+	private let maxGroundSnapDistance: SCNFloat = 2.0
+	private let groundProbeLift: SCNFloat = 0.55
+	private let minGroundNormalY: SCNFloat = 0.65
 	private let minLookPitch: SCNFloat = -0.65
 	private let maxLookPitch: SCNFloat = 0.45
 	private let standingWalkingAnimationName = "anims/walk1.5ds"
@@ -208,23 +213,27 @@ final class PlayerController {
 		horizontalVelocity.x += (desiredVelocity.x - horizontalVelocity.x) * blend
 		horizontalVelocity.z += (desiredVelocity.z - horizontalVelocity.z) * blend
 
+		updateGroundHeight()
 		let positionBeforeMove = node.position
 		moveHorizontally(dx: horizontalVelocity.x * dt, dz: horizontalVelocity.z * dt)
 		let actualHorizontalDelta = SCNVector3(x: node.position.x - positionBeforeMove.x, y: 0, z: node.position.z - positionBeforeMove.z)
+		let grounded = isGrounded
 		footstepAudio.update(
 			on: node,
 			distanceMoved: actualHorizontalDelta.horizontalLength,
 			isMoving: horizontalSpeed > 0.01,
 			isCrouching: isCrouching,
-			isGrounded: node.position.y <= standingY + 0.01
+			isGrounded: grounded
 		)
-		if wantsJump && !isCrouching && node.position.y <= standingY + 0.01 {
+		if wantsJump && !isCrouching && grounded {
 			verticalVelocity = jumpSpeed
 		}
 		wantsJump = false
-		verticalVelocity -= 12 * dt
+		verticalVelocity -= gravity * dt
 		node.position.y = max(standingY, node.position.y + verticalVelocity * dt)
+		updateGroundHeight()
 		if node.position.y <= standingY {
+			node.position.y = standingY
 			verticalVelocity = 0
 		}
 		body.velocity = SCNVector3Zero
@@ -413,15 +422,17 @@ final class PlayerController {
 		let start = node.position
 
 		node.position.x = start.x + dx
-		if isBlockedHorizontally() {
+		if isBlockedHorizontally(), !tryStepUp(from: start) {
 			node.position.x = start.x
+			node.position.y = start.y
 			horizontalVelocity.x = 0
 		}
 
 		let afterX = node.position
 		node.position.z = afterX.z + dz
-		if isBlockedHorizontally() {
+		if isBlockedHorizontally(), !tryStepUp(from: afterX) {
 			node.position.z = afterX.z
+			node.position.y = afterX.y
 			horizontalVelocity.z = 0
 		}
 	}
@@ -429,7 +440,7 @@ final class PlayerController {
 	private func isBlockedHorizontally() -> Bool {
 		guard let body = node.physicsBody else { return false }
 
-		// scene.physicsWorld.updateCollisionPairs()
+		scene.physicsWorld.updateCollisionPairs()
 		return scene.physicsWorld.contactTest(with: body, options: [
 			SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking
 		]).contains { contact in
@@ -437,8 +448,63 @@ final class PlayerController {
 			guard otherNode !== node else { return false }
 
 			let normal = contact.contactNormal
-			return abs(normal.y) < 0.65
+			return abs(normal.y) < minGroundNormalY
 		}
+	}
+
+	private var isGrounded: Bool {
+		updateGroundHeight()
+		return node.position.y <= standingY + 0.03 && verticalVelocity <= 0
+	}
+
+	private func updateGroundHeight() {
+		guard let groundY = groundHeight(at: node.position) else { return }
+
+		let verticalDelta = groundY - node.position.y
+		if verticalDelta <= maxStepHeight && verticalDelta >= -maxGroundSnapDistance {
+			standingY = groundY
+		}
+	}
+
+	private func tryStepUp(from start: SCNVector3) -> Bool {
+		guard verticalVelocity <= 0,
+			  let groundY = groundHeight(at: node.position) else { return false }
+
+		let stepHeight = groundY - start.y
+		guard stepHeight > 0, stepHeight <= maxStepHeight else { return false }
+
+		node.position.y = groundY
+		scene.physicsWorld.updateCollisionPairs()
+		if isBlockedHorizontally() {
+			node.position.y = start.y
+			return false
+		}
+
+		standingY = groundY
+		return true
+	}
+
+	private func groundHeight(at localPosition: SCNVector3) -> SCNFloat? {
+		let parent = node.parent
+		let worldPosition = parent?.presentation.convertPosition(localPosition, to: nil) ?? localPosition
+		let from = SCNVector3(x: worldPosition.x, y: worldPosition.y + groundProbeLift, z: worldPosition.z)
+		let to = SCNVector3(x: worldPosition.x, y: worldPosition.y - maxGroundSnapDistance, z: worldPosition.z)
+		let hits = scene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
+			SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking,
+			SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
+		])
+
+		for hit in hits where isGroundHit(hit) {
+			let localContact = parent?.presentation.convertPosition(hit.worldCoordinates, from: nil) ?? hit.worldCoordinates
+			return localContact.y
+		}
+
+		return nil
+	}
+
+	private func isGroundHit(_ hit: SCNHitTestResult) -> Bool {
+		guard hit.node !== node else { return false }
+		return hit.worldNormal.y >= minGroundNormalY
 	}
 
 	private func configurePhysics() {
