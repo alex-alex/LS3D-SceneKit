@@ -141,6 +141,14 @@ enum ScriptCommandName: String {
 	case setevent
 	case setplayerfireevent
 	case setplayerhornevent
+	case streamCreate = "stream_create"
+	case streamDestroy = "stream_destroy"
+	case streamFadevol = "stream_fadevol"
+	case streamGetpos = "stream_getpos"
+	case streamPause = "stream_pause"
+	case streamPlay = "stream_play"
+	case streamSetloop = "stream_setloop"
+	case streamStop = "stream_stop"
 	case subtitleAdd = "subtitle_add"
 	case wait
 	case zatmyse
@@ -190,6 +198,8 @@ final class Script {
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
 	var vars: [Int: Float] = [:]
+	var streams: [Int: ScriptMusicStream] = [:]
+	var nextStreamId = 1
 
 	var signal = false
 

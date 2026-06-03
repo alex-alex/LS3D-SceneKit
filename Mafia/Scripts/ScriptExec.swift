@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import AVFoundation
 import SceneKit
 
 extension Script {
@@ -85,6 +86,14 @@ extension Script {
 		case .setevent:					setevent(command.args)
 		case .setplayerfireevent:		setplayerfireevent(command.args)
 		case .setplayerhornevent:		setplayerhornevent(command.args)
+		case .streamCreate:				stream_create(command.args)
+		case .streamDestroy:			stream_destroy(command.args)
+		case .streamFadevol:			stream_fadevol(command.args)
+		case .streamGetpos:				stream_getpos(command.args)
+		case .streamPause:				stream_pause(command.args)
+		case .streamPlay:				stream_play(command.args)
+		case .streamSetloop:			stream_setloop(command.args)
+		case .streamStop:				stream_stop(command.args)
 		case .subtitleAdd:				subtitle_add(command.args)
 		case .wait:						wait(command.args)
 		case .zatmyse:					zatmyse(command.args)
@@ -893,6 +902,108 @@ extension Script {
 		next()
 	}
 
+	private func stream_create(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		let name = args[1].getString()
+		guard let url = musicStreamURL(named: name),
+			  let source = SCNAudioSource(url: url) else {
+			vars[varId] = 0
+			next()
+			return
+		}
+
+		source.isPositional = false
+		source.loops = false
+		source.volume = 1
+		source.load()
+
+		let streamId = nextStreamId
+		nextStreamId += 1
+		streams[streamId] = ScriptMusicStream(source: source, url: url, node: scene.rootNode)
+		vars[varId] = Float(streamId)
+		next()
+	}
+
+	private func stream_destroy(_ args: [Argument]) {
+		let streamId = args[0].getValueOrVarValue(vars: vars)
+		if let stream = streams.removeValue(forKey: streamId) {
+			DispatchQueue.main.async {
+				stream.destroy()
+			}
+		}
+		next()
+	}
+
+	private func stream_fadevol(_ args: [Argument]) {
+		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let duration = args[1].getValueOrVarValue(vars: vars)
+		let startVolume = args[2].getValueOrVarValueFloat(vars: vars)
+		let endVolume = args[3].getValueOrVarValueFloat(vars: vars)
+		if let stream = streams[streamId] {
+			DispatchQueue.main.async {
+				stream.fadeVolume(
+					from: startVolume,
+					to: endVolume,
+					duration: TimeInterval(max(0, duration)) / 1000
+				)
+			}
+		}
+		next()
+	}
+
+	private func stream_getpos(_ args: [Argument]) {
+		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		DispatchQueue.main.async {
+			let position = self.streams[streamId]?.positionMilliseconds ?? 0
+			self.queue.async {
+				self.vars[varId] = Float(position)
+				self.next()
+			}
+		}
+	}
+
+	private func stream_pause(_ args: [Argument]) {
+		let streamId = args[0].getValueOrVarValue(vars: vars)
+		if let stream = streams[streamId] {
+			DispatchQueue.main.async {
+				stream.pause()
+			}
+		}
+		next()
+	}
+
+	private func stream_play(_ args: [Argument]) {
+		let streamId = args[0].getValueOrVarValue(vars: vars)
+		if let stream = streams[streamId] {
+			DispatchQueue.main.async {
+				stream.play()
+			}
+		}
+		next()
+	}
+
+	private func stream_setloop(_ args: [Argument]) {
+		let streamId = args[0].getValueOrVarValue(vars: vars)
+		let loops = args[1].getValueOrVarValue(vars: vars) != 0
+		if let stream = streams[streamId] {
+			DispatchQueue.main.async {
+				stream.setLoop(loops)
+			}
+		}
+		next()
+	}
+
+	private func stream_stop(_ args: [Argument]) {
+		let streamId = args[0].getValueOrVarValue(vars: vars)
+		if let stream = streams[streamId] {
+			DispatchQueue.main.async {
+				stream.stop()
+			}
+		}
+		next()
+	}
+
 	private func subtitle_add(_ args: [Argument]) {
 		let txtId = args[0].getValueOrVarValue(vars: vars)
 		let text = TextDb.get(txtId) ?? "\(txtId)"
@@ -972,6 +1083,22 @@ extension Script {
 		return actor === playerNode || actor.name == playerNode.name || actor.name?.lowercased() == "tommyhat"
 	}
 
+	private func musicStreamURL(named name: String) -> URL? {
+		let normalizedName = name
+			.replacingOccurrences(of: "\\", with: "/")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		let soundsPrefix = "sounds/"
+		let soundRelativeName: String
+		if normalizedName.lowercased().hasPrefix(soundsPrefix) {
+			soundRelativeName = String(normalizedName.dropFirst(soundsPrefix.count))
+		} else if normalizedName.contains("/") {
+			soundRelativeName = normalizedName
+		} else {
+			soundRelativeName = "music/" + normalizedName
+		}
+		return mafiaResourceURL(directory: "sounds", name: soundRelativeName)
+	}
+
 	private func humanEnergy(for node: SCNNode) -> Float {
 		guard let humanNode = humanNode(for: node) else { return 0 }
 		return humanNode.humanEnergy ?? 100
@@ -995,6 +1122,182 @@ extension Script {
 			}
 		}
 		return nil
+	}
+
+}
+
+final class ScriptMusicStream {
+
+	private enum PlaybackState {
+		case stopped
+		case playing
+		case paused
+	}
+
+	private let source: SCNAudioSource
+	private let url: URL
+	private let node: SCNNode
+	private var player: SCNAudioPlayer?
+	private var playbackState: PlaybackState = .stopped
+	private var startsAt: TimeInterval?
+	private var accumulatedPosition: TimeInterval = 0
+	private var loops = false
+	private var volume: Float = 1
+	private var fadeWorkItem: DispatchWorkItem?
+	private lazy var duration: TimeInterval? = {
+		guard let file = try? AVAudioFile(forReading: url) else { return nil }
+		return TimeInterval(file.length) / file.processingFormat.sampleRate
+	}()
+
+	init(source: SCNAudioSource, url: URL, node: SCNNode) {
+		self.source = source
+		self.url = url
+		self.node = node
+	}
+
+	var positionMilliseconds: Int {
+		let position = currentPosition()
+		return Int((position * 1000).rounded())
+	}
+
+	func play() {
+		runOnMain {
+			switch self.playbackState {
+			case .playing:
+				return
+
+			case .paused:
+				self.startsAt = Date.timeIntervalSinceReferenceDate
+				(self.player?.audioNode as? AVAudioPlayerNode)?.play()
+				self.playbackState = .playing
+
+			case .stopped:
+				self.accumulatedPosition = 0
+				self.startsAt = Date.timeIntervalSinceReferenceDate
+				self.playbackState = .playing
+				self.addPlayer()
+			}
+		}
+	}
+
+	func pause() {
+		runOnMain {
+			guard self.playbackState == .playing else { return }
+			self.accumulatedPosition = self.currentPosition()
+			self.startsAt = nil
+			(self.player?.audioNode as? AVAudioPlayerNode)?.pause()
+			self.playbackState = .paused
+		}
+	}
+
+	func stop() {
+		runOnMain {
+			self.stopPlaying(resetPosition: true)
+		}
+	}
+
+	func destroy() {
+		stop()
+	}
+
+	func setLoop(_ loops: Bool) {
+		runOnMain {
+			self.loops = loops
+			self.source.loops = loops
+		}
+	}
+
+	func fadeVolume(from startVolume: Float, to endVolume: Float, duration: TimeInterval) {
+		runOnMain {
+			self.fadeWorkItem?.cancel()
+			self.setVolume(startVolume)
+			guard duration > 0 else {
+				self.setVolume(endVolume)
+				return
+			}
+			self.scheduleFadeStep(startVolume: startVolume, endVolume: endVolume, duration: duration, startTime: Date.timeIntervalSinceReferenceDate)
+		}
+	}
+
+	private func addPlayer() {
+		removePlayer()
+		source.loops = loops
+		source.volume = volume
+
+		let audioPlayer = SCNAudioPlayer(source: source)
+		player = audioPlayer
+		audioPlayer.didFinishPlayback = { [weak self, weak audioPlayer] in
+			DispatchQueue.main.async {
+				guard let self = self,
+					  let audioPlayer = audioPlayer,
+					  let currentPlayer = self.player,
+					  currentPlayer === audioPlayer else { return }
+				self.stopPlaying(resetPosition: true)
+			}
+		}
+		node.addAudioPlayer(audioPlayer)
+	}
+
+	private func stopPlaying(resetPosition: Bool) {
+		fadeWorkItem?.cancel()
+		fadeWorkItem = nil
+		if resetPosition {
+			accumulatedPosition = 0
+		}
+		startsAt = nil
+		playbackState = .stopped
+		removePlayer()
+	}
+
+	private func removePlayer() {
+		guard let player = player else { return }
+		player.didFinishPlayback = nil
+		node.removeAudioPlayer(player)
+		self.player = nil
+	}
+
+	private func currentPosition() -> TimeInterval {
+		let position: TimeInterval
+		if playbackState == .playing, let startsAt = startsAt {
+			position = accumulatedPosition + Date.timeIntervalSinceReferenceDate - startsAt
+		} else {
+			position = accumulatedPosition
+		}
+
+		if loops, let duration = duration, duration > 0 {
+			return position.truncatingRemainder(dividingBy: duration)
+		}
+		return max(0, position)
+	}
+
+	private func setVolume(_ volume: Float) {
+		let clampedVolume = min(1, max(0, volume))
+		self.volume = clampedVolume
+		source.volume = clampedVolume
+	}
+
+	private func scheduleFadeStep(startVolume: Float, endVolume: Float, duration: TimeInterval, startTime: TimeInterval) {
+		let workItem = DispatchWorkItem { [weak self] in
+			guard let self = self else { return }
+			let elapsed = Date.timeIntervalSinceReferenceDate - startTime
+			let progress = min(1, max(0, Float(elapsed / duration)))
+			self.setVolume(startVolume + (endVolume - startVolume) * progress)
+			guard progress < 1 else {
+				self.fadeWorkItem = nil
+				return
+			}
+			self.scheduleFadeStep(startVolume: startVolume, endVolume: endVolume, duration: duration, startTime: startTime)
+		}
+		fadeWorkItem = workItem
+		DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16), execute: workItem)
+	}
+
+	private func runOnMain(_ block: @escaping () -> Void) {
+		if Thread.isMainThread {
+			block()
+		} else {
+			DispatchQueue.main.async(execute: block)
+		}
 	}
 
 }

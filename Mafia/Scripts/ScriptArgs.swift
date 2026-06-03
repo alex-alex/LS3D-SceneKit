@@ -143,6 +143,14 @@ extension Script {
 		case "setevent":				return getArgs_setevent(scanner)
 		case "setplayerfireevent":		return getArgs_setplayerevent(scanner)
 		case "setplayerhornevent":		return getArgs_setplayerevent(scanner)
+		case "stream_create":			return getArgs_stream_create(scanner)
+		case "stream_destroy":			return getArgs_stream_destroy(scanner)
+		case "stream_fadevol":			return getArgs_stream_fadevol(scanner)
+		case "stream_getpos":			return getArgs_stream_getpos(scanner)
+		case "stream_pause":			return getArgs_stream_pause(scanner)
+		case "stream_play":				return getArgs_stream_play(scanner)
+		case "stream_setloop":			return getArgs_stream_setloop(scanner)
+		case "stream_stop":				return getArgs_stream_stop(scanner)
 		case "subtitle_add":			return getArgs_subtitle_add(scanner)
 		case "wait":					return getArgs_wait(scanner)
 		case "zatmyse":					return getArgs_zatmyse(scanner)
@@ -424,6 +432,47 @@ extension Script {
 
 	private func getArgs_setplayerevent(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner))]
+	}
+
+	private func getArgs_stream_create(_ scanner: Scanner) -> [Argument] {
+		let varId = scanVarOrValue(scanner)
+		guard let name = scanString(scanner) else { fatalError() }
+		return [varId, .string(name)]
+	}
+
+	private func getArgs_stream_destroy(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_stream_fadevol(_ scanner: Scanner) -> [Argument] {
+		return [
+			scanVarOrValue(scanner),
+			scanVarOrValue(scanner),
+			scanVarOrValue(scanner),
+			scanVarOrValue(scanner)
+		]
+	}
+
+	private func getArgs_stream_getpos(_ scanner: Scanner) -> [Argument] {
+		let streamId = scanVarOrValue(scanner)
+		let varId = scanVarOrValue(scanner)
+		return [streamId, varId]
+	}
+
+	private func getArgs_stream_pause(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_stream_play(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_stream_setloop(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_stream_stop(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_subtitle_add(_ scanner: Scanner) -> [Argument] {
