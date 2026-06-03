@@ -63,6 +63,7 @@ extension Script {
 		case .`if`:						`if`(command.args)
 		case .iffltinrange:				iffltinrange(command.args)
 		case .ifplayerstealcar:			ifplayerstealcar(command.args)
+		case .introSubtitleAdd:			subtitle_add(command.args)
 		case .iscarusable:				iscarusable(command.args)
 		case .label:					noop()
 		case .`let`:					`let`(command.args)

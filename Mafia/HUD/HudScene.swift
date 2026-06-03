@@ -231,8 +231,8 @@ final class HudScene: SKScene {
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 104)
-		objectivesNode.position = CGPoint(x: size.width/2, y: size.height/2)
-		consoleLabel.position = CGPoint(x: 24, y: size.height-24)
+		objectivesNode.position = CGPoint(x: size.width/2, y: size.height * 2 / 3)
+		consoleLabel.position = CGPoint(x: 24, y: actionButton.position.y + actionButton.size.height / 2 + 36)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
 		subtitleLabel.position = CGPoint(x: size.width / 2, y: size.height / 2)
 		subtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)

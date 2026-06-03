@@ -119,6 +119,7 @@ enum ScriptCommandName: String {
 	case `if` = "if"
 	case iffltinrange
 	case ifplayerstealcar
+	case introSubtitleAdd = "intro_subtitle_add"
 	case iscarusable
 	case label
 	case `let` = "let"

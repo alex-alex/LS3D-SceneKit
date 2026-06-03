@@ -127,6 +127,7 @@ extension Script {
 		case "if":						return getArgs_if(scanner)
 		case "iffltinrange":			return getArgs_iffltinrange(scanner)
 		case "ifplayerstealcar":		return getArgs_ifplayerstealcar(scanner)
+		case "intro_subtitle_add":		return getArgs_subtitle_add(scanner)
 		case "iscarusable":				return getArgs_iscarusable(scanner)
 		case "let":						return getArgs_let(scanner)
 		case "loaddifferences":			return getArgs_loaddifferences(scanner)
