@@ -418,9 +418,10 @@ extension Script {
 	}
 
 	private func endofmission(_ args: [Argument]) {
+		let returnsToMainMenu = args.first?.getValueOrVarValue(vars: vars) == 1
 		let text = args.count > 1 ? TextDb.get(args[1].getValueOrVarValue(vars: vars)) : nil
 		DispatchQueue.main.async {
-			self.scene.game.endMission(message: text)
+			self.scene.game.endMission(returnsToMainMenu: returnsToMainMenu, message: text)
 		}
 		end(args)
 	}

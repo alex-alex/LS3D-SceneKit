@@ -46,6 +46,13 @@ final class HudScene: SKScene {
 	private var letterboxBottomBar: SKShapeNode!
 	private var cutsceneFadeOverlay: SKShapeNode!
 	private var loadBlackoutOverlay: SKShapeNode!
+	private var missionEndContainer: SKNode!
+	private var missionEndPaperNode: SKSpriteNode!
+	private var missionEndHeaderNode: SKSpriteNode!
+	private var missionEndTitleLabel: SKLabelNode!
+	private var missionEndLabel: SKLabelNode!
+	private var missionEndOptionLabels: [SKLabelNode] = []
+	private var missionEndControls: [MenuDefControl] = []
 	private var inventoryRows: [(node: SKShapeNode, weapon: Weapon?)] = []
 	private var inventoryPausedGame = false
 	private var isCutsceneOverlayVisible = false
@@ -227,7 +234,12 @@ final class HudScene: SKScene {
 				  letterboxTopBar != nil,
 				  letterboxBottomBar != nil,
 				  cutsceneFadeOverlay != nil,
-				  loadBlackoutOverlay != nil else { return }
+				  loadBlackoutOverlay != nil,
+				  missionEndContainer != nil,
+				  missionEndPaperNode != nil,
+				  missionEndHeaderNode != nil,
+				  missionEndTitleLabel != nil,
+				  missionEndLabel != nil else { return }
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 104)
@@ -251,6 +263,7 @@ final class HudScene: SKScene {
 		pauseHintLabel.position = CGPoint(x: 0, y: -24)
 		layoutInventoryOverlay()
 		layoutCinematicOverlays()
+		layoutMissionEndMenu()
 
 		layoutTouchButtons()
 	}
@@ -461,6 +474,12 @@ final class HudScene: SKScene {
 		loadBlackoutOverlay.run(SKAction.sequence(actions))
 	}
 
+	func showMissionEndText(_ text: String?) {
+		missionEndLabel.text = text
+		missionEndLabel.alpha = text == nil ? 0 : 1
+		missionEndContainer.isHidden = text == nil
+	}
+
 }
 
 // MARK: - Cinematic Overlays
@@ -497,6 +516,51 @@ extension HudScene {
 		loadBlackoutOverlay.alpha = 0
 		loadBlackoutOverlay.isHidden = true
 		addChild(loadBlackoutOverlay)
+
+		missionEndControls = (try? MenuDef().controls(for: .gameOver)) ?? []
+		missionEndContainer = SKNode()
+		missionEndContainer.zPosition = 2101
+		missionEndContainer.isHidden = true
+		addChild(missionEndContainer)
+
+		missionEndPaperNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir3.tga")))
+		missionEndPaperNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		missionEndPaperNode.alpha = 0.92
+		missionEndPaperNode.zPosition = 0
+		missionEndContainer.addChild(missionEndPaperNode)
+
+		missionEndHeaderNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir5a.tga")))
+		missionEndHeaderNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		missionEndHeaderNode.zPosition = 1
+		missionEndContainer.addChild(missionEndHeaderNode)
+
+		missionEndTitleLabel = SKLabelNode(fontNamed: mafiaMenuTitleFontName)
+		missionEndTitleLabel.fontColor = .white
+		missionEndTitleLabel.horizontalAlignmentMode = .center
+		missionEndTitleLabel.verticalAlignmentMode = .center
+		missionEndTitleLabel.zPosition = 2
+		missionEndContainer.addChild(missionEndTitleLabel)
+
+		missionEndLabel = SKLabelNode()
+		missionEndLabel.fontName = mafiaMenuFontName
+		missionEndLabel.fontColor = .black
+		missionEndLabel.horizontalAlignmentMode = .center
+		missionEndLabel.verticalAlignmentMode = .center
+		missionEndLabel.numberOfLines = 0
+		missionEndLabel.zPosition = 2
+		missionEndLabel.alpha = 0
+		missionEndContainer.addChild(missionEndLabel)
+
+		for control in missionEndControls where control.type == "meti" {
+			let label = SKLabelNode(fontNamed: mafiaMenuFontName)
+			label.text = TextDb.get(Int(control.textId))
+			label.fontColor = .black
+			label.horizontalAlignmentMode = .center
+			label.verticalAlignmentMode = .center
+			label.zPosition = 2
+			missionEndContainer.addChild(label)
+			missionEndOptionLabels.append(label)
+		}
 	}
 
 	private func layoutCinematicOverlays() {
@@ -524,6 +588,66 @@ extension HudScene {
 			transform: nil
 		)
 		loadBlackoutOverlay.position = .zero
+	}
+
+	private func layoutMissionEndMenu() {
+		let windowControl = missionEndControls.first { $0.type == "tniw" }
+		let scale = missionEndScale()
+		let windowFrame = missionEndFrame(for: windowControl)
+		let headerHeight = 50 * scale
+		let bodyFrame = CGRect(
+			x: windowFrame.minX,
+			y: windowFrame.minY,
+			width: windowFrame.width,
+			height: windowFrame.height - headerHeight
+		)
+
+		missionEndHeaderNode.position = CGPoint(x: windowFrame.midX, y: windowFrame.maxY - headerHeight / 2)
+		missionEndHeaderNode.size = CGSize(width: windowFrame.width, height: headerHeight)
+
+		missionEndPaperNode.position = CGPoint(x: bodyFrame.midX, y: bodyFrame.midY)
+		missionEndPaperNode.size = bodyFrame.size
+
+		missionEndTitleLabel.text = windowControl.flatMap { TextDb.get(Int($0.textId)) }
+		missionEndTitleLabel.fontSize = min(34, headerHeight * 0.68)
+		missionEndTitleLabel.position = missionEndHeaderNode.position
+
+		if let textSlot = missionEndControls.first(where: { $0.type == "tsil" }) {
+			let frame = missionEndChildFrame(for: textSlot, in: bodyFrame, scale: scale)
+			missionEndLabel.fontSize = min(30, frame.height * 0.85)
+			missionEndLabel.position = CGPoint(x: frame.midX, y: frame.midY)
+			missionEndLabel.preferredMaxLayoutWidth = frame.width
+		}
+
+		let optionControls = missionEndControls.filter { $0.type == "meti" }.sorted { $0.position.y < $1.position.y }
+		for (index, control) in optionControls.enumerated() where missionEndOptionLabels.indices.contains(index) {
+			let frame = missionEndChildFrame(for: control, in: bodyFrame, scale: scale)
+			let label = missionEndOptionLabels[index]
+			label.fontSize = min(30, frame.height * 0.85)
+			label.position = CGPoint(x: frame.midX, y: frame.midY)
+			label.preferredMaxLayoutWidth = frame.width
+		}
+	}
+
+	private func missionEndScale() -> CGFloat {
+		return min(size.width / 800, size.height / 600, 1.6)
+	}
+
+	private func missionEndFrame(for control: MenuDefControl?) -> CGRect {
+		let scale = missionEndScale()
+		let xOffset = (size.width - 800 * scale) / 2
+		let yOffset = (size.height - 600 * scale) / 2
+		let x = xOffset + (control?.position.x ?? 200) * scale
+		let yTop = yOffset + (control?.position.y ?? 200) * scale
+		let width = CGFloat(control?.scaleX ?? 400) * scale
+		let height = CGFloat(control?.scaleY ?? 150) * scale
+		return CGRect(x: x, y: size.height - yTop - height, width: width, height: height)
+	}
+
+	private func missionEndChildFrame(for control: MenuDefControl, in bodyFrame: CGRect, scale: CGFloat) -> CGRect {
+		let x = bodyFrame.minX + control.position.x * scale
+		let y = bodyFrame.maxY - control.position.y * scale - CGFloat(control.scaleY) * scale
+		return CGRect(x: x, y: y, width: CGFloat(control.scaleX) * scale, height: CGFloat(control.scaleY) * scale)
 	}
 
 	private func playCutsceneFadeIn() {

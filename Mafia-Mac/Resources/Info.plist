@@ -35,6 +35,7 @@
 	<key>UIAppFonts</key>
 	<array>
 		<string>Aurora.ttf</string>
+		<string>Freehand-Regular.ttf</string>
 	</array>
 </dict>
 </plist>

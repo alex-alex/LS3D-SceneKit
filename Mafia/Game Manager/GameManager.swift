@@ -9,6 +9,7 @@
 import Foundation
 import SceneKit
 import SpriteKit
+import CoreText
 
 #if os(macOS)
     let mainDirectory = URL(fileURLWithPath: "/Users/Alex/Development/Mafia/Mafia")
@@ -16,6 +17,9 @@ import SpriteKit
 	let documentDirectory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     let mainDirectory = documentDirectory.appendingPathComponent("Mafia")
 #endif
+
+let mafiaMenuFontName = "AuroraBT-BoldCondensed"
+let mafiaMenuTitleFontName = "Freehand-Regular"
 
 class GameManager {
 
@@ -27,6 +31,8 @@ class GameManager {
 
 	init(view: SCNView) {
 		self.view = view
+
+		GameManager.registerBundledFonts()
 
 		// swiftlint:disable:next force_try
 		try! TextDb.load()
@@ -40,10 +46,16 @@ class GameManager {
 		view.autoenablesDefaultLighting = false
 // 		view.preferredFramesPerSecond = 10
 //		loadMission(textId: 4084, imageName: "tutorial.tga", folder: "tutorial")
-		loadMissionSelector()
+		loadMenu()
 //		loadMission(textId: 4085, imageName: "freeride.tga", folder: "freeitaly")
-//		loadMenu()
 		view.play(nil)
+	}
+
+	private static func registerBundledFonts() {
+		for fontName in ["Aurora", "Freehand-Regular"] {
+			guard let fontURL = Bundle.main.url(forResource: fontName, withExtension: "ttf") else { continue }
+			_ = CTFontManagerRegisterFontsForURL(fontURL as CFURL, .process, nil)
+		}
 	}
 
 	func loadMissionSelector() {
@@ -61,7 +73,7 @@ class GameManager {
 		view.overlaySKScene = loadingScene
 		DispatchQueue.global().async {
 			// swiftlint:disable:next force_try
-			self.mainMenu = try! MainMenu()
+			self.mainMenu = try! MainMenu(gameManager: self)
 			DispatchQueue.main.async {
 				loadingScene.setProgress(1)
 				self.mainMenu?.setup(in: self.view)
@@ -81,7 +93,7 @@ class GameManager {
 					}
 				}
 				game.onMissionEnded = { [weak self] in
-					self?.loadMissionSelector()
+					self?.loadMenu()
 				}
 				DispatchQueue.main.async {
 					self.game = game
@@ -169,7 +181,7 @@ private final class MissionSelectorScene: SKScene {
 	private var rowHeight: CGFloat = 30
 	private var firstRowY: CGFloat = 0
 	private let maxVisibleMissions = 18
-	private let titleLabel = SKLabelNode(fontNamed: "Aurora")
+	private let titleLabel = SKLabelNode(fontNamed: mafiaMenuFontName)
 	private let hintLabel = SKLabelNode(fontNamed: "Arial")
 	#if os(iOS)
 	private var lastSwipePoint: CGPoint?
@@ -264,6 +276,10 @@ private final class MissionSelectorScene: SKScene {
 		guard missions.indices.contains(selectedIndex) else { return }
 
 		let mission = missions[selectedIndex]
+		if mission.folder.lowercased() == "00menu" {
+			gameManager?.loadMenu()
+			return
+		}
 		gameManager?.loadMission(textId: 0, imageName: mission.imageName, folder: mission.folder)
 	}
 

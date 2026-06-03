@@ -240,11 +240,7 @@ extension Script {
 	}
 
 	private func getArgs_endofmission(_ scanner: Scanner) -> [Argument] {
-		var args: [Argument] = []
-		while let arg = scanVarOrValueOptional(scanner) {
-			args.append(arg)
-		}
-		return args
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_enemy_playanim(_ scanner: Scanner) -> [Argument] {

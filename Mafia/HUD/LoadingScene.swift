@@ -32,7 +32,7 @@ final class LoadingScene: SKScene {
 		missionImage = SKSpriteNode(texture: missionImageTexture)
 		addChild(missionImage)
 
-		missionName = SKLabelNode(fontNamed: "Aurora")
+		missionName = SKLabelNode(fontNamed: mafiaMenuFontName)
 		missionName.fontColor = .black
 		missionName.text = textId == 0 ? nil : TextDb.get(textId)
 		missionName.horizontalAlignmentMode = .right

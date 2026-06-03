@@ -154,8 +154,10 @@ final class Game: NSObject {
 	private var trafficManager: TrafficManager?
 	private var environmentSectorNodes: [String: SCNNode] = [:]
 	private var missingEnvironmentSectorNames = Set<String>()
+	private let isMenuMission: Bool
 
 	init(missionName: String, progressHandler: ((CGFloat) -> Void)? = nil) throws {
+		isMenuMission = missionName.lowercased() == "00menu"
 		progressHandler?(0.05)
 		scnScene.rootNode.name = "__root__"
 		ambientLightNode.name = "__ambient_environment__"
@@ -229,7 +231,10 @@ final class Game: NSObject {
 
 		// -----
 
-		if scene.playerNode == nil {
+		if isMenuMission {
+			scene.playerNode?.removeFromParentNode()
+			scene.playerNode = nil
+		} else if scene.playerNode == nil {
 			spawnPlayer()
 		}
 
@@ -905,11 +910,12 @@ final class Game: NSObject {
 		}
 	}
 
-	func endMission(message: String?) {
+	func endMission(returnsToMainMenu: Bool, message: String?) {
 		guard !didEndMission else { return }
 		didEndMission = true
 
-		hud?.showConsoleText(message ?? "Mission complete")
+		hud?.showMissionEndText(message)
+		hud?.setScriptBlackoutVisible(true, immediate: false)
 		isGamePaused = true
 		scnScene.isPaused = true
 		scene.setAudioPaused(true)
@@ -918,8 +924,10 @@ final class Game: NSObject {
 		hud?.setPauseScreenVisible(false)
 		playerController?.stop()
 		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
-		DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-			self?.onMissionEnded?()
+		if returnsToMainMenu {
+			DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+				self?.onMissionEnded?()
+			}
 		}
 	}
 
