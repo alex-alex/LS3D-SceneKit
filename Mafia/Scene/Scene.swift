@@ -334,6 +334,7 @@ final class Scene {
 		cameraNearPlane: Double?
 	)?
 	private var cutscenePausedScriptIds = Set<ObjectIdentifier>()
+	private var isCutsceneSkipRequested = false
 	private var activeRecordSoundSchedules: [ScheduledRecordSound] = []
 	private var isAudioPaused = false
 
@@ -2401,6 +2402,35 @@ final class Scene {
 
 		refreshActiveRecordPlaybacks()
 		return activeRecordPlaybacks.values.map(\.remaining).max() ?? 0
+	}
+
+	func requestCutsceneSkip() -> Bool {
+		guard Thread.isMainThread else {
+			return DispatchQueue.main.sync {
+				self.requestCutsceneSkip()
+			}
+		}
+
+		refreshActiveRecordPlaybacks()
+		guard !activeRecordPlaybacks.isEmpty else {
+			return false
+		}
+
+		isCutsceneSkipRequested = true
+		stopRecordPlayback()
+		return true
+	}
+
+	func consumeCutsceneSkipRequest() -> Bool {
+		guard Thread.isMainThread else {
+			return DispatchQueue.main.sync {
+				self.consumeCutsceneSkipRequest()
+			}
+		}
+
+		guard isCutsceneSkipRequested else { return false }
+		isCutsceneSkipRequested = false
+		return true
 	}
 
 	private func startActiveRecordPlayback(_ record: Record, duration: TimeInterval) {

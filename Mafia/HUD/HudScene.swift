@@ -1349,6 +1349,12 @@ extension HudScene {
 
 		guard !game.isGamePaused else { return }
 
+		if event.keyCode == 36 || event.keyCode == 76 { // return, keypad enter
+			if game.scene.requestCutsceneSkip() {
+				return
+			}
+		}
+
 		SCNTransaction.begin()
 		SCNTransaction.animationDuration = 0.2
 

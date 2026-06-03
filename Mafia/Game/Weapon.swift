@@ -90,6 +90,10 @@ final class Weapon {
 		self.restAmmo = restAmmo
 	}
 
+	static func hasDefinition(for id: Int) -> Bool {
+		return definitions[id] != nil
+	}
+
 }
 
 private extension Weapon {

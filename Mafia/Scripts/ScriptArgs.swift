@@ -117,7 +117,11 @@ extension Script {
 		case "getactorsdist":			return getArgs_getactorsdist(scanner)
 		case "getenemyaistate":			return getArgs_getenemyaistate(scanner)
 		case "goto":					return getArgs_goto(scanner)
+		case "human_activateweapon":	return getArgs_human_activateweapon(scanner)
+		case "human_addweapon":			return getArgs_human_addweapon(scanner)
 		case "human_anyweaponinhand":	return getArgs_human_anyweaponinhand(scanner)
+		case "human_anyweaponininventory":	return getArgs_human_anyweaponininventory(scanner)
+		case "human_canaddweapon":		return getArgs_human_canaddweapon(scanner)
 		case "human_getactanimid":		return getArgs_human_getactanimid(scanner)
 		case "human_getproperty":		return getArgs_human_getproperty(scanner)
 		case "human_holster":			return getArgs_human_holster(scanner)
@@ -290,8 +294,24 @@ extension Script {
 		return [.label(scanParam(scanner))]
 	}
 
+	private func getArgs_human_activateweapon(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_human_addweapon(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_human_anyweaponinhand(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_human_anyweaponininventory(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_human_canaddweapon(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_human_getactanimid(_ scanner: Scanner) -> [Argument] {

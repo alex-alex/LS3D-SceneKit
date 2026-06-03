@@ -109,7 +109,11 @@ enum ScriptCommandName: String {
 	case getactorsdist
 	case getenemyaistate
 	case goto
+	case humanActivateweapon = "human_activateweapon"
+	case humanAddweapon = "human_addweapon"
 	case humanAnyweaponinhand = "human_anyweaponinhand"
+	case humanAnyweaponininventory = "human_anyweaponininventory"
+	case humanCanaddweapon = "human_canaddweapon"
 	case humanGetactanimid = "human_getactanimid"
 	case humanGetproperty = "human_getproperty"
 	case humanHolster = "human_holster"
