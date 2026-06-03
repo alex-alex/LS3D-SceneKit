@@ -71,6 +71,15 @@ enum Argument {
 			return "flt[\(value)]"
 		}
 	}
+
+	func scriptTalkSoundId(vars: [Int: Float]) -> String {
+		switch self {
+		case .label(let value), .string(let value):
+			return value
+		default:
+			return "\(getValueOrVarValue(vars: vars))"
+		}
+	}
 }
 
 enum ScriptCommandName: String {
@@ -100,6 +109,8 @@ enum ScriptCommandName: String {
 	case endBang = "end!"
 	case endofmission
 	case enemyPlayanim = "enemy_playanim"
+	case enemyTalk = "enemy_talk"
+	case enemyWait = "enemy_wait"
 	case event
 	case eventUseCb = "event_use_cb"
 	case findactor
@@ -159,6 +170,11 @@ enum ScriptCommandName: String {
 	case unknown
 }
 
+final class ScriptEnemyTalkOperation {
+	var isComplete = false
+	var waiters: [() -> Void] = []
+}
+
 struct ScriptCommand {
 	let name: ScriptCommandName
 	let rawName: String
@@ -204,6 +220,7 @@ final class Script {
 	var vars: [Int: Float] = [:]
 	var streams: [Int: ScriptMusicStream] = [:]
 	var nextStreamId = 1
+	var pendingEnemyTalk: ScriptEnemyTalkOperation?
 
 	var signal = false
 

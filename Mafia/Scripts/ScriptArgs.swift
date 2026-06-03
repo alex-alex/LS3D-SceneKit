@@ -110,6 +110,8 @@ extension Script {
 		case "door_open":				return getArgs_door_open(scanner)
 		case "endofmission":			return getArgs_endofmission(scanner)
 		case "enemy_playanim":			return getArgs_enemy_playanim(scanner)
+		case "enemy_talk":				return getArgs_enemy_talk(scanner)
+		case "enemy_wait":				return []
 		case "findactor":				return getArgs_findactor(scanner)
 		case "findframe":				return getArgs_findframe(scanner)
 		case "frm_seton":				return getArgs_frm_seton(scanner)
@@ -258,6 +260,15 @@ extension Script {
 	private func getArgs_enemy_playanim(_ scanner: Scanner) -> [Argument] {
 		guard let animName = scanString(scanner) else { fatalError() }
 		return [.string(animName)]
+	}
+
+	private func getArgs_enemy_talk(_ scanner: Scanner) -> [Argument] {
+		var args: [Argument] = []
+		while let arg = scanVarOrValueOptional(scanner) {
+			args.append(arg)
+		}
+		guard !args.isEmpty else { fatalError() }
+		return args
 	}
 
 	private func getArgs_findactor(_ scanner: Scanner) -> [Argument] {

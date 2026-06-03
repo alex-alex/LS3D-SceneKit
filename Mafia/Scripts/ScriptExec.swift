@@ -45,6 +45,8 @@ extension Script {
 		case .endBang:					end(command.args)
 		case .endofmission:				endofmission(command.args)
 		case .enemyPlayanim:			enemy_playanim(command.args)
+		case .enemyTalk:				enemy_talk(command.args)
+		case .enemyWait:				enemy_wait(command.args)
 		case .event:					event(command.args)
 		case .eventUseCb:				noop()
 		case .findactor:				findactor(command.args)
@@ -445,6 +447,55 @@ extension Script {
 			try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: self.node)
 		}
 		next()
+	}
+
+	private func enemy_talk(_ args: [Argument]) {
+		let actorId: Int
+		let soundIdArgument: Argument
+		switch args.count {
+		case 1:
+			actorId = -1
+			soundIdArgument = args[0]
+		default:
+			actorId = args[0].getValueOrVarValue(vars: vars)
+			soundIdArgument = args[1]
+		}
+
+		let soundId = soundIdArgument.scriptTalkSoundId(vars: vars)
+		guard let url = mafiaResourceURL(directory: "sounds", name: "\(soundId).wav"),
+			  let source = SCNAudioSource(url: url) else {
+			pendingEnemyTalk = nil
+			next()
+			return
+		}
+
+		source.isPositional = true
+		source.load()
+
+		let talkOperation = beginPendingEnemyTalk()
+		DispatchQueue.main.async {
+			let actor = self.node(forScriptId: actorId) ?? self.node
+			try? playFaceAnimation(soundName: soundId, in: actor)
+			self.scene.playAudio(source, url: url, on: actor) {
+				self.completePendingEnemyTalk(talkOperation)
+			}
+		}
+		next()
+	}
+
+	private func enemy_wait(_ args: [Argument]) {
+		guard let talkOperation = pendingEnemyTalk,
+			  !talkOperation.isComplete else {
+			next()
+			return
+		}
+
+		if beginCommandBlockAsyncOperation() {
+			talkOperation.waiters.append(finishCommandBlockAsyncOperation)
+			next()
+		} else {
+			talkOperation.waiters.append(next)
+		}
 	}
 
 	private func event(_ args: [Argument]) {
@@ -1175,6 +1226,26 @@ extension Script {
 			soundRelativeName = "music/" + normalizedName
 		}
 		return mafiaResourceURL(directory: "sounds", name: soundRelativeName)
+	}
+
+	private func beginPendingEnemyTalk() -> ScriptEnemyTalkOperation {
+		let operation = ScriptEnemyTalkOperation()
+		pendingEnemyTalk = operation
+		return operation
+	}
+
+	private func completePendingEnemyTalk(_ operation: ScriptEnemyTalkOperation) {
+		queue.async {
+			operation.isComplete = true
+			let waiters = operation.waiters
+			operation.waiters.removeAll()
+			if self.pendingEnemyTalk === operation {
+				self.pendingEnemyTalk = nil
+			}
+			for waiter in waiters {
+				waiter()
+			}
+		}
 	}
 
 	private func humanEnergy(for node: SCNNode) -> Float {
