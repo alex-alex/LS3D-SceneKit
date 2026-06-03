@@ -499,22 +499,22 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 		switch frameType {
 		case .visualLegacy, .visual:
 			switch visualType {
-			case .object, .litObject:
-				try readObject(stream: stream, node: node, id: i)
-			case .singleMesh:
-				let numLODs = try readObject(stream: stream, node: node, id: i)
-				meshesDict[node] = try readMesh(stream: stream, node: node, numLODs: numLODs)
-			case .singleMorph:
-				let numLODs = try readObject(stream: stream, node: node, id: i)
-				meshesDict[node] = try readMesh(stream: stream, node: node, numLODs: numLODs)
-				try readMorph(stream: stream, node: node, id: i)
-			case .billboard:
-				try readObject(stream: stream, node: node, id: i)
-				let _: UInt32 = try stream.read()	// axis
-				let _: UInt8 = try stream.read()	// axisMode
-			case .morph:
-				try readObject(stream: stream, node: node, id: i)
-				try readMorph(stream: stream, node: node, id: i)
+				case .object, .litObject:
+					try readObject(stream: stream, node: node, id: i, modelName: name)
+				case .singleMesh:
+					let numLODs = try readObject(stream: stream, node: node, id: i, modelName: name)
+					meshesDict[node] = try readMesh(stream: stream, node: node, numLODs: numLODs)
+				case .singleMorph:
+					let numLODs = try readObject(stream: stream, node: node, id: i, modelName: name)
+					meshesDict[node] = try readMesh(stream: stream, node: node, numLODs: numLODs)
+					try readMorph(stream: stream, node: node, id: i)
+				case .billboard:
+					try readObject(stream: stream, node: node, id: i, modelName: name)
+					let _: UInt32 = try stream.read()	// axis
+					let _: UInt8 = try stream.read()	// axisMode
+				case .morph:
+					try readObject(stream: stream, node: node, id: i, modelName: name)
+					try readMorph(stream: stream, node: node, id: i)
 			case .lens:
 				let numGlows: UInt8 = try stream.read()
 				for _ in 0 ..< numGlows {
@@ -550,7 +550,7 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 			joints[id] = (node, matrix)
 
 		case .collision:
-			_ = try readObject(stream: stream, node: node, id: i)
+			_ = try readObject(stream: stream, node: node, id: i, modelName: name)
 
 		default:
 			assert(true, "other frameType")

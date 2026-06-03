@@ -10,7 +10,7 @@ import Foundation
 import SceneKit
 
 @discardableResult
-func readObject(stream: InputStream, node: SCNNode, id: Int) throws -> Int {
+func readObject(stream: InputStream, node: SCNNode, id: Int, modelName: String) throws -> Int {
 
 	let instanceId: UInt16 = try stream.read()
 	guard instanceId == 0 else {
@@ -60,6 +60,12 @@ func readObject(stream: InputStream, node: SCNNode, id: Int) throws -> Int {
 			if lod == 0 {
 				let material: SCNMaterial
 				if materialID > 0 {
+					guard materialID <= materials.count else {
+						throw ModelError.invalidFile(
+							"Invalid material ID \(materialID) for node \(id) in model '\(modelName)'; " +
+							"model has \(materials.count) materials"
+						)
+					}
 					material = materials[materialID - 1]
 				} else {
 					material = SCNMaterial()
