@@ -266,6 +266,138 @@ private struct RecordAnimationTargetMatch {
 	let orientationDistance: SCNFloat
 }
 
+private final class RecordAnimationLookup {
+	struct BindingNode {
+		let index: Int
+		let binding: RecordModelBinding
+		let node: SCNNode
+	}
+
+	let record: Record
+	let bindingNodes: [BindingNode]
+	let targetLinksByGroup: [Int: [RecordTargetLink]]
+	let animationEventsByAnimationId: [Int: [RecordAnimationEvent]]
+	let animationEventsByTrackId: [Int: [RecordAnimationEvent]]
+	private let candidates: [SCNNode]
+	private var nodesByName: [String: SCNNode] = [:]
+	private var missingNodeNames = Set<String>()
+	private var bindingsByNodeName: [String: RecordModelBinding] = [:]
+	private var skeletonMatchCache: [String: [ObjectIdentifier: Int]] = [:]
+
+	init(record: Record, recordRoots: [SCNNode]) {
+		self.record = record
+		let candidates = recordRoots.flatMap { [$0] + $0.flattenedChildNodes }
+		self.candidates = candidates
+		self.targetLinksByGroup = Dictionary(grouping: record.targetLinks, by: \.groupId)
+		self.animationEventsByAnimationId = Dictionary(grouping: record.animationEvents, by: \.animationId)
+		self.animationEventsByTrackId = Dictionary(grouping: record.animationEvents, by: \.trackId)
+
+		var resolvedBindingNodes: [BindingNode] = []
+		resolvedBindingNodes.reserveCapacity(record.modelBindings.count)
+		for (index, binding) in record.modelBindings.enumerated() {
+			guard let node = Self.node(named: binding.sourceName, in: candidates) else { continue }
+			resolvedBindingNodes.append(BindingNode(index: index, binding: binding, node: node))
+		}
+		self.bindingNodes = resolvedBindingNodes
+
+		for bindingNode in resolvedBindingNodes {
+			guard let nodeName = bindingNode.node.name?.lowercased() else { continue }
+			bindingsByNodeName[nodeName] = bindingNode.binding
+		}
+	}
+
+	func node(named recordName: String) -> SCNNode? {
+		let key = recordName.lowercased()
+		if let node = nodesByName[key] {
+			return node
+		}
+		if missingNodeNames.contains(key) {
+			return nil
+		}
+		guard let node = Self.node(named: recordName, in: candidates) else {
+			missingNodeNames.insert(key)
+			return nil
+		}
+		nodesByName[key] = node
+		return node
+	}
+
+	func binding(for node: SCNNode) -> RecordModelBinding? {
+		guard let nodeName = node.name?.lowercased() else { return nil }
+		if let binding = bindingsByNodeName[nodeName] {
+			return binding
+		}
+		let binding = record.modelBindings.first { binding in
+			let sourceName = binding.sourceName.lowercased()
+			return sourceName == nodeName ||
+				(nodeName.count >= 16 && nodeName.hasPrefix(sourceName)) ||
+				(sourceName.count >= 16 && sourceName.hasPrefix(nodeName))
+		}
+		bindingsByNodeName[nodeName] = binding
+		return binding
+	}
+
+	func skeletonMatchCount(
+		for animationPath: String,
+		in node: SCNNode,
+		resolver: (String, SCNNode) throws -> (node: SCNNode, matches: Int)
+	) -> Int {
+		let nodeIdentifier = ObjectIdentifier(node)
+		if let cachedMatches = skeletonMatchCache[animationPath]?[nodeIdentifier] {
+			return cachedMatches
+		}
+		let matches = (try? resolver(animationPath, node).matches) ?? 0
+		var matchesByNode = skeletonMatchCache[animationPath] ?? [:]
+		matchesByNode[nodeIdentifier] = matches
+		skeletonMatchCache[animationPath] = matchesByNode
+		return matches
+	}
+
+	private static func node(named name: String, in candidates: [SCNNode]) -> SCNNode? {
+		if let dottedNode = dottedNode(named: name, in: candidates) {
+			return dottedNode
+		}
+		if let exactNode = candidates.first(where: { $0.name == name }) {
+			return exactNode
+		}
+
+		let lowercasedName = name.lowercased()
+		if let caseInsensitiveNode = candidates.first(where: { $0.name?.lowercased() == lowercasedName }) {
+			return caseInsensitiveNode
+		}
+
+		guard name.count >= 16 else { return nil }
+		return candidates.first { node in
+			node.name?.lowercased().hasPrefix(lowercasedName) == true
+		}
+	}
+
+	private static func dottedNode(named name: String, in candidates: [SCNNode]) -> SCNNode? {
+		let parts = name.split(separator: ".", maxSplits: 1).map(String.init)
+		guard parts.count == 2 else { return nil }
+
+		let parentName = parts[0]
+		let childName = parts[1]
+		for parentNode in candidates where recordNodeName(parentNode.name, matches: parentName) {
+			if let childNode = parentNode.mafiaChildNode(named: childName, recursively: true) {
+				return childNode
+			}
+		}
+		return nil
+	}
+
+	private static func recordNodeName(_ candidate: String?, matches name: String) -> Bool {
+		guard let candidate = candidate?.lowercased(),
+			  !candidate.isEmpty else {
+			return false
+		}
+		let name = name.lowercased()
+		return candidate == name ||
+			(candidate.count >= 16 && candidate.hasPrefix(name)) ||
+			(name.count >= 16 && name.hasPrefix(candidate))
+	}
+}
+
 private struct PendingRecordLoad {
 	let full: Bool
 	let completion: (Result<Record, Swift.Error>) -> Void
@@ -305,6 +437,7 @@ final class Scene {
 
 	var sounds: [SCNNode: Sound] = [:]
 	var weapons: [ObjectIdentifier: [Weapon]] = [:]
+	var humanVehicleOwners: [ObjectIdentifier: SCNNode] = [:]
 	var actions: [Action] = []
 	var environmentLights: [EnvironmentLight] = []
 	var trafficSettings: TrafficSettings?
@@ -1127,7 +1260,11 @@ final class Scene {
 
 			print("== Loading Record async: \(name)")
 			self.recordLoadQueue.async {
-				let result = Result { try Record(name: name) }
+				let result = Result { () -> Record in
+					let record = try Record(name: name)
+					Self.preloadRecordAnimations(record)
+					return record
+				}
 				DispatchQueue.main.async {
 					let pendingLoads = self.pendingRecordLoads.removeValue(forKey: key) ?? []
 					guard !pendingLoads.isEmpty else { return }
@@ -1205,6 +1342,50 @@ final class Scene {
 		return lowercasedName.hasSuffix(".rep") ? String(lowercasedName.dropLast(4)) : lowercasedName
 	}
 
+	private static func preloadRecordAnimations(_ record: Record) {
+		var animationPaths = Set<String>()
+		var positionAnimationPaths = Set<String>()
+		for animation in record.animations {
+			let animationPath = recordAnimationPath(for: animation.name)
+			animationPaths.insert(animationPath)
+			positionAnimationPaths.insert(recordPreloadPositionAnimationPath(for: animationPath))
+		}
+
+		var loadedAnimations = 0
+		for animationPath in animationPaths where (try? loadAnimation(named: animationPath)) != nil {
+			loadedAnimations += 1
+		}
+
+		var loadedPositionAnimations = 0
+		for positionAnimationPath in positionAnimationPaths where positionAnimationExists(named: positionAnimationPath) {
+			if (try? loadPositionAnimation(named: positionAnimationPath)) != nil {
+				loadedPositionAnimations += 1
+			}
+		}
+
+		print(
+			"== Preloaded Record Animations: \(record.name) " +
+			"animations=\(loadedAnimations)/\(animationPaths.count) " +
+			"position=\(loadedPositionAnimations)/\(positionAnimationPaths.count)"
+		)
+	}
+
+	private static func recordAnimationPath(for animationName: String) -> String {
+		return "anims/" + animationName.replacingOccurrences(
+			of: ".i3d",
+			with: ".5ds",
+			options: [.caseInsensitive]
+		)
+	}
+
+	private static func recordPreloadPositionAnimationPath(for animationPath: String) -> String {
+		let lowercasedPath = animationPath.lowercased()
+		if lowercasedPath.hasSuffix(".5ds") {
+			return String(animationPath.dropLast(4)) + ".tck"
+		}
+		return animationPath + ".tck"
+	}
+
 	func unloadRecords() {
 		guard Thread.isMainThread else {
 			DispatchQueue.main.async {
@@ -1233,18 +1414,12 @@ final class Scene {
 
 		let differenceRoots = loadedDifferenceFiles.values.map { $0.rootNode }
 		let recordRoots = differenceRoots + [rootNode, game.scnScene.rootNode]
+		let animationLookup = RecordAnimationLookup(record: record, recordRoots: recordRoots)
 
 		print("== Playing Record: \(record.name) full=\(full)")
 		activeRecordNames.insert(record.name)
 
-		var resolvedBindings = 0
-		for binding in record.modelBindings {
-			guard let node = recordRoots.compactMap({
-				$0.mafiaChildNode(named: binding.sourceName, recursively: true)
-			}).first else { continue }
-			resolvedBindings += 1
-		}
-		print("== Record Bindings resolved: \(resolvedBindings)/\(record.modelBindings.count)")
+		print("== Record Bindings resolved: \(animationLookup.bindingNodes.count)/\(record.modelBindings.count)")
 
 		var startedAnimations = 0
 		var startedPositionAnimations = 0
@@ -1263,7 +1438,7 @@ final class Scene {
 				animation: animation,
 				animationPath: animationPath,
 				record: record,
-				recordRoots: recordRoots
+				lookup: animationLookup
 			) else {
 				skippedAnimations += 1
 				print("== Record Animation skipped: no decoded REC target \(animation.id) \(animation.name)")
@@ -1826,42 +2001,13 @@ final class Scene {
 		animation: RecordAnimation,
 		animationPath: String,
 		record: Record,
-		recordRoots: [SCNNode]
+		lookup: RecordAnimationLookup
 	) -> RecordAnimationTargetMatch? {
 		func vectorDistance(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
 			let x = lhs.x - rhs.x
 			let y = lhs.y - rhs.y
 			let z = lhs.z - rhs.z
 			return sqrt(x * x + y * y + z * z)
-		}
-
-		func node(named recordName: String) -> SCNNode? {
-			if let exactNode = recordRoots.compactMap({
-				$0.mafiaChildNode(named: recordName, recursively: true)
-			}).first {
-				return exactNode
-			}
-
-			guard recordName.count >= 16 else { return nil }
-			let lowercasedName = recordName.lowercased()
-			for root in recordRoots {
-				if let prefixedNode = root.flattenedChildNodes.first(where: { childNode in
-					childNode.name?.lowercased().hasPrefix(lowercasedName) == true
-				}) {
-					return prefixedNode
-				}
-			}
-			return nil
-		}
-
-		func binding(for node: SCNNode) -> RecordModelBinding? {
-			guard let nodeName = node.name?.lowercased() else { return nil }
-			return record.modelBindings.first { binding in
-				let sourceName = binding.sourceName.lowercased()
-				return sourceName == nodeName ||
-					(nodeName.count >= 16 && nodeName.hasPrefix(sourceName)) ||
-					(sourceName.count >= 16 && sourceName.hasPrefix(nodeName))
-			}
 		}
 
 		func sourcePosition(of node: SCNNode) -> SCNVector3 {
@@ -1882,16 +2028,33 @@ final class Scene {
 		}
 
 		func skeletonMatchCount(in node: SCNNode) -> Int {
-			return (try? recordAnimationRoot(for: animationPath, in: node).matches) ?? 0
+			return lookup.skeletonMatchCount(for: animationPath, in: node) { animationPath, node in
+				try recordAnimationRoot(for: animationPath, in: node)
+			}
 		}
 
-		let directAnimationEvents = recordAnimationEvents(for: animation, record: record)
+		var cachedSkeletonCompatibleNodeIds: Set<ObjectIdentifier>?
+		func skeletonCompatibleNodeIds() -> Set<ObjectIdentifier> {
+			if let cachedSkeletonCompatibleNodeIds = cachedSkeletonCompatibleNodeIds {
+				return cachedSkeletonCompatibleNodeIds
+			}
+			let compatibleNodeIds = Set(
+				lookup.bindingNodes
+					.filter { skeletonMatchCount(in: $0.node) > 0 }
+					.map { ObjectIdentifier($0.node) }
+			)
+			cachedSkeletonCompatibleNodeIds = compatibleNodeIds
+			return compatibleNodeIds
+		}
+
+		let directAnimationEvents = recordAnimationEvents(for: animation, lookup: lookup)
 		let animationEvents: [RecordAnimationEvent]
 		let sourcePrefix: String
 		if directAnimationEvents.isEmpty {
 			guard let sequenceEvents = recordSequenceAnimationEvents(
 				animation: animation,
-				record: record
+				record: record,
+				lookup: lookup
 			) else {
 				return nil
 			}
@@ -1904,31 +2067,12 @@ final class Scene {
 		let eventTrackIds = Set(animationEvents.map(\.trackId).filter { $0 >= 0 })
 		let targetEvents: [RecordAnimationEvent]
 		if eventTrackIds.count == 1, let trackId = eventTrackIds.first {
-			targetEvents = record.animationEvents.filter { $0.trackId == trackId }
+			targetEvents = lookup.animationEventsByTrackId[trackId] ?? []
 		} else {
 			targetEvents = animationEvents
 		}
 		let targetResolutionEvents = recordAnimationTargetResolutionEvents(from: targetEvents)
-
-		let bindingNodes = record.modelBindings.enumerated().compactMap { index, binding -> (
-			index: Int,
-			binding: RecordModelBinding,
-			node: SCNNode,
-			skeletonMatches: Int
-		)? in
-			guard let node = recordRoots.compactMap({
-				$0.mafiaChildNode(named: binding.sourceName, recursively: true)
-			}).first else { return nil }
-			return (index, binding, node, skeletonMatchCount(in: node))
-		}
-		let skeletonCompatibleNodeIds = Set(
-			bindingNodes
-				.filter { $0.skeletonMatches > 0 }
-				.map { ObjectIdentifier($0.node) }
-		)
-		let targetBindingNodes = skeletonCompatibleNodeIds.isEmpty ?
-			bindingNodes :
-			bindingNodes.filter { skeletonCompatibleNodeIds.contains(ObjectIdentifier($0.node)) }
+		guard !targetResolutionEvents.isEmpty else { return nil }
 
 		struct LinkedTargetCandidate {
 			let targetNode: SCNNode
@@ -1940,46 +2084,52 @@ final class Scene {
 			let score: SCNFloat
 		}
 
-		let linksByGroup = Dictionary(grouping: record.targetLinks, by: \.groupId)
-		var bestLinkedCandidate: LinkedTargetCandidate?
-		for (_, links) in linksByGroup {
+		var linkedCandidates: [LinkedTargetCandidate] = []
+		for (_, links) in lookup.targetLinksByGroup {
 			guard let targetLink = links.first(where: { $0.role == 1 }),
-				  let targetNode = node(named: targetLink.name) else {
+				  let targetNode = lookup.node(named: targetLink.name) else {
 				continue
 			}
-			if !skeletonCompatibleNodeIds.isEmpty,
-			   !skeletonCompatibleNodeIds.contains(ObjectIdentifier(targetNode)) {
-				continue
-			}
+			let targetBinding = lookup.binding(for: targetNode)
+			let tolerance = positionTolerance(for: targetBinding)
 
 			for anchorLink in links {
-				guard let anchorNode = node(named: anchorLink.name) else { continue }
+				guard let anchorNode = lookup.node(named: anchorLink.name) else { continue }
 				let anchorPosition = sourcePosition(of: anchorNode)
 				let anchorOrientation = sourceOrientation(of: anchorNode)
 				for event in targetResolutionEvents {
 					let positionDistance = vectorDistance(event.position, anchorPosition)
 					let orientationDistance = vectorDistance(event.orientationVector, anchorOrientation)
-					let score = positionDistance + orientationDistance * 8
-					if bestLinkedCandidate == nil ||
-						score < bestLinkedCandidate!.score ||
-						(score == bestLinkedCandidate!.score && event.time > bestLinkedCandidate!.event.time) {
-						bestLinkedCandidate = LinkedTargetCandidate(
-							targetNode: targetNode,
-							binding: binding(for: targetNode),
-							anchorName: anchorLink.name,
-							event: event,
-							positionDistance: positionDistance,
-							orientationDistance: orientationDistance,
-							score: score
-						)
+					guard positionDistance <= tolerance,
+						  orientationDistance <= 0.15 else {
+						continue
 					}
+					let score = positionDistance + orientationDistance * 8
+					linkedCandidates.append(LinkedTargetCandidate(
+						targetNode: targetNode,
+						binding: targetBinding,
+						anchorName: anchorLink.name,
+						event: event,
+						positionDistance: positionDistance,
+						orientationDistance: orientationDistance,
+						score: score
+					))
 				}
 			}
 		}
 
-		if let bestLinkedCandidate = bestLinkedCandidate,
-		   bestLinkedCandidate.positionDistance <= positionTolerance(for: bestLinkedCandidate.binding),
-		   bestLinkedCandidate.orientationDistance <= 0.15 {
+		if !linkedCandidates.isEmpty {
+			let compatibleNodeIds = skeletonCompatibleNodeIds()
+			let candidates = compatibleNodeIds.isEmpty ?
+				linkedCandidates :
+				linkedCandidates.filter { compatibleNodeIds.contains(ObjectIdentifier($0.targetNode)) }
+			let bestLinkedCandidate = candidates.min {
+				if $0.score == $1.score {
+					return $0.event.time > $1.event.time
+				}
+				return $0.score < $1.score
+			}
+			guard let bestLinkedCandidate = bestLinkedCandidate else { return nil }
 			return RecordAnimationTargetMatch(
 				node: bestLinkedCandidate.targetNode,
 				binding: bestLinkedCandidate.binding,
@@ -1992,37 +2142,45 @@ final class Scene {
 			)
 		}
 
-		var bestCandidate: (
-			node: SCNNode,
-			binding: RecordModelBinding,
-			event: RecordAnimationEvent,
-			positionDistance: SCNFloat,
-			orientationDistance: SCNFloat,
-			score: SCNFloat
-		)?
+		struct TransformCandidate {
+			let node: SCNNode
+			let binding: RecordModelBinding
+			let event: RecordAnimationEvent
+			let positionDistance: SCNFloat
+			let orientationDistance: SCNFloat
+			let score: SCNFloat
+		}
+		var transformCandidates: [TransformCandidate] = []
 		for event in targetResolutionEvents {
-			for bindingNode in targetBindingNodes {
+			for bindingNode in lookup.bindingNodes {
 				let positionDistance = vectorDistance(event.position, sourcePosition(of: bindingNode.node))
 				let orientationDistance = vectorDistance(event.orientationVector, sourceOrientation(of: bindingNode.node))
-				let score = positionDistance + orientationDistance * 8
-				if bestCandidate == nil ||
-					score < bestCandidate!.score ||
-					(score == bestCandidate!.score && event.time > bestCandidate!.event.time) {
-					bestCandidate = (
-						bindingNode.node,
-						bindingNode.binding,
-						event,
-						positionDistance,
-						orientationDistance,
-						score
-					)
+				guard positionDistance <= positionTolerance(for: bindingNode.binding),
+					  orientationDistance <= 0.15 else {
+					continue
 				}
+				transformCandidates.append(TransformCandidate(
+					node: bindingNode.node,
+					binding: bindingNode.binding,
+					event: event,
+					positionDistance: positionDistance,
+					orientationDistance: orientationDistance,
+					score: positionDistance + orientationDistance * 8
+				))
 			}
 		}
 
-		guard let bestCandidate = bestCandidate,
-			  bestCandidate.positionDistance <= positionTolerance(for: bestCandidate.binding),
-			  bestCandidate.orientationDistance <= 0.15 else {
+		guard !transformCandidates.isEmpty else { return nil }
+		let compatibleNodeIds = skeletonCompatibleNodeIds()
+		let candidates = compatibleNodeIds.isEmpty ?
+			transformCandidates :
+			transformCandidates.filter { compatibleNodeIds.contains(ObjectIdentifier($0.node)) }
+		guard let bestCandidate = candidates.min(by: {
+			if $0.score == $1.score {
+				return $0.event.time > $1.event.time
+			}
+			return $0.score < $1.score
+		}) else {
 			return nil
 		}
 
@@ -2056,42 +2214,44 @@ final class Scene {
 
 	private func recordAnimationEvents(
 		for animation: RecordAnimation,
-		record: Record
+		lookup: RecordAnimationLookup
 	) -> [RecordAnimationEvent] {
-		return record.animationEvents.filter {
-			$0.animationId == animation.id || $0.animationId == animation.index
+		var events = lookup.animationEventsByAnimationId[animation.id] ?? []
+		if animation.index != animation.id {
+			events += lookup.animationEventsByAnimationId[animation.index] ?? []
 		}
+		return events
 	}
 
 	private func recordHasAnimationEvents(
 		for animation: RecordAnimation,
-		record: Record
+		lookup: RecordAnimationLookup
 	) -> Bool {
-		return record.animationEvents.contains {
-			$0.animationId == animation.id || $0.animationId == animation.index
-		}
+		return !(lookup.animationEventsByAnimationId[animation.id]?.isEmpty ?? true) ||
+			(animation.index != animation.id && !(lookup.animationEventsByAnimationId[animation.index]?.isEmpty ?? true))
 	}
 
 	private func recordSequenceAnimationEvents(
 		animation: RecordAnimation,
-		record: Record
+		record: Record,
+		lookup: RecordAnimationLookup
 	) -> (animation: RecordAnimation, events: [RecordAnimationEvent])? {
 		guard let animationIndex = record.animations.firstIndex(where: { $0.id == animation.id }),
-			  !recordHasAnimationEvents(for: animation, record: record) else {
+			  !recordHasAnimationEvents(for: animation, lookup: lookup) else {
 			return nil
 		}
 
 		var missingStartIndex = animationIndex
 		while missingStartIndex > 0 {
 			let previousAnimation = record.animations[missingStartIndex - 1]
-			guard !recordHasAnimationEvents(for: previousAnimation, record: record) else { break }
+			guard !recordHasAnimationEvents(for: previousAnimation, lookup: lookup) else { break }
 			missingStartIndex -= 1
 		}
 
 		var missingEndIndex = animationIndex
 		while missingEndIndex + 1 < record.animations.count {
 			let nextAnimation = record.animations[missingEndIndex + 1]
-			guard !recordHasAnimationEvents(for: nextAnimation, record: record) else { break }
+			guard !recordHasAnimationEvents(for: nextAnimation, lookup: lookup) else { break }
 			missingEndIndex += 1
 		}
 
@@ -2100,7 +2260,7 @@ final class Scene {
 		guard donorIndex < record.animations.count else { return nil }
 
 		let donorAnimation = record.animations[donorIndex]
-		let donorEvents = recordAnimationEvents(for: donorAnimation, record: record)
+		let donorEvents = recordAnimationEvents(for: donorAnimation, lookup: lookup)
 		guard !donorEvents.isEmpty else { return nil }
 		return (donorAnimation, donorEvents)
 	}

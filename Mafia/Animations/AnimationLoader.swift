@@ -20,12 +20,59 @@ struct MovementFlags: OptionSet {
 	static let scale		= MovementFlags(rawValue: 8)
 }
 
-func readRotations(stream: InputStream) throws -> [Int: SCNQuaternion] {
+private final class WeakNode {
+	weak var node: SCNNode?
+
+	init(_ node: SCNNode) {
+		self.node = node
+	}
+}
+
+fileprivate struct AnimationKeyframe<Value> {
+	let tick: Int
+	let value: Value
+}
+
+fileprivate func normalizedKeyframes<Value>(_ keyframes: [AnimationKeyframe<Value>]) -> [AnimationKeyframe<Value>] {
+	guard !keyframes.isEmpty else { return [] }
+
+	var isOrdered = true
+	for index in 1 ..< keyframes.count where keyframes[index].tick < keyframes[index - 1].tick {
+		isOrdered = false
+		break
+	}
+
+	if isOrdered {
+		var normalized: [AnimationKeyframe<Value>] = []
+		normalized.reserveCapacity(keyframes.count)
+		for keyframe in keyframes {
+			if normalized.last?.tick == keyframe.tick {
+				normalized[normalized.count - 1] = keyframe
+			} else {
+				normalized.append(keyframe)
+			}
+		}
+		return normalized
+	}
+
+	var valuesByTick: [Int: Value] = [:]
+	valuesByTick.reserveCapacity(keyframes.count)
+	for keyframe in keyframes {
+		valuesByTick[keyframe.tick] = keyframe.value
+	}
+	return valuesByTick.keys.sorted().compactMap { tick in
+		guard let value = valuesByTick[tick] else { return nil }
+		return AnimationKeyframe(tick: tick, value: value)
+	}
+}
+
+fileprivate func readRotations(stream: InputStream) throws -> [AnimationKeyframe<SCNQuaternion>] {
 
 	let _animGroupsCount: UInt16 = try stream.read()
 	let animGroupsCount = Int(_animGroupsCount)
 
 	var timers: [Int] = []
+	timers.reserveCapacity(animGroupsCount)
 
 	for _ in 0 ..< animGroupsCount {
 		let timer: UInt16 = try stream.read()
@@ -36,25 +83,30 @@ func readRotations(stream: InputStream) throws -> [Int: SCNQuaternion] {
 		stream.currentOffset += 2
 	}
 
-	var rotations: [Int: SCNQuaternion] = [:]
+	var rotations: [AnimationKeyframe<SCNQuaternion>] = []
+	rotations.reserveCapacity(animGroupsCount)
 
 	for i in 0 ..< animGroupsCount {
 		let w: Float = try stream.read()
 		let x: Float = try stream.read()
 		let y: Float = try stream.read()
 		let z: Float = try stream.read()
-		rotations[timers[i]] = SCNQuaternion(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z), w: -SCNFloat(w))
+		rotations.append(AnimationKeyframe(
+			tick: timers[i],
+			value: SCNQuaternion(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z), w: -SCNFloat(w))
+		))
 	}
 
-	return rotations
+	return normalizedKeyframes(rotations)
 }
 
-func readScales(stream: InputStream) throws -> [Int: SCNVector3] {
+fileprivate func readScales(stream: InputStream) throws -> [AnimationKeyframe<SCNVector3>] {
 
 	let _animGroupsCount: UInt16 = try stream.read()
 	let animGroupsCount = Int(_animGroupsCount)
 
 	var timers: [Int] = []
+	timers.reserveCapacity(animGroupsCount)
 
 	for _ in 0 ..< animGroupsCount {
 		let timer: UInt16 = try stream.read()
@@ -65,24 +117,29 @@ func readScales(stream: InputStream) throws -> [Int: SCNVector3] {
 		stream.currentOffset += 2
 	}
 
-	var scales: [Int: SCNVector3] = [:]
+	var scales: [AnimationKeyframe<SCNVector3>] = []
+	scales.reserveCapacity(animGroupsCount)
 
 	for i in 0 ..< animGroupsCount {
 		let x: Float = try stream.read()
 		let y: Float = try stream.read()
 		let z: Float = try stream.read()
-		scales[timers[i]] = SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
+		scales.append(AnimationKeyframe(
+			tick: timers[i],
+			value: SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
+		))
 	}
 
-	return scales
+	return normalizedKeyframes(scales)
 }
 
-func readPositions(stream: InputStream) throws -> [Int: SCNVector3] {
+fileprivate func readPositions(stream: InputStream) throws -> [AnimationKeyframe<SCNVector3>] {
 
 	let _animGroupsCount: UInt16 = try stream.read()
 	let animGroupsCount = Int(_animGroupsCount)
 
 	var timers: [Int] = []
+	timers.reserveCapacity(animGroupsCount)
 
 	for _ in 0 ..< animGroupsCount {
 		let timer: UInt16 = try stream.read()
@@ -93,16 +150,20 @@ func readPositions(stream: InputStream) throws -> [Int: SCNVector3] {
 		stream.currentOffset += 2
 	}
 
-	var positions: [Int: SCNVector3] = [:]
+	var positions: [AnimationKeyframe<SCNVector3>] = []
+	positions.reserveCapacity(animGroupsCount)
 
 	for i in 0 ..< animGroupsCount {
 		let x: Float = try stream.read()
 		let y: Float = try stream.read()
 		let z: Float = try stream.read()
-		positions[timers[i]] = SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
+		positions.append(AnimationKeyframe(
+			tick: timers[i],
+			value: SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
+		))
 	}
 
-	return positions
+	return normalizedKeyframes(positions)
 }
 
 class Animation {
@@ -110,29 +171,23 @@ class Animation {
 
 	let name: String
 	let timerMax: Int
-	let rotations: [Int: SCNQuaternion]
-	let scales: [Int: SCNVector3]
-	let positions: [Int: SCNVector3]
-	private let rotationKeys: [Int]
-	private let scaleKeys: [Int]
-	private let positionKeys: [Int]
+	fileprivate let rotations: [AnimationKeyframe<SCNQuaternion>]
+	fileprivate let scales: [AnimationKeyframe<SCNVector3>]
+	fileprivate let positions: [AnimationKeyframe<SCNVector3>]
 
 	var lastScale: SCNVector3?
 
-	init(
+	fileprivate init(
 		name: String,
 		timerMax: Int,
-		rotations: [Int: SCNQuaternion],
-		scales: [Int: SCNVector3],
-		positions: [Int: SCNVector3]) {
+		rotations: [AnimationKeyframe<SCNQuaternion>],
+		scales: [AnimationKeyframe<SCNVector3>],
+		positions: [AnimationKeyframe<SCNVector3>]) {
 		self.name = name
 		self.timerMax = timerMax
 		self.rotations = rotations
 		self.scales = scales
 		self.positions = positions
-		self.rotationKeys = rotations.keys.sorted()
-		self.scaleKeys = scales.keys.sorted()
-		self.positionKeys = positions.keys.sorted()
 	}
 
 	var action: SCNAction {
@@ -140,13 +195,13 @@ class Animation {
 
 		guard duration > 0 else {
 			return SCNAction.run { node in
-				if let position = self.positions[0] {
+				if let position = self.keyframeValue(at: 0, in: self.positions) {
 					node.position = position
 				}
-				if let scale = self.scales[0] {
+				if let scale = self.keyframeValue(at: 0, in: self.scales) {
 					node.scale = scale
 				}
-				if let rotation = self.rotations[0] {
+				if let rotation = self.keyframeValue(at: 0, in: self.rotations) {
 					node.orientation = rotation
 				}
 			}
@@ -154,13 +209,13 @@ class Animation {
 
 		return SCNAction.customAction(duration: duration) { node, elapsedTime in
 			let tick = CGFloat(elapsedTime / CGFloat(Animation.frameDuration))
-			if let position = Animation.interpolatedVector(keys: self.positionKeys, values: self.positions, at: tick) {
+			if let position = Animation.interpolatedVector(keyframes: self.positions, at: tick) {
 				node.position = position
 			}
-			if let scale = Animation.interpolatedVector(keys: self.scaleKeys, values: self.scales, at: tick) {
+			if let scale = Animation.interpolatedVector(keyframes: self.scales, at: tick) {
 				node.scale = scale
 			}
-			if let rotation = Animation.interpolatedQuaternion(keys: self.rotationKeys, values: self.rotations, at: tick) {
+			if let rotation = Animation.interpolatedQuaternion(keyframes: self.rotations, at: tick) {
 				node.orientation = rotation
 			}
 		}
@@ -168,63 +223,63 @@ class Animation {
 
 	func apply(elapsedTime: TimeInterval, to node: SCNNode) {
 		let tick = CGFloat(elapsedTime / CGFloat(Animation.frameDuration))
-		if let position = Animation.interpolatedVector(keys: positionKeys, values: positions, at: tick) {
+		if let position = Animation.interpolatedVector(keyframes: positions, at: tick) {
 			node.position = position
 		}
-		if let scale = Animation.interpolatedVector(keys: scaleKeys, values: scales, at: tick) {
+		if let scale = Animation.interpolatedVector(keyframes: scales, at: tick) {
 			node.scale = scale
 		}
-		if let rotation = Animation.interpolatedQuaternion(keys: rotationKeys, values: rotations, at: tick) {
+		if let rotation = Animation.interpolatedQuaternion(keyframes: rotations, at: tick) {
 			node.orientation = rotation
 		}
 	}
 
 	func applyInitialPose(to node: SCNNode) {
-		if let firstPositionKey = positionKeys.first,
-		   let position = positions[firstPositionKey] {
+		if let position = positions.first?.value {
 			node.position = position
 		}
-		if let firstScaleKey = scaleKeys.first,
-		   let scale = scales[firstScaleKey] {
+		if let scale = scales.first?.value {
 			node.scale = scale
 		}
-		if let firstRotationKey = rotationKeys.first,
-		   let rotation = rotations[firstRotationKey] {
+		if let rotation = rotations.first?.value {
 			node.orientation = rotation
 		}
 	}
 
-	private static func interpolatedVector(keys: [Int], values: [Int: SCNVector3], at tick: CGFloat) -> SCNVector3? {
-		guard let bounds = keyBounds(in: keys, at: tick) else { return nil }
-		guard bounds.previous != bounds.next else { return values[bounds.previous] }
-		guard let previousValue = values[bounds.previous],
-			  let nextValue = values[bounds.next] else { return values[bounds.next] }
-		let t = CGFloat((tick - CGFloat(bounds.previous)) / CGFloat(bounds.next - bounds.previous))
-		return lerp(previousValue, nextValue, smoothstep(t))
+	private func keyframeValue<Value>(at tick: Int, in keyframes: [AnimationKeyframe<Value>]) -> Value? {
+		return keyframes.first { $0.tick == tick }?.value
 	}
 
-	private static func interpolatedQuaternion(keys: [Int], values: [Int: SCNQuaternion], at tick: CGFloat) -> SCNQuaternion? {
-		guard let bounds = keyBounds(in: keys, at: tick) else { return nil }
-		guard bounds.previous != bounds.next else { return values[bounds.previous] }
-		guard let previousValue = values[bounds.previous],
-			  let nextValue = values[bounds.next] else { return values[bounds.next] }
-		let t = CGFloat((tick - CGFloat(bounds.previous)) / CGFloat(bounds.next - bounds.previous))
-		return slerp(previousValue, nextValue, smoothstep(t))
+	private static func interpolatedVector(keyframes: [AnimationKeyframe<SCNVector3>], at tick: CGFloat) -> SCNVector3? {
+		guard let bounds = keyframeBounds(in: keyframes, at: tick) else { return nil }
+		guard bounds.previous.tick != bounds.next.tick else { return bounds.previous.value }
+		let t = CGFloat((tick - CGFloat(bounds.previous.tick)) / CGFloat(bounds.next.tick - bounds.previous.tick))
+		return lerp(bounds.previous.value, bounds.next.value, smoothstep(t))
 	}
 
-	private static func keyBounds(in keys: [Int], at tick: CGFloat) -> (previous: Int, next: Int)? {
-		guard let firstKey = keys.first else { return nil }
-		guard tick >= CGFloat(firstKey) else { return nil }
-		guard let lastKey = keys.last else { return nil }
-		guard tick <= CGFloat(lastKey) else {
-			return (lastKey, lastKey)
+	private static func interpolatedQuaternion(keyframes: [AnimationKeyframe<SCNQuaternion>], at tick: CGFloat) -> SCNQuaternion? {
+		guard let bounds = keyframeBounds(in: keyframes, at: tick) else { return nil }
+		guard bounds.previous.tick != bounds.next.tick else { return bounds.previous.value }
+		let t = CGFloat((tick - CGFloat(bounds.previous.tick)) / CGFloat(bounds.next.tick - bounds.previous.tick))
+		return slerp(bounds.previous.value, bounds.next.value, smoothstep(t))
+	}
+
+	private static func keyframeBounds<Value>(
+		in keyframes: [AnimationKeyframe<Value>],
+		at tick: CGFloat
+	) -> (previous: AnimationKeyframe<Value>, next: AnimationKeyframe<Value>)? {
+		guard let firstKeyframe = keyframes.first else { return nil }
+		guard tick >= CGFloat(firstKeyframe.tick) else { return nil }
+		guard let lastKeyframe = keyframes.last else { return nil }
+		guard tick <= CGFloat(lastKeyframe.tick) else {
+			return (lastKeyframe, lastKeyframe)
 		}
 
 		var lowerBound = 0
-		var upperBound = keys.count - 1
+		var upperBound = keyframes.count - 1
 		while lowerBound < upperBound {
 			let middle = (lowerBound + upperBound) / 2
-			if tick > CGFloat(keys[middle]) {
+			if tick > CGFloat(keyframes[middle].tick) {
 				lowerBound = middle + 1
 			} else {
 				upperBound = middle
@@ -232,8 +287,8 @@ class Animation {
 		}
 
 		let nextIndex = lowerBound
-		guard nextIndex > 0 else { return (keys[0], keys[0]) }
-		return (keys[nextIndex - 1], keys[nextIndex])
+		guard nextIndex > 0 else { return (keyframes[0], keyframes[0]) }
+		return (keyframes[nextIndex - 1], keyframes[nextIndex])
 	}
 
 	private static func smoothstep(_ t: CGFloat) -> CGFloat {
@@ -307,6 +362,8 @@ private struct LoadedAnimation {
 
 private let loadedAnimationsLock = NSLock()
 private var loadedAnimationsByName: [String: LoadedAnimation] = [:]
+private let animationTargetCacheLock = NSLock()
+private var animationTargetCache: [ObjectIdentifier: [String: WeakNode]] = [:]
 
 func readAnimation(stream: InputStream, timerMax: Int, nameOffset: UInt32, animOffset: UInt32) throws -> Animation {
 	let startOffset = stream.currentOffset
@@ -319,26 +376,26 @@ func readAnimation(stream: InputStream, timerMax: Int, nameOffset: UInt32, animO
 
 	let flags = try MovementFlags(rawValue: stream.read())
 
-	let rotations: [Int: SCNQuaternion]
-	let scales: [Int: SCNVector3]
-	let positions: [Int: SCNVector3]
+	let rotations: [AnimationKeyframe<SCNQuaternion>]
+	let scales: [AnimationKeyframe<SCNVector3>]
+	let positions: [AnimationKeyframe<SCNVector3>]
 
 	if flags.contains(.rotation) {
 		rotations = try readRotations(stream: stream)
 	} else {
-		rotations = [:]
+		rotations = []
 	}
 
 	if flags.contains(.position) {
 		positions = try readPositions(stream: stream)
 	} else {
-		positions = [:]
+		positions = []
 	}
 
 	if flags.contains(.scale) {
 		scales = try readScales(stream: stream)
 	} else {
-		scales = [:]
+		scales = []
 	}
 
 	stream.currentOffset = startOffset
@@ -374,6 +431,7 @@ func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	let timerMax: UInt16 = try stream.read() // 25 units = 1 sec
 
 	var animations: [Animation] = []
+	animations.reserveCapacity(Int(objectsCount))
 
 	for _ in 0 ..< objectsCount {
 		let nameOffset: UInt32 = try stream.read() + 18
@@ -467,8 +525,56 @@ func stopAnimation(named name: String, in node: SCNNode, animationKey: String) t
 }
 
 private func animationTargetNode(named name: String, in rootNode: SCNNode) -> SCNNode? {
-	if rootNode.name?.lowercased() == name.lowercased() {
-		return rootNode
+	let key = name.lowercased()
+	let rootIdentifier = ObjectIdentifier(rootNode)
+
+	animationTargetCacheLock.lock()
+	if let cachedNode = animationTargetCache[rootIdentifier]?[key]?.node {
+		animationTargetCacheLock.unlock()
+		if animationTargetNode(cachedNode, isInHierarchyOf: rootNode) {
+			return cachedNode
+		}
+	} else {
+		animationTargetCacheLock.unlock()
 	}
-	return rootNode.mafiaChildNode(named: name, recursively: true)
+
+	let targetNode: SCNNode?
+	if rootNode.name?.lowercased() == key {
+		targetNode = rootNode
+	} else {
+		targetNode = rootNode.mafiaChildNode(named: name, recursively: true)
+	}
+
+	if let targetNode = targetNode {
+		animationTargetCacheLock.lock()
+		var rootCache = animationTargetCache[rootIdentifier] ?? [:]
+		rootCache[key] = WeakNode(targetNode)
+		animationTargetCache[rootIdentifier] = rootCache
+		animationTargetCacheLock.unlock()
+	}
+
+	return targetNode
+}
+
+private func animationTargetNode(_ node: SCNNode, isInHierarchyOf rootNode: SCNNode) -> Bool {
+	var currentNode: SCNNode? = node
+	while let checkedNode = currentNode {
+		if checkedNode === rootNode {
+			return true
+		}
+		currentNode = checkedNode.parent
+	}
+	return false
+}
+
+func clearAnimationTargetCache(for rootNode: SCNNode) {
+	animationTargetCacheLock.lock()
+	animationTargetCache.removeValue(forKey: ObjectIdentifier(rootNode))
+	animationTargetCacheLock.unlock()
+}
+
+func clearAnimationTargetCache() {
+	animationTargetCacheLock.lock()
+	animationTargetCache.removeAll()
+	animationTargetCacheLock.unlock()
 }

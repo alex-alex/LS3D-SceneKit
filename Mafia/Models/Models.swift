@@ -74,8 +74,25 @@ struct MaterialFlags: OptionSet {
 #elseif os(iOS)
 var imageCache: [String: UIImage] = [:]
 #endif
-var materials: [SCNMaterial] = []
-var geometries: [Int: SCNGeometry] = [:]
+
+final class ModelLoader {
+	@discardableResult
+	func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode {
+		return try ModelLoadParser().loadModel(named: name, node: node)
+	}
+}
+
+final class ModelLoadParser {
+	var materials: [SCNMaterial] = []
+	var geometries: [Int: SCNGeometry] = [:]
+}
+
+@discardableResult
+func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode {
+	return try ModelLoader().loadModel(named: name, node: node)
+}
+
+private extension ModelLoadParser {
 
 //enum GeometryResponse {
 //	case geometry(SCNGeometry)
@@ -225,12 +242,9 @@ func readJoint(stream: InputStream) throws -> (SCNMatrix4, Int) {
 
 @discardableResult
 // swiftlint:disable:next function_body_length
-func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode {
+func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
 
 //	print("-- loadModel:", name)
-
-	materials = []
-	geometries = [:]
 
 	let mainNode = node
 
@@ -581,4 +595,6 @@ func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode 
 	stream.close()
 
 	return mainNode
+}
+
 }

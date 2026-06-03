@@ -9,6 +9,8 @@
 import Foundation
 import SceneKit
 
+extension ModelLoadParser {
+
 func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
 	let frameCount: UInt8 = try stream.read()
 	guard frameCount > 0 else { return }
@@ -98,6 +100,8 @@ func readMorph(stream: InputStream, node: SCNNode, id: Int) throws {
 		morpher.setWeight(0, forTargetAt: index)
 	}
 	node.morpher = morpher
+}
+
 }
 
 private func skipMorphPayload(stream: InputStream, frameCount: Int, lodCount: Int) throws {

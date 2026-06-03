@@ -9,6 +9,8 @@
 import Foundation
 import SceneKit
 
+extension ModelLoadParser {
+
 @discardableResult
 func readObject(stream: InputStream, node: SCNNode, id: Int, modelName: String) throws -> Int {
 
@@ -100,4 +102,6 @@ func readObject(stream: InputStream, node: SCNNode, id: Int, modelName: String) 
 	}
 
 	return Int(numLODs)
+}
+
 }

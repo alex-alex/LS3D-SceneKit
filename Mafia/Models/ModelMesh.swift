@@ -16,6 +16,8 @@ struct SingleMesh {
 	let boneIndices: SCNGeometrySource
 }
 
+extension ModelLoadParser {
+
 func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [SingleMesh] {
 //	print("readMesh", node.parent?.name)
 
@@ -152,4 +154,6 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 		meshes.append(mesh)
 	}
 	return meshes
+}
+
 }
