@@ -38,7 +38,7 @@ struct Cell {
 
 		let padding = numReferences % 4
 		if padding != 0 {
-			stream.currentOffset += Int(padding)
+			stream.currentOffset += Int(4 - padding)
 		}
 	}
 }
@@ -282,7 +282,7 @@ final class Collisions {
 				node.geometry = geometry
 				node.configureAsCollisionWireframe()
 				node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: geometry, options: [
-					.type: SCNPhysicsShape.ShapeType.concavePolyhedron.rawValue
+					.type: SCNPhysicsShape.ShapeType.concavePolyhedron
 				]))
 				node.physicsBody?.configureAsWorldCollider()
 				facesNode.addChildNode(node)

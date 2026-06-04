@@ -30,7 +30,7 @@ struct Triangle {
 
 	var volume: Volume
 	var vertices: [VertexLink] = []
-	//var plane: Plane
+	var plane: Plane
 
 	init(stream: InputStream) throws {
 		volume = try Volume(stream: stream, hasLink: false)
@@ -39,8 +39,7 @@ struct Triangle {
 			try vertices.append(VertexLink(stream: stream))
 		}
 
-		//plane = try Plane(stream: stream)
-		stream.currentOffset += 16
+		plane = try Plane(stream: stream)
 	}
 
 	func getVertices(treeKlz: Collisions) -> (UInt32, [SCNVector3])? {
@@ -66,9 +65,22 @@ struct Triangle {
 		}
 
 		if newVertices.count == 3 {
+			if dot(triangleNormal(for: newVertices), plane.n) < 0 {
+				newVertices.swapAt(1, 2)
+			}
 			return (UInt32(vertices[0].linkIndex), newVertices)
 		}
 
 		return nil
+	}
+
+	private func triangleNormal(for vertices: [SCNVector3]) -> SCNVector3 {
+		let firstEdge = vertices[1] - vertices[0]
+		let secondEdge = vertices[2] - vertices[0]
+		return firstEdge.cross(secondEdge)
+	}
+
+	private func dot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
+		return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
 	}
 }
