@@ -30,6 +30,7 @@ final class HudScene: SKScene {
 	var subtitleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
+	private var diagnosticsLabel: SKLabelNode!
 	private var crosshairNode: SKNode!
 	private var vehicleStealProgressBackground: SKShapeNode!
 	private var vehicleStealProgressFill: SKShapeNode!
@@ -63,6 +64,7 @@ final class HudScene: SKScene {
 	private var isCutsceneOverlayVisible = false
 	private var lastSpeedText: String?
 	private var lastPlayerStatusText: String?
+	private var lastDiagnosticsText: String?
 	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
@@ -226,6 +228,16 @@ final class HudScene: SKScene {
 		playerStatusLabel.isHidden = true
 		addChild(playerStatusLabel)
 
+		diagnosticsLabel = SKLabelNode()
+		diagnosticsLabel.fontName = "Menlo"
+		diagnosticsLabel.fontSize = 13
+		diagnosticsLabel.fontColor = SKColor.white
+		diagnosticsLabel.horizontalAlignmentMode = .left
+		diagnosticsLabel.verticalAlignmentMode = .top
+		diagnosticsLabel.numberOfLines = 0
+		diagnosticsLabel.zPosition = 2600
+		addChild(diagnosticsLabel)
+
 		renderCrosshair()
 		renderVehicleStealProgress()
 		renderPlayerStatusHud()
@@ -262,6 +274,7 @@ final class HudScene: SKScene {
 				  subtitleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
+				  diagnosticsLabel != nil,
 				  crosshairNode != nil,
 				  vehicleStealProgressBackground != nil,
 				  vehicleStealProgressFill != nil,
@@ -295,6 +308,8 @@ final class HudScene: SKScene {
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
+		diagnosticsLabel.position = CGPoint(x: 12, y: size.height - 12)
+		diagnosticsLabel.preferredMaxLayoutWidth = max(180, min(320, size.width - 24))
 		crosshairNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
 		layoutVehicleStealProgress()
 		layoutPlayerStatusHud()
@@ -355,6 +370,21 @@ final class HudScene: SKScene {
 		if lastPlayerStatusText != statusText {
 			lastPlayerStatusText = statusText
 			playerStatusLabel.text = statusText
+		}
+	}
+
+	func updateDiagnostics(framesPerSecond: CGFloat, position: SCNVector3) {
+		let diagnosticsText = String(
+			format: "FPS %.0f\nX %.2f  Y %.2f  Z %.2f",
+			Double(framesPerSecond),
+			Double(position.x),
+			Double(position.y),
+			Double(position.z)
+		)
+
+		if lastDiagnosticsText != diagnosticsText {
+			lastDiagnosticsText = diagnosticsText
+			diagnosticsLabel.text = diagnosticsText
 		}
 	}
 

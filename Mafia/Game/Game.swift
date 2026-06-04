@@ -92,6 +92,7 @@ final class Game: NSObject {
 	let scriptStartTime = Date.timeIntervalSinceReferenceDate
 	private weak var renderView: SCNView?
 	private var lastUpdateTime: TimeInterval?
+	private var smoothedFramesPerSecond: CGFloat = 0
 	private let playerExitDistance: SCNFloat = 1.8
 	private let playerExitHeightOffset: SCNFloat = 0.5
 	private let walkCameraStandingHeight: SCNFloat = 1.35
@@ -1300,6 +1301,7 @@ extension Game: SCNSceneRendererDelegate {
 
 		let deltaTime = lastUpdateTime.map { time - $0 } ?? 0
 		lastUpdateTime = time
+		updateDiagnostics(deltaTime: deltaTime)
 
 		if isCutsceneCameraActive {
 			updateSkyboxPosition()
@@ -1407,6 +1409,33 @@ extension Game: SCNSceneRendererDelegate {
 
 	private func playerReferencePosition() -> SCNVector3? {
 		return cameraNode.presentation.worldPosition
+	}
+
+	private func updateDiagnostics(deltaTime: TimeInterval) {
+		if deltaTime > 0 {
+			let instantFramesPerSecond = CGFloat(1 / deltaTime)
+			if smoothedFramesPerSecond == 0 {
+				smoothedFramesPerSecond = instantFramesPerSecond
+			} else {
+				smoothedFramesPerSecond += (instantFramesPerSecond - smoothedFramesPerSecond) * 0.1
+			}
+		}
+
+		hud.updateDiagnostics(
+			framesPerSecond: smoothedFramesPerSecond,
+			position: diagnosticsPosition()
+		)
+	}
+
+	private func diagnosticsPosition() -> SCNVector3 {
+		switch mode {
+		case .walk:
+			return scene.playerNode?.presentation.worldPosition ?? cameraNode.presentation.worldPosition
+		case .car:
+			return vehicle?.node.presentation.worldPosition ?? cameraNode.presentation.worldPosition
+		case .freeCamera:
+			return cameraNode.presentation.worldPosition
+		}
 	}
 
 }
