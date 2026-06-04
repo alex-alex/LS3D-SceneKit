@@ -89,16 +89,17 @@ final class LoadingScene: SKScene {
 		backgroundNode.position = CGPoint(x: w/2, y: h/2)
 		insertChild(backgroundNode, at: 0)
 
-		let missionSize = w*0.75
-		missionImage.size = CGSize(width: missionSize, height: h)
-		missionImage.position = CGPoint(x: w-missionSize/2, y: h/2)
-
-		missionName.fontSize = h * 0.06
-		missionName.position = CGPoint(x: w-30, y: 30)
-
 		let overlayWidth = w*0.35
 		overlayImage.size = CGSize(width: overlayWidth, height: h)
 		overlayImage.position = CGPoint(x: overlayWidth/2-1, y: h/2)
+
+		let whiteFrame = CGRect(x: overlayWidth, y: 0, width: w - overlayWidth, height: h)
+		let missionSize = min(whiteFrame.width, whiteFrame.height) * (2 / CGFloat(3))
+		missionImage.size = CGSize(width: missionSize, height: missionSize)
+		missionImage.position = CGPoint(x: whiteFrame.midX, y: h/2)
+
+		missionName.fontSize = h * 0.06
+		missionName.position = CGPoint(x: w-30, y: 30)
 
 		let loadingWidth = overlayWidth*0.85
 		let loadingContentWidth = loadingWidth*0.85
