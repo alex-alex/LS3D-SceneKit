@@ -90,6 +90,7 @@ final class Game: NSObject {
 	private(set) var arePlayerControlsLocked = false
 	private(set) var isGamePaused = false
 	let scriptStartTime = Date.timeIntervalSinceReferenceDate
+	private weak var renderView: SCNView?
 	private var lastUpdateTime: TimeInterval?
 	private let playerExitDistance: SCNFloat = 1.8
 	private let playerExitHeightOffset: SCNFloat = 0.5
@@ -848,6 +849,8 @@ final class Game: NSObject {
 	}
 
 	func setup(in view: SCNView) {
+		renderView = view
+		setRenderLoopActive(true)
 		hud = HudScene(size: view.bounds.size, game: self)
 		view.scene = scnScene
 		view.overlaySKScene = hud
@@ -939,6 +942,9 @@ final class Game: NSObject {
 	func setPaused(_ isPaused: Bool, showsPauseScreen: Bool = true) {
 		let pauseStateChanged = isGamePaused != isPaused
 		if pauseStateChanged {
+			if !isPaused {
+				setRenderLoopActive(true)
+			}
 			isGamePaused = isPaused
 			scnScene.isPaused = isPaused
 			scene.setAudioPaused(isPaused)
@@ -951,11 +957,28 @@ final class Game: NSObject {
 		}
 
 		hud?.setPauseScreenVisible(isPaused && showsPauseScreen)
+		requestRender()
 
 		if pauseStateChanged {
 			playerController?.stop()
 			vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+			if isPaused {
+				setRenderLoopActive(false)
+			}
 		}
+	}
+
+	func requestRender() {
+		#if os(macOS)
+		renderView?.needsDisplay = true
+		#elseif os(iOS)
+		renderView?.setNeedsDisplay()
+		#endif
+	}
+
+	private func setRenderLoopActive(_ isActive: Bool) {
+		renderView?.isPlaying = isActive
+		renderView?.rendersContinuously = isActive
 	}
 
 	func endMission(returnsToMainMenu: Bool, message: String?) {

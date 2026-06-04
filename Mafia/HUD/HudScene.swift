@@ -1091,8 +1091,10 @@ extension HudScene {
 			rebuildInventoryRows()
 			inventoryPausedGame = true
 			game.setPaused(true, showsPauseScreen: false)
+			game.requestRender()
 		} else {
 			inventoryOverlay.isHidden = true
+			game.requestRender()
 			if inventoryPausedGame {
 				inventoryPausedGame = false
 				game.setPaused(false)

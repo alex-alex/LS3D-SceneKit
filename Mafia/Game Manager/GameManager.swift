@@ -60,6 +60,8 @@ class GameManager {
 	}
 
 	func loadMissionSelector() {
+		view.isPlaying = true
+		view.rendersContinuously = true
 		missions = MissionEntry.loadAll()
 		view.scene = SCNScene()
 		view.delegate = nil
@@ -69,6 +71,8 @@ class GameManager {
 	}
 
 	func loadSaveGameSelector() {
+		view.isPlaying = true
+		view.rendersContinuously = true
 		saveGames = SaveGame.loadSlots()
 		view.scene = SCNScene()
 		view.delegate = nil
@@ -78,6 +82,8 @@ class GameManager {
 	}
 
 	func loadMenu() {
+		view.isPlaying = true
+		view.rendersContinuously = true
 		view.scene = SCNScene()
 		let loadingScene = LoadingScene(textId: 0, imageName: "00menu.tga")
 		view.overlaySKScene = loadingScene
@@ -92,6 +98,8 @@ class GameManager {
 	}
 
 	func loadMission(textId: Int, imageName: String, folder: String) {
+		view.isPlaying = true
+		view.rendersContinuously = true
 		view.scene = SCNScene()
 		let loadingScene = LoadingScene(textId: textId, imageName: imageName)
 		view.overlaySKScene = loadingScene
