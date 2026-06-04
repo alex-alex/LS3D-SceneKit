@@ -1646,6 +1646,10 @@ extension HudScene {
 		case 15: // R
 			clearVehicleControls()
 			game.vehicle?.resetUpright()
+		case 37: // L
+			clearVehicleControls()
+			game.vehicle?.liftForCollisionDebug()
+			showConsoleText("Vehicle lifted for collision debug")
 		default:
 			return false
 		}

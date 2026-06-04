@@ -1485,6 +1485,7 @@ extension Game {
 		scnScene.rootNode
 			.mafiaChildNode(named: "__collisions__", recursively: false)?
 			.setCollisionWireframesVisible(areCollisionWireframesVisible)
+		vehicle?.setCollisionDebugVisible(areCollisionWireframesVisible)
 		hud?.showConsoleText("Collision wireframes \(areCollisionWireframesVisible ? "on" : "off")")
 	}
 

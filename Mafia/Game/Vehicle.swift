@@ -9,6 +9,7 @@
 import Foundation
 import AVFoundation
 import SceneKit
+import SpriteKit
 
 final class Vehicle {
 
@@ -16,6 +17,7 @@ final class Vehicle {
 	let node: SCNNode
 	let physicsVehicle: SCNPhysicsVehicle
 
+	private let debugNode = SCNNode()
 	private let maximumSteering: CGFloat = 0.32
 	private let engineForce: CGFloat = 6500
 	private let brakeForce: CGFloat = 260
@@ -137,6 +139,7 @@ final class Vehicle {
 		physicsVehicle = SCNPhysicsVehicle(chassisBody: taxiNode.physicsBody!, wheels: wheels)
 		configure(wheels: wheels)
 		scene.physicsWorld.addBehavior(physicsVehicle)
+		configureCollisionDebug(wheels: wheels)
 
 		let soundProfile = VehicleSoundProfile.profile(for: node)
 		if soundProfile == nil {
@@ -190,6 +193,97 @@ final class Vehicle {
 	private static func wheelConnectionPosition(for wheelNode: SCNNode, wheel: SCNPhysicsVehicleWheel, restLength: CGFloat, in chassisNode: SCNNode) -> SCNVector3 {
 		let rideHeight = SCNFloat(wheel.radius + restLength)
 		return wheelNode.convertPosition(SCNVector3(), to: chassisNode) + SCNVector3(x: 0, y: rideHeight, z: 0)
+	}
+
+	private func configureCollisionDebug(wheels: [SCNPhysicsVehicleWheel]) {
+		debugNode.name = "__vehicle_collision_debug__"
+		debugNode.isHidden = true
+
+		if let chassisDebugNode = Vehicle.chassisDebugNode(
+			for: node,
+			widthScale: chassisPhysicsWidthScale,
+			heightScale: chassisPhysicsHeightScale,
+			lengthScale: chassisPhysicsLengthScale,
+			centerHeight: chassisPhysicsCenterHeight
+		) {
+			debugNode.addChildNode(chassisDebugNode)
+		}
+
+		for (index, wheel) in wheels.enumerated() {
+			debugNode.addChildNode(Vehicle.wheelDebugNode(for: wheel, index: index))
+		}
+
+		node.addChildNode(debugNode)
+	}
+
+	private static func chassisDebugNode(
+		for chassisNode: SCNNode,
+		widthScale: SCNFloat,
+		heightScale: SCNFloat,
+		lengthScale: SCNFloat,
+		centerHeight: SCNFloat
+	) -> SCNNode? {
+		let bounds = chassisNode.boundingBox
+		let width = bounds.max.x - bounds.min.x
+		let height = bounds.max.y - bounds.min.y
+		let length = bounds.max.z - bounds.min.z
+		guard width > 0, height > 0, length > 0 else { return nil }
+
+		let box = SCNBox(
+			width: CGFloat(width * widthScale),
+			height: CGFloat(height * heightScale),
+			length: CGFloat(length * lengthScale),
+			chamferRadius: 0
+		)
+		box.firstMaterial = collisionDebugMaterial(color: .yellow)
+
+		let node = SCNNode(geometry: box)
+		node.position = SCNVector3(
+			x: (bounds.min.x + bounds.max.x) / 2,
+			y: bounds.min.y + height * centerHeight,
+			z: (bounds.min.z + bounds.max.z) / 2
+		)
+		return node
+	}
+
+	private static func wheelDebugNode(for wheel: SCNPhysicsVehicleWheel, index: Int) -> SCNNode {
+		let node = SCNNode()
+		node.name = "__vehicle_wheel_debug_\(index)__"
+
+		let start = wheel.connectionPosition
+		let restCenter = SCNVector3(x: start.x, y: start.y - SCNFloat(wheel.suspensionRestLength), z: start.z)
+		let tireContact = SCNVector3(x: restCenter.x, y: restCenter.y - SCNFloat(wheel.radius), z: restCenter.z)
+		let rayLength = SCNFloat(wheel.suspensionRestLength + wheel.maximumSuspensionTravel + wheel.radius)
+		let end = SCNVector3(x: start.x, y: start.y - rayLength, z: start.z)
+		let source = SCNGeometrySource(vertices: [start, end])
+		let element = SCNGeometryElement(indices: [Int32(0), 1], primitiveType: .line)
+		let geometry = SCNGeometry(sources: [source], elements: [element])
+		geometry.firstMaterial = collisionDebugMaterial(color: .cyan)
+		node.geometry = geometry
+
+		node.addChildNode(debugMarker(at: start, color: .red))
+		node.addChildNode(debugMarker(at: restCenter, color: .blue))
+		node.addChildNode(debugMarker(at: tireContact, color: .orange))
+
+		return node
+	}
+
+	private static func debugMarker(at position: SCNVector3, color: SKColor) -> SCNNode {
+		let marker = SCNSphere(radius: 0.045)
+		marker.firstMaterial = collisionDebugMaterial(color: color)
+		let node = SCNNode(geometry: marker)
+		node.position = position
+		return node
+	}
+
+	private static func collisionDebugMaterial(color: SKColor) -> SCNMaterial {
+		let material = SCNMaterial()
+		material.diffuse.contents = color
+		material.emission.contents = color
+		material.lightingModel = .constant
+		material.fillMode = .lines
+		material.isDoubleSided = true
+		return material
 	}
 
 	private func configure(wheels: [SCNPhysicsVehicleWheel]) {
@@ -284,6 +378,25 @@ final class Vehicle {
 		node.eulerAngles = SCNVector3(x: 0, y: yaw, z: 0)
 		updateControls(throttle: 0, brake: false, steering: 0)
 		applyForces()
+	}
+
+	func liftForCollisionDebug() {
+		let currentPosition = node.presentation.position
+
+		node.physicsBody?.clearAllForces()
+		node.physicsBody?.velocity = SCNVector3Zero
+		node.physicsBody?.angularVelocity = SCNVector4Zero
+		node.position = SCNVector3(
+			x: currentPosition.x,
+			y: currentPosition.y + resetHeight,
+			z: currentPosition.z
+		)
+		updateControls(throttle: 0, brake: false, steering: 0)
+		applyForces()
+	}
+
+	func setCollisionDebugVisible(_ isVisible: Bool) {
+		debugNode.isHidden = !isVisible
 	}
 
 	func updateControls(throttle: CGFloat, brake: Bool, steering: CGFloat) {
