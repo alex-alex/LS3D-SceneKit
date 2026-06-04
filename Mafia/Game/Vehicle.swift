@@ -23,7 +23,7 @@ final class Vehicle {
 	private let speedLimiterLimit: CGFloat = 60
 	private let idleBrakeForce: CGFloat = 8
 	private let tractionAssistSpeedLimit: CGFloat = 2
-	private let launchMinimumWheelForceScale: CGFloat = 0.35
+	private let launchMinimumWheelForceScale: CGFloat = 0.75
 	private let reverseLaunchMinimumWheelForceScale: CGFloat = 0.7
 	private let centerOfMassYOffset: SCNFloat = -0.45
 	private let wheelSuspensionRestLength: CGFloat = 0.18
@@ -37,9 +37,9 @@ final class Vehicle {
 	private let wheelSteeringAxis = SCNVector3(x: 0, y: -1, z: 0)
 	private let wheelAxle = SCNVector3(x: 1, y: 0, z: 0)
 	private let chassisPhysicsWidthScale: SCNFloat = 0.62
-	private let chassisPhysicsHeightScale: SCNFloat = 0.28
-	private let chassisPhysicsLengthScale: SCNFloat = 0.58
-	private let chassisPhysicsCenterHeight: SCNFloat = 0.72
+	private let chassisPhysicsHeightScale: SCNFloat = 0.2
+	private let chassisPhysicsLengthScale: SCNFloat = 0.5
+	private let chassisPhysicsCenterHeight: SCNFloat = 0.82
 	private let resetHeight: SCNFloat = 1.2
 	private var isBraking = false
 	private var audio: VehicleAudio?
