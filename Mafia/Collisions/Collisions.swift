@@ -105,8 +105,7 @@ final class Collisions {
 		let comps = name.split(separator: ".")
 		if comps.count > 1 {
 			guard comps.count == 2 else { fatalError() }
-			guard let root = rootNode.collisionLinkRoot(for: type),
-				  let parent = nodeLookup.firstNode(named: String(comps[0]), in: root) else { return nil }
+			guard let parent = nodeLookup.firstNode(named: String(comps[0])) else { return nil }
 			return nodeLookup.directChild(named: String(comps[1]), in: parent)
 		} else {
 			var node: SCNNode?
