@@ -74,12 +74,7 @@ struct PositionAnimation {
 		let current = positions[max(0, min(positions.count - 1, index))]
 		let next = positions[max(0, min(positions.count - 1, index + 1))]
 		let following = positions[max(0, min(positions.count - 1, index + 2))]
-		return catmullRom(previous, current, next, following, smoothstep(progress))
-	}
-
-	private func smoothstep(_ progress: SCNFloat) -> SCNFloat {
-		let amount = max(0, min(1, progress))
-		return amount * amount * (3 - 2 * amount)
+		return catmullRom(previous, current, next, following, progress)
 	}
 
 	private func catmullRom(

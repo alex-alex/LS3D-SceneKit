@@ -1955,8 +1955,10 @@ final class Scene {
 		let span = nextEvent.time - previousEvent.time
 		let progress = span <= 0 ? 1 : CGFloat((time - previousEvent.time) / span)
 		applyRecordTransform(
-			from: previousEvent,
-			to: nextEvent,
+			previous: events[max(0, nextIndex - 2)],
+			current: previousEvent,
+			next: nextEvent,
+			following: events[min(events.count - 1, nextIndex + 1)],
 			progress: progress,
 			node: node
 		)
@@ -1968,28 +1970,58 @@ final class Scene {
 	}
 
 	private static func applyRecordTransform(
-		from startEvent: RecordAnimationEvent,
-		to endEvent: RecordAnimationEvent,
+		previous previousEvent: RecordAnimationEvent,
+		current currentEvent: RecordAnimationEvent,
+		next nextEvent: RecordAnimationEvent,
+		following followingEvent: RecordAnimationEvent,
 		progress: CGFloat,
 		node: SCNNode
 	) {
-		let amount = smoothRecordProgress(SCNFloat(progress))
-		node.position = SCNVector3(
-			x: startEvent.position.x + (endEvent.position.x - startEvent.position.x) * amount,
-			y: startEvent.position.y + (endEvent.position.y - startEvent.position.y) * amount,
-			z: startEvent.position.z + (endEvent.position.z - startEvent.position.z) * amount
+		let amount = max(0, min(1, SCNFloat(progress)))
+		node.position = recordCatmullRom(
+			previousEvent.position,
+			currentEvent.position,
+			nextEvent.position,
+			followingEvent.position,
+			amount
 		)
 		let orientationVector = SCNVector3(
-			x: startEvent.orientationVector.x + (endEvent.orientationVector.x - startEvent.orientationVector.x) * amount,
-			y: startEvent.orientationVector.y + (endEvent.orientationVector.y - startEvent.orientationVector.y) * amount,
-			z: startEvent.orientationVector.z + (endEvent.orientationVector.z - startEvent.orientationVector.z) * amount
+			x: currentEvent.orientationVector.x + (nextEvent.orientationVector.x - currentEvent.orientationVector.x) * amount,
+			y: currentEvent.orientationVector.y + (nextEvent.orientationVector.y - currentEvent.orientationVector.y) * amount,
+			z: currentEvent.orientationVector.z + (nextEvent.orientationVector.z - currentEvent.orientationVector.z) * amount
 		)
 		node.orientation = recordOrientation(from: orientationVector, fallback: node.orientation)
 	}
 
-	private static func smoothRecordProgress(_ progress: SCNFloat) -> SCNFloat {
-		let amount = max(0, min(1, progress))
-		return amount * amount * (3 - 2 * amount)
+	private static func recordCatmullRom(
+		_ previous: SCNVector3,
+		_ current: SCNVector3,
+		_ next: SCNVector3,
+		_ following: SCNVector3,
+		_ progress: SCNFloat
+	) -> SCNVector3 {
+		let progress2 = progress * progress
+		let progress3 = progress2 * progress
+		return SCNVector3(
+			x: 0.5 * (
+				2 * current.x +
+				(-previous.x + next.x) * progress +
+				(2 * previous.x - 5 * current.x + 4 * next.x - following.x) * progress2 +
+				(-previous.x + 3 * current.x - 3 * next.x + following.x) * progress3
+			),
+			y: 0.5 * (
+				2 * current.y +
+				(-previous.y + next.y) * progress +
+				(2 * previous.y - 5 * current.y + 4 * next.y - following.y) * progress2 +
+				(-previous.y + 3 * current.y - 3 * next.y + following.y) * progress3
+			),
+			z: 0.5 * (
+				2 * current.z +
+				(-previous.z + next.z) * progress +
+				(2 * previous.z - 5 * current.z + 4 * next.z - following.z) * progress2 +
+				(-previous.z + 3 * current.z - 3 * next.z + following.z) * progress3
+			)
+		)
 	}
 
 	private static func recordOrientation(
