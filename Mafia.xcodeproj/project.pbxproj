@@ -14,31 +14,31 @@
 		FA0D455B1D610BB500B7C721 /* MissionEffects.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0D45591D610BB500B7C721 /* MissionEffects.swift */; };
 		FA1000010000000000000002 /* DifferenceFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1000010000000000000001 /* DifferenceFile.swift */; };
 		FA1000010000000000000003 /* DifferenceFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1000010000000000000001 /* DifferenceFile.swift */; };
+		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
 		FA2000010000000000000002 /* MenuDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2000010000000000000001 /* MenuDef.swift */; };
 		FA2000010000000000000003 /* MenuDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2000010000000000000001 /* MenuDef.swift */; };
-		FA3000010000000000000002 /* MaterialDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000010000000000000001 /* MaterialDef.swift */; };
-		FA3000010000000000000003 /* MaterialDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000010000000000000001 /* MaterialDef.swift */; };
-		FA177F8D1E3534B2009FA6D7 /* Script.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA177F8C1E3534B2009FA6D7 /* Script.swift */; };
-		FA2FE8B9200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
-		FA2FE8BA200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
 		FA2000020000000000000002 /* Freehand-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2000020000000000000001 /* Freehand-Regular.ttf */; };
 		FA2000020000000000000003 /* Freehand-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2000020000000000000001 /* Freehand-Regular.ttf */; };
+		FA2FE8B9200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
+		FA2FE8BA200FD1650057A80E /* Aurora.ttf in Resources */ = {isa = PBXBuildFile; fileRef = FA2FE8B8200FD1650057A80E /* Aurora.ttf */; };
 		FA2FE8BD200FE4610057A80E /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8BC200FE4610057A80E /* GameManager.swift */; };
 		FA2FE8BE200FE4610057A80E /* GameManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8BC200FE4610057A80E /* GameManager.swift */; };
 		FA2FE8C0200FEA2A0057A80E /* MainMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8BF200FEA2A0057A80E /* MainMenu.swift */; };
 		FA2FE8C1200FEA2A0057A80E /* MainMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8BF200FEA2A0057A80E /* MainMenu.swift */; };
 		FA2FE8C30000000000000001 /* SaveGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8C20000000000000001 /* SaveGame.swift */; };
 		FA2FE8C30000000000000002 /* SaveGame.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2FE8C20000000000000001 /* SaveGame.swift */; };
+		FA3000010000000000000002 /* MaterialDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000010000000000000001 /* MaterialDef.swift */; };
+		FA3000010000000000000003 /* MaterialDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000010000000000000001 /* MaterialDef.swift */; };
 		FA355C44200923E600512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3A200923E500512DC0 /* GameViewController.swift */; };
 		FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3C200923E500512DC0 /* AppDelegate.swift */; };
 		FA355C47200923E600512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3E200923E600512DC0 /* Assets.xcassets */; };
 		FA355C48200923E600512DC0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3F200923E600512DC0 /* LaunchScreen.storyboard */; };
 		FA355C49200923E600512DC0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C41200923E600512DC0 /* Main.storyboard */; };
 		FA355C532009241000512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C4C2009241000512DC0 /* GameViewController.swift */; };
-		FA355C572009241100512DC0 /* GameSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C572009241000512DC0 /* GameSceneView.swift */; };
 		FA355C542009241000512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C4D2009241000512DC0 /* AppDelegate.swift */; };
 		FA355C552009241000512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C4F2009241000512DC0 /* Assets.xcassets */; };
 		FA355C562009241000512DC0 /* MainMenu.xib in Resources */ = {isa = PBXBuildFile; fileRef = FA355C502009241000512DC0 /* MainMenu.xib */; };
+		FA355C572009241100512DC0 /* GameSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C572009241000512DC0 /* GameSceneView.swift */; };
 		FA355C5A20092BC800512DC0 /* CMAccelerationUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C5820092BC800512DC0 /* CMAccelerationUtils.swift */; };
 		FA37F09F204C8A68001FF8A7 /* ModelMesh.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA37F09E204C8A68001FF8A7 /* ModelMesh.swift */; };
 		FA37F0A0204C8A68001FF8A7 /* ModelMesh.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA37F09E204C8A68001FF8A7 /* ModelMesh.swift */; };
@@ -107,12 +107,12 @@
 		FA9C95FA2002A545005FBB66 /* Weapon.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95F82002A544005FBB66 /* Weapon.swift */; };
 		FA9C95FC2002E1EB005FBB66 /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95FB2002E1EB005FBB66 /* Control.swift */; };
 		FA9C95FD2002E1EB005FBB66 /* Control.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA9C95FB2002E1EB005FBB66 /* Control.swift */; };
+		FABBB1A21D621E49006A39F8 /* TextDb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBB1A11D621E49006A39F8 /* TextDb.swift */; };
+		FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */; };
 		FADE02000000000000000001 /* OggVorbisDecoder.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000004 /* OggVorbisDecoder.c */; };
 		FADE02000000000000000002 /* OggVorbisDecoder.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000004 /* OggVorbisDecoder.c */; };
 		FADE02000000000000000003 /* stb_vorbis.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000005 /* stb_vorbis.c */; };
 		FADE02000000000000000004 /* stb_vorbis.c in Sources */ = {isa = PBXBuildFile; fileRef = FADE01000000000000000005 /* stb_vorbis.c */; };
-		FABBB1A21D621E49006A39F8 /* TextDb.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABBB1A11D621E49006A39F8 /* TextDb.swift */; };
-		FABC74BC1D63AAB3009A0F1A /* AnimationLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */; };
 		FAFBDFC21D607F5B008523A9 /* Scene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFBDFC11D607F5B008523A9 /* Scene.swift */; };
 		FAFE4FAC1D75E95A00BB2FB0 /* Collisions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */; };
 /* End PBXBuildFile section */
@@ -137,14 +137,14 @@
 		FA0D45571D610BB500B7C721 /* SceneCache.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneCache.swift; sourceTree = "<group>"; };
 		FA0D45591D610BB500B7C721 /* MissionEffects.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MissionEffects.swift; sourceTree = "<group>"; };
 		FA1000010000000000000001 /* DifferenceFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DifferenceFile.swift; sourceTree = "<group>"; };
-		FA2000010000000000000001 /* MenuDef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuDef.swift; sourceTree = "<group>"; };
-		FA3000010000000000000001 /* MaterialDef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialDef.swift; sourceTree = "<group>"; };
 		FA177F8C1E3534B2009FA6D7 /* Script.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Script.swift; sourceTree = "<group>"; };
-		FA2FE8B8200FD1650057A80E /* Aurora.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Aurora.ttf; sourceTree = "<group>"; };
+		FA2000010000000000000001 /* MenuDef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuDef.swift; sourceTree = "<group>"; };
 		FA2000020000000000000001 /* Freehand-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "Freehand-Regular.ttf"; sourceTree = "<group>"; };
+		FA2FE8B8200FD1650057A80E /* Aurora.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = Aurora.ttf; sourceTree = "<group>"; };
 		FA2FE8BC200FE4610057A80E /* GameManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameManager.swift; sourceTree = "<group>"; };
 		FA2FE8BF200FEA2A0057A80E /* MainMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenu.swift; sourceTree = "<group>"; };
 		FA2FE8C20000000000000001 /* SaveGame.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SaveGame.swift; sourceTree = "<group>"; };
+		FA3000010000000000000001 /* MaterialDef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialDef.swift; sourceTree = "<group>"; };
 		FA355C3A200923E500512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		FA355C3C200923E500512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FA355C3E200923E600512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -152,11 +152,11 @@
 		FA355C42200923E600512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		FA355C43200923E600512DC0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		FA355C4C2009241000512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
-		FA355C572009241000512DC0 /* GameSceneView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameSceneView.swift; sourceTree = "<group>"; };
 		FA355C4D2009241000512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		FA355C4F2009241000512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FA355C512009241000512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.xib; name = Base; path = Base.lproj/MainMenu.xib; sourceTree = "<group>"; };
 		FA355C522009241000512DC0 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FA355C572009241000512DC0 /* GameSceneView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameSceneView.swift; sourceTree = "<group>"; };
 		FA355C5820092BC800512DC0 /* CMAccelerationUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CMAccelerationUtils.swift; sourceTree = "<group>"; };
 		FA37F09E204C8A68001FF8A7 /* ModelMesh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMesh.swift; sourceTree = "<group>"; };
 		FA37F0A1204C8B08001FF8A7 /* ModelMorph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelMorph.swift; sourceTree = "<group>"; };
@@ -188,12 +188,12 @@
 		FA9C95F42001B967005FBB66 /* ScriptExec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScriptExec.swift; sourceTree = "<group>"; };
 		FA9C95F82002A544005FBB66 /* Weapon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Weapon.swift; sourceTree = "<group>"; };
 		FA9C95FB2002E1EB005FBB66 /* Control.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Control.swift; sourceTree = "<group>"; };
+		FABBB1A11D621E49006A39F8 /* TextDb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextDb.swift; sourceTree = "<group>"; };
+		FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AnimationLoader.swift; sourceTree = "<group>"; };
 		FADE01000000000000000001 /* Mafia-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Mafia-Bridging-Header.h"; sourceTree = "<group>"; };
 		FADE01000000000000000003 /* OggVorbisDecoder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OggVorbisDecoder.h; sourceTree = "<group>"; };
 		FADE01000000000000000004 /* OggVorbisDecoder.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = OggVorbisDecoder.c; sourceTree = "<group>"; };
 		FADE01000000000000000005 /* stb_vorbis.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = stb_vorbis.c; sourceTree = "<group>"; };
-		FABBB1A11D621E49006A39F8 /* TextDb.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextDb.swift; sourceTree = "<group>"; };
-		FABC74BB1D63AAB3009A0F1A /* AnimationLoader.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AnimationLoader.swift; sourceTree = "<group>"; };
 		FAFBDFC11D607F5B008523A9 /* Scene.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Scene.swift; sourceTree = "<group>"; };
 		FAFE4FAB1D75E95A00BB2FB0 /* Collisions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Collisions.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -373,16 +373,6 @@
 			path = Game;
 			sourceTree = "<group>";
 		};
-		FADE01000000000000000002 /* Audio */ = {
-			isa = PBXGroup;
-			children = (
-				FADE01000000000000000003 /* OggVorbisDecoder.h */,
-				FADE01000000000000000004 /* OggVorbisDecoder.c */,
-				FADE01000000000000000005 /* stb_vorbis.c */,
-			);
-			path = Audio;
-			sourceTree = "<group>";
-		};
 		FA6ABE9C20081ACD00BB3BBD /* Scripts */ = {
 			isa = PBXGroup;
 			children = (
@@ -437,6 +427,16 @@
 				FA355C3D200923E600512DC0 /* Resources */,
 			);
 			path = "Mafia-iOS";
+			sourceTree = "<group>";
+		};
+		FADE01000000000000000002 /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				FADE01000000000000000003 /* OggVorbisDecoder.h */,
+				FADE01000000000000000004 /* OggVorbisDecoder.c */,
+				FADE01000000000000000005 /* stb_vorbis.c */,
+			);
+			path = Audio;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -873,7 +873,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = N2V68QWUSQ;
 				INFOPLIST_FILE = "$(SRCROOT)/Mafia-iOS/Resources/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "me.studnicka.Mafia-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -893,7 +893,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = N2V68QWUSQ;
 				INFOPLIST_FILE = "$(SRCROOT)/Mafia-iOS/Resources/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 12.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.6;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "me.studnicka.Mafia-iOS";
 				PRODUCT_NAME = "$(TARGET_NAME)";

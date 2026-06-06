@@ -3530,13 +3530,13 @@ private func cameraFieldOfView(
 		return defaultFrom + (defaultTo - defaultFrom) * CGFloat(progress)
 	}
 
-	return cubicBezier(
+	return CGFloat(cubicBezier(
 		SCNFloat(defaultFrom),
 		SCNFloat(controlFieldOfView1),
 		SCNFloat(controlFieldOfView2),
 		SCNFloat(defaultTo),
 		progress
-	)
+	))
 }
 
 private func cameraKeyframeIsHardCut(_ keyframe: RecordCameraKeyframe) -> Bool {
