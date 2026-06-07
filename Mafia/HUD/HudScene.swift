@@ -2281,7 +2281,7 @@ extension HudScene {
 		}
 
 		resetCrouchSiderollTap()
-		game.playSiderollAnimation(direction: direction < 0 ? .leftFront : .rightFront)
+		game.playSiderollAnimation(direction: direction < 0 ? .left : .right)
 	}
 
 	private func registerCrouchSiderollTap(direction: Int) {
@@ -2298,15 +2298,7 @@ extension HudScene {
 		guard isDoubleTap else { return }
 
 		resetCrouchSiderollTap()
-		game.playSiderollAnimation(direction: crouchSiderollDirection(for: direction))
-	}
-
-	private func crouchSiderollDirection(for direction: Int) -> Game.SiderollDirection {
-		let isBackward = walkingBackward && !walkingForward
-		if direction < 0 {
-			return isBackward ? .leftBack : .leftFront
-		}
-		return isBackward ? .rightBack : .rightFront
+		game.playSiderollAnimation(direction: direction < 0 ? .left : .right)
 	}
 
 	private func resetCrouchSiderollTap() {

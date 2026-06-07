@@ -168,6 +168,11 @@ fileprivate func readPositions(stream: InputStream) throws -> [AnimationKeyframe
 
 class Animation {
 	private static let frameDuration: TimeInterval = 1.0 / 25.0
+	struct Pose {
+		let position: SCNVector3?
+		let scale: SCNVector3?
+		let rotation: SCNQuaternion?
+	}
 
 	let name: String
 	let timerMax: Int
@@ -222,14 +227,52 @@ class Animation {
 	}
 
 	func apply(elapsedTime: TimeInterval, to node: SCNNode) {
-		let tick = CGFloat(elapsedTime / CGFloat(Animation.frameDuration))
-		if let position = Animation.interpolatedVector(keyframes: positions, at: tick) {
+		applyPose(samplePose(elapsedTime: elapsedTime), to: node)
+	}
+
+	func samplePose(elapsedTime: TimeInterval) -> Pose {
+		let tick = CGFloat(elapsedTime / Animation.frameDuration)
+		return Pose(
+			position: Animation.interpolatedVector(keyframes: positions, at: tick),
+			scale: Animation.interpolatedVector(keyframes: scales, at: tick),
+			rotation: Animation.interpolatedQuaternion(keyframes: rotations, at: tick)
+		)
+	}
+
+	func blend(from pose: Pose, elapsedTime: TimeInterval, transitionDuration: TimeInterval, to node: SCNNode) {
+		let targetPose = samplePose(elapsedTime: elapsedTime)
+		let amount = Animation.smoothstep(CGFloat(elapsedTime / max(transitionDuration, 0.0001)))
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+	}
+
+	func blend(
+		from pose: Pose,
+		toElapsedTime targetElapsedTime: TimeInterval,
+		transitionElapsedTime: TimeInterval,
+		transitionDuration: TimeInterval,
+		to node: SCNNode
+	) {
+		let targetPose = samplePose(elapsedTime: targetElapsedTime)
+		let amount = Animation.smoothstep(CGFloat(transitionElapsedTime / max(transitionDuration, 0.0001)))
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+	}
+
+	func presentationPose(of node: SCNNode) -> Pose {
+		return Pose(
+			position: node.presentation.position,
+			scale: node.presentation.scale,
+			rotation: node.presentation.orientation
+		)
+	}
+
+	private func applyPose(_ pose: Pose, to node: SCNNode) {
+		if let position = pose.position {
 			node.position = position
 		}
-		if let scale = Animation.interpolatedVector(keyframes: scales, at: tick) {
+		if let scale = pose.scale {
 			node.scale = scale
 		}
-		if let rotation = Animation.interpolatedQuaternion(keyframes: rotations, at: tick) {
+		if let rotation = pose.rotation {
 			node.orientation = rotation
 		}
 	}
@@ -303,6 +346,25 @@ class Animation {
 			y: start.y + (end.y - start.y) * amount,
 			z: start.z + (end.z - start.z) * amount
 		)
+	}
+
+	private static func blendedPose(from start: Pose, to end: Pose, amount: CGFloat) -> Pose {
+		return Pose(
+			position: blend(start.position, end.position, amount, lerp),
+			scale: blend(start.scale, end.scale, amount, lerp),
+			rotation: blend(start.rotation, end.rotation, amount, slerp)
+		)
+	}
+
+	private static func blend<Value>(
+		_ start: Value?,
+		_ end: Value?,
+		_ amount: CGFloat,
+		_ interpolate: (Value, Value, CGFloat) -> Value
+	) -> Value? {
+		guard let end = end else { return nil }
+		guard let start = start else { return end }
+		return interpolate(start, end, amount)
 	}
 
 	private static func slerp(_ start: SCNQuaternion, _ end: SCNQuaternion, _ t: CGFloat) -> SCNQuaternion {
@@ -469,6 +531,7 @@ func playAnimation(
 	in node: SCNNode,
 	repeat: Bool = false,
 	animationKey: String? = nil,
+	transitionDuration: TimeInterval = 0,
 	completionHandler: (() -> Void)? = nil) throws {
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
@@ -478,18 +541,53 @@ func playAnimation(
 		return (animation, targetNode)
 	}
 	if duration > 0, !matchedAnimations.isEmpty {
-		let action = SCNAction.customAction(duration: duration) { _, elapsedTime in
-			for matchedAnimation in matchedAnimations {
-				matchedAnimation.animation.apply(
-					elapsedTime: TimeInterval(elapsedTime),
-					to: matchedAnimation.node
-				)
+		let transitionDuration = max(0, min(transitionDuration, duration))
+		let startPoses = transitionDuration > 0 ? matchedAnimations.map { matchedAnimation in
+			matchedAnimation.animation.presentationPose(of: matchedAnimation.node)
+		} : []
+		let animationAction = SCNAction.customAction(duration: duration) { _, elapsedTime in
+			for (index, matchedAnimation) in matchedAnimations.enumerated() {
+				let elapsedTime = TimeInterval(elapsedTime)
+				if transitionDuration > 0,
+				   !`repeat`,
+				   elapsedTime < transitionDuration,
+				   startPoses.indices.contains(index) {
+					matchedAnimation.animation.blend(
+						from: startPoses[index],
+						elapsedTime: elapsedTime,
+						transitionDuration: transitionDuration,
+						to: matchedAnimation.node
+					)
+				} else {
+					matchedAnimation.animation.apply(
+						elapsedTime: elapsedTime,
+						to: matchedAnimation.node
+					)
+				}
 			}
 		}
 		if `repeat` {
-			node.runAction(SCNAction.repeatForever(action), forKey: animationKey)
+			if transitionDuration > 0 {
+				let transitionAction = SCNAction.customAction(duration: transitionDuration) { _, elapsedTime in
+					for (index, matchedAnimation) in matchedAnimations.enumerated() where startPoses.indices.contains(index) {
+						matchedAnimation.animation.blend(
+							from: startPoses[index],
+							toElapsedTime: 0,
+							transitionElapsedTime: TimeInterval(elapsedTime),
+							transitionDuration: transitionDuration,
+							to: matchedAnimation.node
+						)
+					}
+				}
+				node.runAction(
+					SCNAction.sequence([transitionAction, SCNAction.repeatForever(animationAction)]),
+					forKey: animationKey
+				)
+			} else {
+				node.runAction(SCNAction.repeatForever(animationAction), forKey: animationKey)
+			}
 		} else {
-			node.runAction(action, forKey: animationKey)
+			node.runAction(animationAction, forKey: animationKey)
 		}
 	} else {
 		for matchedAnimation in matchedAnimations {

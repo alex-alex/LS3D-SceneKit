@@ -13,10 +13,8 @@ import SpriteKit
 final class Game: NSObject {
 
 	enum SiderollDirection {
-		case leftFront
-		case leftBack
-		case rightFront
-		case rightBack
+		case left
+		case right
 	}
 
 	enum Mode {
@@ -1776,25 +1774,17 @@ extension Game {
 		guard mode == .walk,
 			  scene.playerNode != nil else { return }
 
-		let animationName: String
-		let animationId: Int
+		let directionValue: Int
 		switch direction {
-		case .leftFront:
-			animationName = "anims/Uskok Left Front.5DS"
-			animationId = 98
-		case .leftBack:
-			animationName = "anims/Uskok Left Back.5DS"
-			animationId = 98
-		case .rightFront:
-			animationName = "anims/Uskok Right Front.5DS"
-			animationId = 99
-		case .rightBack:
-			animationName = "anims/Uskok Right Back.5DS"
-			animationId = 99
+		case .left:
+			directionValue = -1
+			scene.noteActionAnimation(id: 98)
+		case .right:
+			directionValue = 1
+			scene.noteActionAnimation(id: 99)
 		}
 
-		scene.noteActionAnimation(id: animationId)
-		playPlayerActionAnimation(named: animationName, animationKey: "__sideroll__")
+		playerController?.playSideJumpActionAnimation(direction: directionValue, animationKey: "__sideroll__")
 	}
 
 	private func firePlayerWeapon() {
@@ -2447,7 +2437,7 @@ extension Game {
 		if let playerController = playerController {
 			playerController.playActionAnimation(named: animationName, animationKey: animationKey)
 		} else if let playerNode = scene.playerNode {
-			try? playAnimation(named: animationName, in: playerNode, animationKey: animationKey)
+			try? playPlayerAnimation(named: animationName, in: playerNode, animationKey: animationKey)
 		}
 	}
 

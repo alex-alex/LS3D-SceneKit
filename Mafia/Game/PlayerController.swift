@@ -9,6 +9,26 @@
 import Foundation
 import SceneKit
 
+let playerAnimationTransitionDuration: TimeInterval = 0.14
+
+func playPlayerAnimation(
+	named name: String,
+	in node: SCNNode,
+	repeat shouldRepeat: Bool = false,
+	animationKey: String? = nil,
+	transitionDuration: TimeInterval = playerAnimationTransitionDuration,
+	completionHandler: (() -> Void)? = nil) throws {
+	print("Player animation [\(animationKey ?? "none")]: \(name)")
+	try playAnimation(
+		named: name,
+		in: node,
+		repeat: shouldRepeat,
+		animationKey: animationKey,
+		transitionDuration: transitionDuration,
+		completionHandler: completionHandler
+	)
+}
+
 final class PlayerController {
 
 	private let node: SCNNode
@@ -37,6 +57,7 @@ final class PlayerController {
 	private var isCrouchTransitionPlaying = false
 	private var walkingAnimationHoldCount = 0
 	private var wasAirborneLastFrame = false
+	private var hasFallenDuringJump = false
 	private var footstepAudio = FootstepAudio()
 	var movementAnimationSetProvider: (() -> Int?)?
 	private(set) var lastAppliedLook: SCNFloat = 0
@@ -140,6 +161,7 @@ final class PlayerController {
 		horizontalVelocity = SCNVector3Zero
 		verticalVelocity = 0
 		wasAirborneLastFrame = false
+		hasFallenDuringJump = false
 		stopCurrentAirAnimation()
 		updateWalkingAnimation(isMoving: false)
 		footstepAudio.reset()
@@ -149,7 +171,7 @@ final class PlayerController {
 	func playActionAnimation(named animationName: String, animationKey: String) {
 		holdWalkingAnimation()
 		do {
-			try playAnimation(
+			try playPlayerAnimation(
 				named: animationName,
 				in: node,
 				animationKey: animationKey
@@ -159,6 +181,13 @@ final class PlayerController {
 		} catch {
 			releaseWalkingAnimationHold()
 		}
+	}
+
+	func playSideJumpActionAnimation(direction: Int, animationKey: String) {
+		guard direction != 0 else { return }
+
+		guard let animationName = jumpStartAnimationName(lateralMovement: direction < 0 ? -1 : 1, usesStandingSet: true) else { return }
+		playActionAnimation(named: animationName, animationKey: animationKey)
 	}
 
 	func teleport(to worldPosition: SCNVector3, yaw: SCNFloat) {
@@ -234,6 +263,7 @@ final class PlayerController {
 		if wantsJump && !isCrouching && grounded {
 			verticalVelocity = jumpSpeed
 			wasAirborneLastFrame = true
+			hasFallenDuringJump = false
 			playJumpStartAnimation()
 		}
 		wantsJump = false
@@ -262,7 +292,7 @@ final class PlayerController {
 
 		isWalkingAnimationPlaying = animationName != nil
 		if let animationName = animationName {
-			try? playAnimation(
+			try? playPlayerAnimation(
 				named: animationName,
 				in: node,
 				repeat: true,
@@ -287,6 +317,7 @@ final class PlayerController {
 		if isCrouching {
 			wantsJump = false
 			wasAirborneLastFrame = false
+			hasFallenDuringJump = false
 			stopCurrentAirAnimation()
 			playCrouchTransition(named: crouchDownAnimationName)
 		} else {
@@ -303,7 +334,7 @@ final class PlayerController {
 		isCrouchTransitionPlaying = true
 
 		do {
-			try playAnimation(
+			try playPlayerAnimation(
 				named: animationName,
 				in: node,
 				animationKey: crouchAnimationKey
@@ -440,6 +471,10 @@ final class PlayerController {
 		if isCrouching {
 			return 8
 		}
+		return standingMovementAnimationSetId()
+	}
+
+	private func standingMovementAnimationSetId() -> Int {
 		guard let providedId = movementAnimationSetProvider?(),
 			  (1...8).contains(providedId) else {
 			return 1
@@ -449,16 +484,21 @@ final class PlayerController {
 
 	private func playJumpStartAnimation() {
 		stopCurrentWalkingAnimation()
-		let suffix = "\(movementAnimationSetId())"
-		let directionalPrefix = movement.x < -0.2 ? "jumpL" : movement.x > 0.2 ? "jumpR" : "jump"
+		playAirAnimation(named: jumpStartAnimationName(lateralMovement: movement.x, usesStandingSet: false), repeat: false) { [weak self] in
+			self?.playFallLoopAnimationIfNeeded()
+		}
+	}
+
+	private func jumpStartAnimationName(lateralMovement: SCNFloat, usesStandingSet: Bool) -> String? {
+		let animationSetId = usesStandingSet ? standingMovementAnimationSetId() : movementAnimationSetId()
+		let suffix = "\(animationSetId)"
+		let directionalPrefix = lateralMovement < -0.2 ? "jumpL" : lateralMovement > 0.2 ? "jumpR" : "jump"
 		let candidates = [
 			"anims/\(directionalPrefix)\(suffix).5ds",
 			"anims/jump\(suffix).5ds",
 			"anims/jump1.5ds"
 		]
-		playAirAnimation(named: firstExistingAnimation(named: candidates), repeat: false) { [weak self] in
-			self?.playFallLoopAnimationIfNeeded()
-		}
+		return firstExistingAnimation(named: candidates)
 	}
 
 	private func playFallLoopAnimationIfNeeded() {
@@ -485,7 +525,7 @@ final class PlayerController {
 
 		currentAirAnimationName = animationName
 		do {
-			try playAnimation(
+			try playPlayerAnimation(
 				named: animationName,
 				in: node,
 				repeat: shouldRepeat,
@@ -505,9 +545,15 @@ final class PlayerController {
 
 	private func updateAirAnimationState() {
 		let isAirborne = isAirborneForAnimation
+		if isAirborne && verticalVelocity < -0.05 {
+			hasFallenDuringJump = true
+		}
 		if wasAirborneLastFrame && !isAirborne {
 			wasAirborneLastFrame = false
-			playLandingAnimation()
+			if hasFallenDuringJump {
+				playLandingAnimation()
+			}
+			hasFallenDuringJump = false
 			updateWalkingAnimation(isMoving: movement.x * movement.x + movement.z * movement.z > 0.0001)
 		} else if isAirborne {
 			wasAirborneLastFrame = true

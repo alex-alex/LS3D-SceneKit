@@ -181,7 +181,7 @@ class MainMenu {
 		switch entries[index].action {
 		case .mission(let folder, let imageName):
 			stopMenuScripts()
-			gameManager?.loadMission(textId: 0, imageName: imageName, folder: folder)
+			gameManager?.loadMission(textId: MissionLoadInfo.textId(for: folder), imageName: imageName, folder: folder)
 		case .saveGameSelector:
 			stopMenuScripts()
 			gameManager?.loadSaveGameSelector()

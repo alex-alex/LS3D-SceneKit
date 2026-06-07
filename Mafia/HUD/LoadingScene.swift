@@ -22,8 +22,10 @@ final class LoadingScene: SKScene {
 	private var loadingProgressMask: SKShapeNode!
 	private var loadingProgressImage: SKSpriteNode!
 	private var progress: CGFloat = 0
+	private let usesMainMenuImage: Bool
 
 	init(textId: Int, imageName: String) {
+		usesMainMenuImage = imageName == "00menu.tga"
 		super.init(size: CGSize(width: 1024, height: 768))
 
 		scaleMode = .resizeFill
@@ -93,10 +95,16 @@ final class LoadingScene: SKScene {
 		overlayImage.size = CGSize(width: overlayWidth, height: h)
 		overlayImage.position = CGPoint(x: overlayWidth/2-1, y: h/2)
 
-		let whiteFrame = CGRect(x: overlayWidth, y: 0, width: w - overlayWidth, height: h)
-		let missionSize = min(whiteFrame.width, whiteFrame.height) * (2 / CGFloat(3))
-		missionImage.size = CGSize(width: missionSize, height: missionSize)
-		missionImage.position = CGPoint(x: whiteFrame.midX, y: h/2)
+		if usesMainMenuImage {
+			let missionSize = w*0.75
+			missionImage.size = CGSize(width: missionSize, height: h)
+			missionImage.position = CGPoint(x: w-missionSize/2, y: h/2)
+		} else {
+			let whiteFrame = CGRect(x: overlayWidth, y: 0, width: w - overlayWidth, height: h)
+			let missionSize = min(whiteFrame.width, whiteFrame.height) * 0.8
+			missionImage.size = CGSize(width: missionSize, height: missionSize)
+			missionImage.position = CGPoint(x: whiteFrame.midX, y: h/2)
+		}
 
 		missionName.fontSize = h * 0.06
 		missionName.position = CGPoint(x: w-30, y: 30)
