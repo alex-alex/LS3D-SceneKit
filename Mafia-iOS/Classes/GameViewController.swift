@@ -109,7 +109,10 @@ extension GameViewController {
 
 		if gameManager.game?.mode == .walk {
 			if gameManager.game.scene.playerNode != nil {
-				gameManager.game.look(deltaX: -Float(translation.x) * 0.008, deltaY: 0)
+				gameManager.game.look(
+					deltaX: -Float(translation.x) * 0.008,
+					deltaY: Float(translation.y) * 0.004
+				)
 			} else {
 				let hAngle = acos(Float(translation.x) / 200) - (.pi / 2)
 				gameManager.game.elevation = max((-.pi/2.5), min(0, gameManager.game.elevation - vAngle))
