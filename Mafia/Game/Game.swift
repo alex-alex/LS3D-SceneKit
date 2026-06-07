@@ -654,7 +654,7 @@ final class Game: NSObject {
 	}
 
 	private func playerExitPlacement(for vehicle: Vehicle) -> (position: SCNVector3, yaw: SCNFloat) {
-		let vehiclePosition = vehicle.node.worldPosition
+		let vehiclePosition = vehicle.node.presentation.worldPosition
 		let vehicleRight = horizontalVehicleRight()
 		let exitSide = SCNVector3(x: -vehicleRight.x, y: 0, z: -vehicleRight.z)
 		let exitPosition = SCNVector3(
@@ -662,7 +662,7 @@ final class Game: NSObject {
 			y: vehicleBottomWorldY() + playerExitHeightOffset,
 			z: vehiclePosition.z + exitSide.z * playerExitDistance
 		)
-		let forward = vehicle.node.worldFront
+		let forward = vehicle.node.presentation.worldFront
 		return (exitPosition, atan2(-forward.x, -forward.z))
 	}
 
@@ -819,7 +819,7 @@ final class Game: NSObject {
 	private func horizontalVehicleRight() -> SCNVector3 {
 		guard let vehicle = vehicle else { return SCNVector3(x: 1, y: 0, z: 0) }
 
-		let transform = vehicle.node.worldTransform
+		let transform = vehicle.node.presentation.worldTransform
 		let right = SCNVector3(x: transform.m11, y: 0, z: transform.m13)
 		let length = sqrt(right.x * right.x + right.z * right.z)
 		guard length > 0.0001 else { return SCNVector3(x: 1, y: 0, z: 0) }
@@ -839,7 +839,7 @@ final class Game: NSObject {
 		for x in xs {
 			for y in ys {
 				for z in zs {
-					let point = vehicle.node.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil)
+					let point = vehicle.node.presentation.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil)
 					bottom = min(bottom, point.y)
 				}
 			}
