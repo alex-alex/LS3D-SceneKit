@@ -94,8 +94,8 @@ final class HudScene: SKScene {
 	#endif
 	private var running = false
 	private var crouching = false
-	private var lastCrouchSidestepTapDirection = 0
-	private var lastCrouchSidestepTapTime: TimeInterval = 0
+	private var lastCrouchSiderollTapDirection = 0
+	private var lastCrouchSiderollTapTime: TimeInterval = 0
 	var isInventoryVisible: Bool {
 		return inventoryOverlay?.isHidden == false
 	}
@@ -1945,7 +1945,7 @@ extension HudScene {
 		case 0, 123: // A, left
 			if game.mode == .walk, game.scene.playerNode != nil {
 				walkingLeft = true
-				registerCrouchSidestepTap(direction: -1)
+				registerCrouchSiderollTap(direction: -1)
 				updateWalkingControls()
 			} else if game.mode == .walk {
 				game.cameraNode.eulerAngles.y += 0.25
@@ -1954,7 +1954,7 @@ extension HudScene {
 		case 2, 124: // D, right
 			if game.mode == .walk, game.scene.playerNode != nil {
 				walkingRight = true
-				registerCrouchSidestepTap(direction: 1)
+				registerCrouchSiderollTap(direction: 1)
 				updateWalkingControls()
 			} else if game.mode == .walk {
 				game.cameraNode.eulerAngles.y -= 0.25
@@ -2209,7 +2209,7 @@ extension HudScene {
 		walkingLeft = false
 		walkingRight = false
 		setRunning(false)
-		resetCrouchSidestepTap()
+		resetCrouchSiderollTap()
 		setCrouching(false)
 		game.playerController?.stop()
 	}
@@ -2270,34 +2270,48 @@ extension HudScene {
 
 		crouching = isCrouching
 		game.setPlayerCrouching(isCrouching)
-		resetCrouchSidestepTap()
+		resetCrouchSiderollTap()
 		updateCrouchButtonAppearance()
 	}
 
-	func registerCrouchSidestepSwipe(direction: Int) {
-		registerCrouchSidestepTap(direction: direction)
+	func registerCrouchSiderollSwipe(direction: Int) {
+		guard crouching else {
+			resetCrouchSiderollTap()
+			return
+		}
+
+		resetCrouchSiderollTap()
+		game.playSiderollAnimation(direction: direction < 0 ? .leftFront : .rightFront)
 	}
 
-	private func registerCrouchSidestepTap(direction: Int) {
+	private func registerCrouchSiderollTap(direction: Int) {
 		guard crouching else {
-			resetCrouchSidestepTap()
+			resetCrouchSiderollTap()
 			return
 		}
 
 		let now = Date.timeIntervalSinceReferenceDate
-		let isDoubleTap = direction == lastCrouchSidestepTapDirection && now - lastCrouchSidestepTapTime <= 0.32
-		lastCrouchSidestepTapDirection = direction
-		lastCrouchSidestepTapTime = now
+		let isDoubleTap = direction == lastCrouchSiderollTapDirection && now - lastCrouchSiderollTapTime <= 0.32
+		lastCrouchSiderollTapDirection = direction
+		lastCrouchSiderollTapTime = now
 
 		guard isDoubleTap else { return }
 
-		resetCrouchSidestepTap()
-		game.playDodgeAnimation(direction: direction < 0 ? .left : .right)
+		resetCrouchSiderollTap()
+		game.playSiderollAnimation(direction: crouchSiderollDirection(for: direction))
 	}
 
-	private func resetCrouchSidestepTap() {
-		lastCrouchSidestepTapDirection = 0
-		lastCrouchSidestepTapTime = 0
+	private func crouchSiderollDirection(for direction: Int) -> Game.SiderollDirection {
+		let isBackward = walkingBackward && !walkingForward
+		if direction < 0 {
+			return isBackward ? .leftBack : .leftFront
+		}
+		return isBackward ? .rightBack : .rightFront
+	}
+
+	private func resetCrouchSiderollTap() {
+		lastCrouchSiderollTapDirection = 0
+		lastCrouchSiderollTapTime = 0
 	}
 
 	private func updateCrouchButtonAppearance() {

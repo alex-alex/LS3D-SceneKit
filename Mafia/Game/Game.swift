@@ -12,9 +12,11 @@ import SpriteKit
 
 final class Game: NSObject {
 
-	enum DodgeDirection {
-		case left
-		case right
+	enum SiderollDirection {
+		case leftFront
+		case leftBack
+		case rightFront
+		case rightBack
 	}
 
 	enum Mode {
@@ -1766,23 +1768,29 @@ extension Game {
 		}
 	}
 
-	func playDodgeAnimation(direction: DodgeDirection) {
+	func playSiderollAnimation(direction: SiderollDirection) {
 		guard mode == .walk,
 			  scene.playerNode != nil else { return }
 
 		let animationName: String
 		let animationId: Int
 		switch direction {
-		case .left:
-			animationName = "anims/left1.5ds"
+		case .leftFront:
+			animationName = "anims/Uskok Left Front.5DS"
 			animationId = 98
-		case .right:
-			animationName = "anims/right1.5ds"
+		case .leftBack:
+			animationName = "anims/Uskok Left Back.5DS"
+			animationId = 98
+		case .rightFront:
+			animationName = "anims/Uskok Right Front.5DS"
+			animationId = 99
+		case .rightBack:
+			animationName = "anims/Uskok Right Back.5DS"
 			animationId = 99
 		}
 
 		scene.noteActionAnimation(id: animationId)
-		playPlayerActionAnimation(named: animationName, animationKey: "__dodge__")
+		playPlayerActionAnimation(named: animationName, animationKey: "__sideroll__")
 	}
 
 	private func firePlayerWeapon() {

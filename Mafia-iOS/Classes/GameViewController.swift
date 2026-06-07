@@ -21,8 +21,8 @@ class GameViewController: UIViewController {
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
 	var fireGesture: UITapGestureRecognizer!
-	var sidestepLeftSwipeGesture: UISwipeGestureRecognizer!
-	var sidestepRightSwipeGesture: UISwipeGestureRecognizer!
+	var siderollLeftSwipeGesture: UISwipeGestureRecognizer!
+	var siderollRightSwipeGesture: UISwipeGestureRecognizer!
 	private var isTouchDriving = false
 
 	let motionManager = CMMotionManager()
@@ -52,18 +52,18 @@ class GameViewController: UIViewController {
 		fireGesture.cancelsTouchesInView = false
 		view.addGestureRecognizer(fireGesture)
 
-		// crouch sidestep gestures
-		sidestepLeftSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(sidestepSwipeRecognized))
-		sidestepLeftSwipeGesture.direction = .left
-		sidestepLeftSwipeGesture.delegate = self
-		sidestepLeftSwipeGesture.cancelsTouchesInView = false
-		view.addGestureRecognizer(sidestepLeftSwipeGesture)
+		// crouch sideroll gestures
+		siderollLeftSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(siderollSwipeRecognized))
+		siderollLeftSwipeGesture.direction = .left
+		siderollLeftSwipeGesture.delegate = self
+		siderollLeftSwipeGesture.cancelsTouchesInView = false
+		view.addGestureRecognizer(siderollLeftSwipeGesture)
 
-		sidestepRightSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(sidestepSwipeRecognized))
-		sidestepRightSwipeGesture.direction = .right
-		sidestepRightSwipeGesture.delegate = self
-		sidestepRightSwipeGesture.cancelsTouchesInView = false
-		view.addGestureRecognizer(sidestepRightSwipeGesture)
+		siderollRightSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(siderollSwipeRecognized))
+		siderollRightSwipeGesture.direction = .right
+		siderollRightSwipeGesture.delegate = self
+		siderollRightSwipeGesture.cancelsTouchesInView = false
+		view.addGestureRecognizer(siderollRightSwipeGesture)
 
 		// ------
 
@@ -159,9 +159,9 @@ extension GameViewController {
 		gameManager.game?.releaseControl(.FIRE)
 	}
 
-	@objc func sidestepSwipeRecognized(gesture: UISwipeGestureRecognizer) {
+	@objc func siderollSwipeRecognized(gesture: UISwipeGestureRecognizer) {
 		let direction = gesture.direction == .left ? -1 : 1
-		gameManager.game?.hud?.registerCrouchSidestepSwipe(direction: direction)
+		gameManager.game?.hud?.registerCrouchSiderollSwipe(direction: direction)
 	}
 
 }
@@ -182,7 +182,7 @@ extension GameViewController: UIGestureRecognizerDelegate {
 			return touch.location(in: view).x > view.frame.size.width / 2
 		} else if gestureRecognizer == walkGesture {
 			return touch.location(in: view).x < view.frame.size.width / 2
-		} else if gestureRecognizer == sidestepLeftSwipeGesture || gestureRecognizer == sidestepRightSwipeGesture {
+		} else if gestureRecognizer == siderollLeftSwipeGesture || gestureRecognizer == siderollRightSwipeGesture {
 			return touch.location(in: view).x < view.frame.size.width / 2
 		}
 		return true
