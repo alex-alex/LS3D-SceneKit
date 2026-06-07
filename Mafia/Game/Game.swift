@@ -50,12 +50,14 @@ final class Game: NSObject {
 				VehicleSoundLog.log("Game mode changed to freeCamera; vehicle audio inactive")
 				scnScene.rootNode.addChildNode(cameraContainer)
 				playerController?.stop()
+				stopPlayerVehicleAnimation()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 				vehicle?.applyForces()
 				vehicle?.updateAudio(isActive: false)
 			} else if mode == .walk {
 				VehicleSoundLog.log("Game mode changed to walk; vehicle audio inactive")
 				scene.playerNode?.isHidden = false
+				scene.playerNode?.setHiddenInHierarchy(false)
 				if oldValue != .freeCamera {
 					teleportPlayerBesideVehicle()
 				}
@@ -65,6 +67,7 @@ final class Game: NSObject {
 					scene.rootNode.addChildNode(cameraContainer)
 				}
 				playerController?.stop()
+				stopPlayerVehicleAnimation()
 				vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 				vehicle?.applyForces()
 				vehicle?.updateAudio(isActive: false)
@@ -72,6 +75,7 @@ final class Game: NSObject {
 				VehicleSoundLog.log("Game mode changed to car; vehicle audio active")
 				playerController?.stop()
 				movePlayerIntoVehicle()
+				playPlayerVehicleSittingAnimation()
 				scnScene.rootNode.addChildNode(cameraContainer)
 				resetCarCameraFollow()
 				vehicle?.updateAudio(isActive: true)
@@ -141,6 +145,9 @@ final class Game: NSObject {
 	private let heldWeaponNodeNamePrefix = "__held_weapon_"
 	private var npcHealthLabelNodes: [ObjectIdentifier: SCNNode] = [:]
 	private let npcHealthLabelNodeNamePrefix = "__npc_health_label_"
+	private let playerVehicleAnimationKey = "__player_vehicle__"
+	private var isPlayerVehicleTransitionActive = false
+	private var playerVehicleTransitionControlsWereLocked = false
 	private var modeBeforeFreeCamera: Mode = .walk
 	private var freeCameraPosition = SCNVector3Zero
 	private var freeCameraMovement = SCNVector3Zero
@@ -622,14 +629,25 @@ final class Game: NSObject {
 		guard let playerController = playerController,
 			  let vehicle = vehicle else { return }
 
-		if let playerNode = scene.playerNode,
-		   playerNode.physicsBody == nil,
-		   let playerPhysicsBodyBeforeVehicle = playerPhysicsBodyBeforeVehicle {
-			playerNode.physicsBody = playerPhysicsBodyBeforeVehicle
-			self.playerPhysicsBodyBeforeVehicle = nil
+		let exit = playerExitPlacement(for: vehicle)
+		if let playerNode = scene.playerNode {
+			if playerNode.parent !== scene.rootNode {
+				scene.rootNode.addChildNode(playerNode)
+			}
+			if playerNode.physicsBody == nil,
+			   let playerPhysicsBodyBeforeVehicle = playerPhysicsBodyBeforeVehicle {
+				playerNode.physicsBody = playerPhysicsBodyBeforeVehicle
+				self.playerPhysicsBodyBeforeVehicle = nil
+			}
+			playerNode.isHidden = false
+			playerNode.setHiddenInHierarchy(false)
 		}
 
-		let vehiclePosition = vehicle.node.presentation.worldPosition
+		playerController.teleport(to: exit.position, yaw: exit.yaw)
+	}
+
+	private func playerExitPlacement(for vehicle: Vehicle) -> (position: SCNVector3, yaw: SCNFloat) {
+		let vehiclePosition = vehicle.node.worldPosition
 		let vehicleRight = horizontalVehicleRight()
 		let exitSide = SCNVector3(x: -vehicleRight.x, y: 0, z: -vehicleRight.z)
 		let exitPosition = SCNVector3(
@@ -637,7 +655,8 @@ final class Game: NSObject {
 			y: vehicleBottomWorldY() + playerExitHeightOffset,
 			z: vehiclePosition.z + exitSide.z * playerExitDistance
 		)
-		playerController.teleport(to: exitPosition, yaw: vehicleYaw())
+		let forward = vehicle.node.worldFront
+		return (exitPosition, atan2(-forward.x, -forward.z))
 	}
 
 	private func movePlayerIntoVehicle() {
@@ -647,7 +666,7 @@ final class Game: NSObject {
 		if playerPhysicsBodyBeforeVehicle == nil {
 			playerPhysicsBodyBeforeVehicle = playerNode.physicsBody
 		}
-		playerNode.physicsBody = nil
+		playerNode.disablePhysicsInHierarchy()
 
 		let seatPosition = playerSeatPosition(in: vehicle.node)
 		vehicle.node.addChildNode(playerNode)
@@ -659,6 +678,7 @@ final class Game: NSObject {
 			playerNode.eulerAngles = SCNVector3Zero
 		}
 		playerNode.isHidden = false
+		playerNode.setHiddenInHierarchy(false)
 	}
 
 	private func syncPlayerToVehicle() {
@@ -670,6 +690,111 @@ final class Game: NSObject {
 		}
 		playerNode.position = playerSeatPosition(in: vehicle.node)
 		playerNode.isHidden = false
+		playerNode.setHiddenInHierarchy(false)
+	}
+
+	private func enterVehicleWithAnimation(_ targetVehicle: Vehicle) {
+		guard !isPlayerVehicleTransitionActive else { return }
+
+		vehicle = targetVehicle
+		guard let playerNode = scene.playerNode,
+			  mode == .walk else {
+			mode = .car
+			return
+		}
+
+		playerController?.stop()
+		isPlayerVehicleTransitionActive = true
+		playerVehicleTransitionControlsWereLocked = arePlayerControlsLocked
+		arePlayerControlsLocked = true
+		let finish: () -> Void = { [weak self] in
+			guard let self = self else { return }
+			self.isPlayerVehicleTransitionActive = false
+			self.arePlayerControlsLocked = self.playerVehicleTransitionControlsWereLocked
+			self.mode = .car
+		}
+
+		guard let animationName = vehicleEnterAnimationName() else {
+			finish()
+			return
+		}
+		playPlayerVehicleAnimation(named: animationName, in: playerNode, repeat: false, completionHandler: finish)
+	}
+
+	private func exitVehicleWithAnimation() {
+		guard !isPlayerVehicleTransitionActive,
+			  mode == .car else { return }
+
+		isPlayerVehicleTransitionActive = true
+		playerVehicleTransitionControlsWereLocked = arePlayerControlsLocked
+		arePlayerControlsLocked = true
+		stopPlayerVehicleAnimation()
+
+		guard let playerNode = scene.playerNode,
+			  let animationName = vehicleExitAnimationName() else {
+			isPlayerVehicleTransitionActive = false
+			arePlayerControlsLocked = playerVehicleTransitionControlsWereLocked
+			return
+		}
+
+		playPlayerVehicleAnimation(named: animationName, in: playerNode, repeat: false) { [weak self] in
+			guard let self = self else { return }
+			self.isPlayerVehicleTransitionActive = false
+			self.arePlayerControlsLocked = self.playerVehicleTransitionControlsWereLocked
+			self.mode = .walk
+		}
+	}
+
+	private func playPlayerVehicleSittingAnimation() {
+		guard let playerNode = scene.playerNode,
+			  let animationName = vehicleSittingAnimationName() else { return }
+		playPlayerVehicleAnimation(named: animationName, in: playerNode, repeat: true)
+	}
+
+	private func playPlayerVehicleAnimation(
+		named animationName: String,
+		in playerNode: SCNNode,
+		repeat shouldRepeat: Bool,
+		completionHandler: (() -> Void)? = nil
+	) {
+		do {
+			try playPlayerAnimation(
+				named: animationName,
+				in: playerNode,
+				repeat: shouldRepeat,
+				animationKey: playerVehicleAnimationKey,
+				completionHandler: completionHandler
+			)
+		} catch {
+			completionHandler?()
+		}
+	}
+
+	private func stopPlayerVehicleAnimation() {
+		guard let playerNode = scene.playerNode else { return }
+		playerNode.removeAction(forKey: playerVehicleAnimationKey)
+		playerNode.removeAction(forKey: playerVehicleAnimationKey + ":position")
+	}
+
+	private func vehicleEnterAnimationName() -> String? {
+		return firstExistingAnimation(named: [
+			"anims/AutoSmNas FL.5ds",
+			"anims/AutoBigNas FL.5ds"
+		])
+	}
+
+	private func vehicleExitAnimationName() -> String? {
+		return firstExistingAnimation(named: [
+			"anims/AutoSmVys FL.5ds",
+			"anims/AutoBigVys FL.5ds"
+		])
+	}
+
+	private func vehicleSittingAnimationName() -> String? {
+		return firstExistingAnimation(named: [
+			"anims/AutoRidicVolant.5ds",
+			"anims/AutoRidicStativ.5ds"
+		])
 	}
 
 	private func playerSeatPosition(in body: SCNNode) -> SCNVector3 {
@@ -678,16 +803,16 @@ final class Game: NSObject {
 		let height = bounds.max.y - bounds.min.y
 		let length = bounds.max.z - bounds.min.z
 		return SCNVector3(
-			x: (bounds.min.x + bounds.max.x) / 2 - width * 0.16,
-			y: bounds.min.y + height * 0.12,
-			z: (bounds.min.z + bounds.max.z) / 2 + length * 0.12
+			x: (bounds.min.x + bounds.max.x) / 2 - width * 0.12,
+			y: bounds.min.y + height * 0.24,
+			z: (bounds.min.z + bounds.max.z) / 2 - length * 0.12
 		)
 	}
 
 	private func horizontalVehicleRight() -> SCNVector3 {
 		guard let vehicle = vehicle else { return SCNVector3(x: 1, y: 0, z: 0) }
 
-		let transform = vehicle.node.presentation.worldTransform
+		let transform = vehicle.node.worldTransform
 		let right = SCNVector3(x: transform.m11, y: 0, z: transform.m13)
 		let length = sqrt(right.x * right.x + right.z * right.z)
 		guard length > 0.0001 else { return SCNVector3(x: 1, y: 0, z: 0) }
@@ -707,7 +832,7 @@ final class Game: NSObject {
 		for x in xs {
 			for y in ys {
 				for z in zs {
-					let point = vehicle.node.presentation.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil)
+					let point = vehicle.node.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil)
 					bottom = min(bottom, point.y)
 				}
 			}
@@ -1039,6 +1164,15 @@ final class Game: NSObject {
 
 }
 
+extension SCNNode {
+	func setHiddenInHierarchy(_ hidden: Bool) {
+		isHidden = hidden
+		for child in childNodes {
+			child.setHiddenInHierarchy(hidden)
+		}
+	}
+}
+
 private extension SCNNode {
 	var hasModelContent: Bool {
 		if geometry != nil {
@@ -1326,7 +1460,9 @@ extension Game: SCNSceneRendererDelegate {
 				z: 0
 			)
 		} else if mode == .car && vehicle != nil {
-			syncPlayerToVehicle()
+			if !isPlayerVehicleTransitionActive {
+				syncPlayerToVehicle()
+			}
 			updateCarCameraLook(deltaTime: deltaTime)
 			updateCarCameraFollow(deltaTime: deltaTime)
 		} else {
@@ -1389,6 +1525,7 @@ extension Game: SCNSceneRendererDelegate {
 		updateNPCHealthLabels()
 		updateVehicleStealing()
 		updateBatCharge()
+		updateFullAutoFire()
 
 		if let node = scene.compassNode,
 		   let playerNode = scene.playerNode {
@@ -1491,11 +1628,11 @@ extension Game {
 		case .vehicleSteal(let vehicle):
 			beginVehicleSteal(vehicle)
 
-		case .vehicleEnter:
-			mode = .car
+		case .vehicleEnter(let vehicle):
+			enterVehicleWithAnimation(vehicle)
 
 		case .vehicleExit:
-			mode = .walk
+			exitVehicleWithAnimation()
 		}
 	}
 
@@ -1512,8 +1649,9 @@ extension Game {
 			beginBatCharge()
 			return
 		}
-		firePlayerWeapon()
-		scene.triggerPlayerFireEvent()
+		if firePlayerWeapon() {
+			scene.triggerPlayerFireEvent()
+		}
 	}
 
 	func playerDidHorn() {
@@ -1633,12 +1771,16 @@ extension Game {
 
 	func holsterPlayerWeapons() {
 		guard let playerNode = scene.playerNode else { return }
+		let hadHeldWeapon = scene.weapons(for: playerNode).contains { $0.position == .hand }
 		let didUpdateWeapons = scene.updateWeaponsIfPresent(for: playerNode) { weapons in
 			for weapon in weapons {
 				weapon.position = .inventory
 			}
 		}
 		guard didUpdateWeapons else { return }
+		if hadHeldWeapon {
+			playWeaponToggleAnimation()
+		}
 		refreshPlayerStatusHud()
 	}
 
@@ -1657,6 +1799,7 @@ extension Game {
 	private func dropPlayerWeapon(_ weapon: Weapon, from playerNode: SCNNode) {
 		guard let dropNode = droppedWeaponNode(for: weapon, from: playerNode) else { return }
 
+		playWeaponDropAnimation()
 		scene.updateWeaponsIfPresent(for: playerNode) { weapons in
 			weapons.removeAll { $0 === weapon }
 		}
@@ -1724,12 +1867,20 @@ extension Game {
 		guard let playerNode = scene.playerNode else { return 0 }
 
 		var addedCount = 0
+		var addedMagazineCount = 0
 		scene.updateWeapons(for: playerNode) { weapons in
 			var existingIds = Set(weapons.map { $0.id })
+			for weapon in weapons {
+				guard let profile = weapon.profile else { continue }
+				weapon.restAmmo += profile.clipSize
+				addedMagazineCount += 1
+			}
 			for id in Weapon.allDefinitionIds where !existingIds.contains(id) {
 				let weapon = Weapon(id: id)
 				if let profile = weapon.profile {
 					weapon.clipAmmo = profile.clipSize
+					weapon.restAmmo = profile.clipSize
+					addedMagazineCount += 1
 				} else {
 					weapon.clipAmmo = -1
 				}
@@ -1740,8 +1891,8 @@ extension Game {
 			}
 		}
 
-		if addedCount > 0 {
-			hud?.showConsoleText("Added \(addedCount) inventory items")
+		if addedCount > 0 || addedMagazineCount > 0 {
+			hud?.showConsoleText("Added \(addedCount) inventory items, \(addedMagazineCount) magazines")
 			refreshPlayerStatusHud()
 		} else {
 			hud?.showConsoleText("Inventory already has all items")
@@ -1751,6 +1902,10 @@ extension Game {
 
 	func equipPlayerWeapon(_ selectedWeapon: Weapon?) {
 		guard let playerNode = scene.playerNode else { return }
+		let currentWeapon = scene.weapons(for: playerNode).first { $0.position == .hand }
+		let didChangeWeapon = currentWeapon.map { currentWeapon in
+			selectedWeapon.map { currentWeapon !== $0 } ?? true
+		} ?? (selectedWeapon != nil)
 
 		scene.updateWeaponsIfPresent(for: playerNode) { weapons in
 			for weapon in weapons {
@@ -1758,6 +1913,9 @@ extension Game {
 			}
 		}
 
+		if didChangeWeapon {
+			playWeaponToggleAnimation()
+		}
 		if let selectedWeapon = selectedWeapon {
 			hud?.showConsoleText("Equipped \(selectedWeapon.name)")
 		} else {
@@ -1783,8 +1941,8 @@ extension Game {
 		weapon.clipAmmo = loadedAmmo
 		weapon.restAmmo -= loadedAmmo
 		reloadingWeaponUUID = weapon.uuid
-		weaponReloadEndTime = now + reloadDuration(profile: profile)
-		playWeaponAnimation(profile: profile, action: "reload")
+		weaponReloadEndTime = now + reloadDuration(weapon: weapon, profile: profile)
+		playWeaponAnimation(weapon: weapon, profile: profile, action: "reload")
 		playWeaponSound(profile.reloadSoundName)
 		refreshPlayerStatusHud()
 	}
@@ -1817,22 +1975,31 @@ extension Game {
 		playerController?.playSideJumpActionAnimation(direction: directionValue, animationKey: "__sideroll__")
 	}
 
-	private func firePlayerWeapon() {
+	private func updateFullAutoFire() {
+		guard isControlPressed(.FIRE),
+			  equippedPlayerWeapon()?.profile?.isFullAuto == true else { return }
+
+		if firePlayerWeapon() {
+			scene.triggerPlayerFireEvent()
+		}
+	}
+
+	private func firePlayerWeapon() -> Bool {
 		guard !isGamePaused,
 			  mode == .walk || mode == .car,
 			  let weapon = equippedPlayerWeapon(),
 			  weapon.isFirearm,
-			  let profile = weapon.profile else { return }
+			  let profile = weapon.profile else { return false }
 
 		let now = Date.timeIntervalSinceReferenceDate
-		guard !isReloading(weapon, at: now) else { return }
-		guard now - lastWeaponShotTime >= profile.shotInterval else { return }
+		guard !isReloading(weapon, at: now) else { return false }
+		guard now - lastWeaponShotTime >= profile.shotInterval else { return false }
 
 		if !weapon.hasAmmoLoaded {
 			if weapon.canReload {
 				reload(weapon, profile: profile)
 			}
-			return
+			return false
 		}
 
 		lastWeaponShotTime = now
@@ -1844,9 +2011,12 @@ extension Game {
 		for _ in 0..<profile.pelletCount {
 			shootFromCamera(profile: profile)
 		}
-		playWeaponAnimation(profile: profile, action: "fire")
+		if let fireAnimationName = playWeaponAnimation(weapon: weapon, profile: profile, action: "fire") {
+			scheduleShotgunPumpAnimationIfNeeded(weapon: weapon, afterFireAnimation: fireAnimationName)
+		}
 		playWeaponSound(profile.fireSoundName)
 		showMuzzleFlash()
+		return true
 	}
 
 	private func isReloading(_ weapon: Weapon, at time: TimeInterval = Date.timeIntervalSinceReferenceDate) -> Bool {
@@ -1859,9 +2029,9 @@ extension Game {
 		return false
 	}
 
-	private func reloadDuration(profile: Weapon.Profile) -> TimeInterval {
+	private func reloadDuration(weapon: Weapon, profile: Weapon.Profile) -> TimeInterval {
 		let stance = playerController?.isPlayerCrouching == true ? "drep" : "stoj"
-		guard let animationName = weaponAnimationName(animationSetId: profile.animationSetId, stance: stance, action: "reload"),
+		guard let animationName = weaponAnimationName(weapon: weapon, profile: profile, stance: stance, action: "reload"),
 			  let animation = try? loadAnimation(named: animationName) else {
 			return 1.0
 		}
@@ -2226,7 +2396,8 @@ extension Game {
 	}
 
 	private func equippedPlayerMovementAnimationSetId() -> Int? {
-		return equippedPlayerWeapon()?.profile?.animationSetId
+		guard let weapon = equippedPlayerWeapon() else { return nil }
+		return standingPlayerAnimationSetId(for: weapon)
 	}
 
 	func refreshPlayerStatusHud() {
@@ -2454,13 +2625,15 @@ extension Game {
 		scene.playAudio(source, on: cameraNode)
 	}
 
-	private func playWeaponAnimation(profile: Weapon.Profile, action: String) {
+	@discardableResult
+	private func playWeaponAnimation(weapon: Weapon, profile: Weapon.Profile, action: String) -> String? {
 		guard profile.animationSetId > 0,
-			  scene.playerNode != nil else { return }
+			  scene.playerNode != nil else { return nil }
 
 		let stance = playerController?.isPlayerCrouching == true ? "drep" : "stoj"
-		guard let animationName = weaponAnimationName(animationSetId: profile.animationSetId, stance: stance, action: action) else { return }
+		guard let animationName = weaponAnimationName(weapon: weapon, profile: profile, stance: stance, action: action) else { return nil }
 		playPlayerActionAnimation(named: animationName, animationKey: "__weapon_\(action)__")
+		return animationName
 	}
 
 	private func playPlayerActionAnimation(named animationName: String, animationKey: String) {
@@ -2471,13 +2644,115 @@ extension Game {
 		}
 	}
 
-	private func weaponAnimationName(animationSetId: Int, stance: String, action: String) -> String? {
-		let animationPrefix = "gun" + String(format: "%02d", animationSetId)
-		let candidates = [
-			"anims/\(animationPrefix) \(stance) \(action).5ds",
-			"anims/\(animationPrefix) stoj \(action).5ds"
-		]
+	private func playWeaponToggleAnimation() {
+		guard let animationName = genericWeaponAnimationName(action: "on off") else { return }
+		playPlayerActionAnimation(named: animationName, animationKey: "__weapon_toggle__")
+	}
+
+	private func playWeaponDropAnimation() {
+		guard let animationName = genericWeaponAnimationName(action: "zahozeni") else { return }
+		playPlayerActionAnimation(named: animationName, animationKey: "__weapon_drop__")
+	}
+
+	private func genericWeaponAnimationName(action: String) -> String? {
+		let stance = playerController?.isPlayerCrouching == true ? "drep" : "stoj"
+		var candidates = ["anims/gun \(stance) \(action).5ds"]
+		if stance != "stoj" {
+			candidates.append("anims/gun stoj \(action).5ds")
+		}
 		return firstExistingAnimation(named: candidates)
+	}
+
+	private func scheduleShotgunPumpAnimationIfNeeded(weapon: Weapon, afterFireAnimation fireAnimationName: String) {
+		guard weapon.id == 11 || weapon.id == 34,
+			  let playerNode = scene.playerNode else { return }
+
+		let stance = playerController?.isPlayerCrouching == true ? "drep" : "stoj"
+		guard let animationName = firstExistingAnimation(named: [
+			"anims/gun08 \(stance) Pump.5ds",
+			"anims/gun08 stoj Pump.5ds"
+		]) else { return }
+
+		let delay = (try? animationDuration(named: fireAnimationName)) ?? 0.2
+		playerNode.runAction(SCNAction.sequence([
+			SCNAction.wait(duration: delay),
+			SCNAction.run { [weak self] _ in
+				guard self?.mode == .walk else { return }
+				self?.playPlayerActionAnimation(named: animationName, animationKey: "__weapon_pump__")
+			}
+		]), forKey: "__weapon_pump_schedule__")
+	}
+
+	private func weaponAnimationName(weapon: Weapon, profile: Weapon.Profile, stance: String, action: String) -> String? {
+		let animationSetIds = weaponAnimationSetCandidates(weapon: weapon, profile: profile, stance: stance)
+		let prefersStrafe = action == "fire" &&
+			playerController?.isPlayerStrafingForWeaponAnimation == true
+
+		var candidates: [String] = []
+		for animationSetId in animationSetIds {
+			let animationPrefix = "gun" + String(format: "%02d", animationSetId)
+			if prefersStrafe {
+				candidates.append("anims/\(animationPrefix) \(stance) \(action) Straf.5ds")
+			}
+			candidates.append("anims/\(animationPrefix) \(stance) \(action).5ds")
+			if stance != "stoj" {
+				if prefersStrafe {
+					candidates.append("anims/\(animationPrefix) stoj \(action) Straf.5ds")
+				}
+				candidates.append("anims/\(animationPrefix) stoj \(action).5ds")
+			}
+		}
+		return firstExistingAnimation(named: candidates)
+	}
+
+	private func weaponAnimationSetCandidates(weapon: Weapon, profile: Weapon.Profile, stance: String) -> [Int] {
+		var animationSetIds = [profile.animationSetId]
+		if stance == "drep" {
+			animationSetIds.append(crouchedPlayerAnimationSetId(forStandingSetId: standingPlayerAnimationSetId(for: weapon)))
+		}
+		animationSetIds.append(standingPlayerAnimationSetId(for: weapon))
+		return uniqueValidAnimationSetIds(animationSetIds)
+	}
+
+	private func standingPlayerAnimationSetId(for weapon: Weapon) -> Int {
+		if weapon.isBaseballBat {
+			return 1
+		}
+		switch weapon.id {
+		case 6, 7, 8, 9:
+			return 2
+		case 12:
+			return 4
+		case 10, 11, 13, 14, 33, 34:
+			return 5
+		default:
+			if let animationSetId = weapon.profile?.animationSetId,
+			   (1...8).contains(animationSetId) {
+				return animationSetId
+			}
+			return 1
+		}
+	}
+
+	private func crouchedPlayerAnimationSetId(forStandingSetId animationSetId: Int) -> Int {
+		switch animationSetId {
+		case 1:
+			return 6
+		case 2, 3:
+			return 7
+		default:
+			return 8
+		}
+	}
+
+	private func uniqueValidAnimationSetIds(_ animationSetIds: [Int]) -> [Int] {
+		var seen = Set<Int>()
+		var uniqueIds: [Int] = []
+		for animationSetId in animationSetIds where (1...8).contains(animationSetId) && !seen.contains(animationSetId) {
+			seen.insert(animationSetId)
+			uniqueIds.append(animationSetId)
+		}
+		return uniqueIds
 	}
 
 	private func firstExistingAnimation(named candidates: [String]) -> String? {

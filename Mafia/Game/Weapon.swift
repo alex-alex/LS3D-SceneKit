@@ -19,6 +19,7 @@ final class Weapon {
 	struct Profile {
 		let clipSize: Int
 		let shotInterval: TimeInterval
+		let isFullAuto: Bool
 		let range: SCNFloat
 		let impulse: SCNFloat
 		let pelletCount: Int
@@ -30,7 +31,28 @@ final class Weapon {
 
 	struct Definition {
 		let name: String
+		let itemKind: Int
+		let itemFlags: Int
+		let concealment: Int
+		let magazineState: Int
 		let modelName: String
+		let weaponTypeValues: [Int]
+		let fireSoundId: Int
+		let reloadSoundId: Int
+		let handlingStyle: Int
+		let clipSize: Int
+		let reserveAmmoCapacity: Int
+		let projectileMask: Float
+		let projectileFragmentation: Float
+		let aimDeviation: Float
+		let maximumRange: Float
+		let damage: Float
+		let auxiliaryValue1: Float
+		let auxiliaryValue2: Float
+		let recoil: Float
+		let accuracy: Float
+		let cadenceValues: [Int]
+		let postShotReloadValues: [Int]
 		let profile: Profile?
 	}
 
@@ -52,6 +74,10 @@ final class Weapon {
 
 	var profile: Profile? {
 		return definition.profile
+	}
+
+	var itemDefinition: Definition {
+		return definition
 	}
 
 	var isFirearm: Bool {
@@ -113,19 +139,35 @@ private extension Weapon {
 		for id in 0..<(data.count / recordSize) {
 			let offset = id * recordSize
 			let name = data.zeroTerminatedString(at: offset, maxLength: 32)
+			let itemKind = data.uint8(at: offset + 32)
+			let itemFlags = data.uint8(at: offset + 33)
+			let concealment = data.uint8(at: offset + 34)
+			let magazineState = data.uint8(at: offset + 35)
 			let modelName = data.zeroTerminatedString(at: offset + 36, maxLength: 32)
-			let animationSetId = data.int32(at: offset + 68)
+			let weaponTypeValues = stride(from: 68, through: 80, by: 4).map { data.int32(at: offset + $0) }
 			let fireSoundId = data.int32(at: offset + 84)
 			let reloadSoundId = data.int32(at: offset + 88)
-			let weaponClass = data.int32(at: offset + 92)
+			let handlingStyle = data.int32(at: offset + 92)
 			let clipSize = data.int32(at: offset + 96)
-			let range = data.float32(at: offset + 116)
-			let impulse = data.float32(at: offset + 112)
-			let spread = data.float32(at: offset + 132)
-			let intervalMs = data.int32(at: offset + 144) > 0 ? data.int32(at: offset + 144) : data.int32(at: offset + 152)
+			let reserveAmmoCapacity = data.int32(at: offset + 100)
+			let projectileMask = data.float32(at: offset + 104)
+			let projectileFragmentation = data.float32(at: offset + 108)
+			let aimDeviation = data.float32(at: offset + 112)
+			let maximumRange = data.float32(at: offset + 116)
+			let damage = data.float32(at: offset + 120)
+			let auxiliaryValue1 = data.float32(at: offset + 124)
+			let auxiliaryValue2 = data.float32(at: offset + 128)
+			let recoil = data.float32(at: offset + 132)
+			let accuracy = data.float32(at: offset + 136)
+			let cadenceValues = stride(from: 140, through: 164, by: 4).map { data.int32(at: offset + $0) }
+			let postShotReloadValues = stride(from: 168, through: 184, by: 4).map { data.int32(at: offset + $0) }
+			let firstShotIntervalMs = cadenceValues[1]
+			let repeatShotIntervalMs = cadenceValues[3]
+			let intervalMs = firstShotIntervalMs > 0 ? firstShotIntervalMs : repeatShotIntervalMs
+			let animationSetId = weaponTypeValues[0]
 
 			let profile: Profile?
-			if weaponClass > 0, clipSize > 0 {
+			if handlingStyle > 0, clipSize > 0 {
 				let fireSoundName: String?
 				if fireSoundId > 0 {
 					guard let soundName = soundNames[fireSoundId] else {
@@ -145,14 +187,15 @@ private extension Weapon {
 					reloadSoundName = nil
 				}
 
-				let pelletCount = weaponClass == 3 && clipSize <= 8 && id != 10 && id != 33 ? 8 : 1
+				let pelletCount = handlingStyle == 3 && clipSize <= 8 && id != 10 && id != 33 ? 8 : 1
 				profile = Profile(
 					clipSize: clipSize,
 					shotInterval: TimeInterval(max(60, intervalMs)) / 1000,
-					range: max(30, min(SCNFloat(range), 180)),
-					impulse: max(8, min(SCNFloat(impulse), 36)),
+					isFullAuto: firstShotIntervalMs == 0 && repeatShotIntervalMs > 0,
+					range: max(30, min(SCNFloat(maximumRange), 180)),
+					impulse: max(8, min(SCNFloat(aimDeviation), 36)),
 					pelletCount: pelletCount,
-					spread: spreadForWeapon(id: id, weaponClass: weaponClass, tableSpread: spread),
+					spread: spreadForWeapon(id: id, weaponClass: handlingStyle, tableSpread: recoil),
 					animationSetId: animationSetId,
 					fireSoundName: fireSoundName,
 					reloadSoundName: reloadSoundName
@@ -161,7 +204,32 @@ private extension Weapon {
 				profile = nil
 			}
 
-			definitions[id] = Definition(name: name, modelName: modelName, profile: profile)
+			definitions[id] = Definition(
+				name: name,
+				itemKind: itemKind,
+				itemFlags: itemFlags,
+				concealment: concealment,
+				magazineState: magazineState,
+				modelName: modelName,
+				weaponTypeValues: weaponTypeValues,
+				fireSoundId: fireSoundId,
+				reloadSoundId: reloadSoundId,
+				handlingStyle: handlingStyle,
+				clipSize: clipSize,
+				reserveAmmoCapacity: reserveAmmoCapacity,
+				projectileMask: projectileMask,
+				projectileFragmentation: projectileFragmentation,
+				aimDeviation: aimDeviation,
+				maximumRange: maximumRange,
+				damage: damage,
+				auxiliaryValue1: auxiliaryValue1,
+				auxiliaryValue2: auxiliaryValue2,
+				recoil: recoil,
+				accuracy: accuracy,
+				cadenceValues: cadenceValues,
+				postShotReloadValues: postShotReloadValues,
+				profile: profile
+			)
 		}
 		return definitions
 	}
@@ -218,6 +286,11 @@ private extension Weapon {
 }
 
 private extension Data {
+
+	func uint8(at offset: Int) -> Int {
+		guard offset < count else { return 0 }
+		return Int(self[offset])
+	}
 
 	func int32(at offset: Int) -> Int {
 		guard offset + 4 <= count else { return 0 }

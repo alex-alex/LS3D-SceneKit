@@ -1728,7 +1728,7 @@ final class Scene {
 	) throws {
 		guard delay > 0 else {
 			stopRecordAnimationActions(in: node, recordName: recordName, keeping: animationKey)
-			try playAnimation(named: name, in: node, animationKey: animationKey)
+			try playAnimation(named: name, in: node, animationKey: animationKey, includePositionAnimation: false)
 			return
 		}
 
@@ -1737,7 +1737,7 @@ final class Scene {
 			.run { [weak self] node in
 				do {
 					self?.stopRecordAnimationActions(in: node, recordName: recordName, keeping: animationKey)
-					try playAnimation(named: name, in: node, animationKey: animationKey)
+					try playAnimation(named: name, in: node, animationKey: animationKey, includePositionAnimation: false)
 				} catch {
 					print("== Record Animation failed delayed: \(name) \(error)")
 				}

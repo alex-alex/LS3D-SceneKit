@@ -2242,22 +2242,23 @@ extension Script {
 		guard width > 0, height > 0, length > 0 else {
 			actor.worldPosition = car.presentation.worldPosition
 			removePhysicsBodies(from: actor)
-			actor.isHidden = false
+			actor.setHiddenInHierarchy(false)
 			return
 		}
 
 		let isLeftSeat = seatId == 0 || seatId == 2
 		let isFrontSeat = seatId == 0 || seatId == 1
+		let seatZOffset = isFrontSeat ? -length * 0.12 : -length * 0.28
 		let seatPosition = SCNVector3(
-			x: (bounds.min.x + bounds.max.x) / 2 + (isLeftSeat ? -width : width) * 0.16,
-			y: bounds.min.y + height * 0.12,
-			z: (bounds.min.z + bounds.max.z) / 2 + (isFrontSeat ? length : -length) * 0.12
+			x: (bounds.min.x + bounds.max.x) / 2 + (isLeftSeat ? -width : width) * 0.12,
+			y: bounds.min.y + height * 0.24,
+			z: (bounds.min.z + bounds.max.z) / 2 + seatZOffset
 		)
 		removePhysicsBodies(from: actor)
 		body.addChildNode(actor)
 		actor.position = seatPosition
 		actor.eulerAngles = SCNVector3Zero
-		actor.isHidden = false
+		actor.setHiddenInHierarchy(false)
 	}
 
 	private func carBodyNode(for car: SCNNode) -> SCNNode {

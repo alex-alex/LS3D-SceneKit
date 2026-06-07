@@ -177,6 +177,7 @@ func positionAnimationDuration(named name: String) throws -> TimeInterval {
 func playPositionAnimation(
 	named name: String,
 	in node: SCNNode,
+	repeat shouldRepeat: Bool = false,
 	animationKey: String? = nil,
 	completionHandler: (() -> Void)? = nil
 ) throws {
@@ -189,11 +190,13 @@ func playPositionAnimation(
 	}
 
 	let basePosition = node.presentation.position
-	node.runAction(
-		SCNAction.customAction(duration: duration) { node, elapsedTime in
-			animation.apply(elapsedTime: TimeInterval(elapsedTime), to: node, relativeTo: basePosition)
-		},
-		forKey: animationKey
-	)
+	let animationAction = SCNAction.customAction(duration: duration) { node, elapsedTime in
+		animation.apply(elapsedTime: TimeInterval(elapsedTime), to: node, relativeTo: basePosition)
+	}
+	if shouldRepeat {
+		node.runAction(SCNAction.repeatForever(animationAction), forKey: animationKey)
+	} else {
+		node.runAction(animationAction, forKey: animationKey)
+	}
 	node.runAction(SCNAction.wait(duration: duration), completionHandler: completionHandler)
 }

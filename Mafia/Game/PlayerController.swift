@@ -17,6 +17,7 @@ func playPlayerAnimation(
 	repeat shouldRepeat: Bool = false,
 	animationKey: String? = nil,
 	transitionDuration: TimeInterval = playerAnimationTransitionDuration,
+	includePositionAnimation: Bool = true,
 	completionHandler: (() -> Void)? = nil) throws {
 	print("Player animation [\(animationKey ?? "none")]: \(name)")
 	try playAnimation(
@@ -25,6 +26,7 @@ func playPlayerAnimation(
 		repeat: shouldRepeat,
 		animationKey: animationKey,
 		transitionDuration: transitionDuration,
+		includePositionAnimation: includePositionAnimation,
 		completionHandler: completionHandler
 	)
 }
@@ -45,6 +47,7 @@ final class PlayerController {
 	private var lookPitch: SCNFloat = 0
 	private var horizontalVelocity = SCNVector3Zero
 	private var verticalVelocity: SCNFloat = 0
+	private var verticalOffset: SCNFloat = 0
 	private var requestedCrouching = false
 	private var requestedRunning = false
 	private var standingY: SCNFloat
@@ -52,9 +55,6 @@ final class PlayerController {
 	private var isWalkingAnimationPlaying = false
 	private var currentWalkingAnimationName: String?
 	private var currentAirAnimationName: String?
-	private var currentCrouchTransitionAnimationName: String?
-	private var crouchTransitionId = 0
-	private var isCrouchTransitionPlaying = false
 	private var walkingAnimationHoldCount = 0
 	private var wasAirborneLastFrame = false
 	private var hasFallenDuringJump = false
@@ -78,6 +78,9 @@ final class PlayerController {
 	var isPlayerCrouching: Bool {
 		return requestedCrouchingValue
 	}
+	var isPlayerStrafingForWeaponAnimation: Bool {
+		return abs(movement.x) > 0.35
+	}
 
 	private let walkSpeed: SCNFloat = 3.2
 	private let runSpeed: SCNFloat = 6.1
@@ -94,16 +97,8 @@ final class PlayerController {
 	private let minGroundNormalY: SCNFloat = 0.65
 	private let minLookPitch: SCNFloat = -0.65
 	private let maxLookPitch: SCNFloat = 0.45
-	private let crouchWalkingAnimationCandidates = [
-		"anims/x panika drep chuze.5ds",
-		"anims/x panika drep krok.5ds",
-		"anims/walk drep.5ds"
-	]
 	private let walkingAnimationKey = "__walking__"
 	private let airAnimationKey = "__air__"
-	private let crouchDownAnimationName = "anims/x panika drep dolu.5ds"
-	private let crouchUpAnimationName = "anims/x panika drep nahoru.5ds"
-	private let crouchAnimationKey = "__crouch__"
 
 	init(node: SCNNode, scene: SCNScene) {
 		self.node = node
@@ -160,6 +155,7 @@ final class PlayerController {
 		pendingPitch = 0
 		horizontalVelocity = SCNVector3Zero
 		verticalVelocity = 0
+		verticalOffset = 0
 		wasAirborneLastFrame = false
 		hasFallenDuringJump = false
 		stopCurrentAirAnimation()
@@ -186,7 +182,7 @@ final class PlayerController {
 	func playSideJumpActionAnimation(direction: Int, animationKey: String) {
 		guard direction != 0 else { return }
 
-		guard let animationName = jumpStartAnimationName(lateralMovement: direction < 0 ? -1 : 1, usesStandingSet: true) else { return }
+		guard let animationName = jumpStartAnimationName(lateralMovement: direction < 0 ? -1 : 1) else { return }
 		playActionAnimation(named: animationName, animationKey: animationKey)
 	}
 
@@ -198,6 +194,7 @@ final class PlayerController {
 		standingY = node.position.y
 		node.physicsBody?.velocity = SCNVector3Zero
 		node.physicsBody?.angularVelocity = SCNVector4Zero
+		verticalOffset = 0
 	}
 
 	func face(worldYaw yaw: SCNFloat) {
@@ -262,17 +259,20 @@ final class PlayerController {
 		)
 		if wantsJump && !isCrouching && grounded {
 			verticalVelocity = jumpSpeed
+			verticalOffset = max(0, node.position.y - standingY)
 			wasAirborneLastFrame = true
 			hasFallenDuringJump = false
 			playJumpStartAnimation()
 		}
 		wantsJump = false
 		verticalVelocity -= gravity * dt
-		node.position.y = max(standingY, node.position.y + verticalVelocity * dt)
+		verticalOffset = max(0, verticalOffset + verticalVelocity * dt)
+		node.position.y = standingY + verticalOffset
 		updateGroundHeight()
-		if node.position.y <= standingY {
+		if verticalOffset <= 0 {
 			node.position.y = standingY
 			verticalVelocity = 0
+			verticalOffset = 0
 		}
 		updateAirAnimationState()
 		body.velocity = SCNVector3Zero
@@ -319,49 +319,9 @@ final class PlayerController {
 			wasAirborneLastFrame = false
 			hasFallenDuringJump = false
 			stopCurrentAirAnimation()
-			playCrouchTransition(named: crouchDownAnimationName)
-		} else {
-			playCrouchTransition(named: crouchUpAnimationName)
 		}
 		configurePhysics()
-	}
-
-	private func playCrouchTransition(named animationName: String) {
-		stopCurrentCrouchTransitionAnimation()
-		crouchTransitionId += 1
-		let transitionId = crouchTransitionId
-		currentCrouchTransitionAnimationName = animationName
-		isCrouchTransitionPlaying = true
-
-		do {
-			try playPlayerAnimation(
-				named: animationName,
-				in: node,
-				animationKey: crouchAnimationKey
-			) { [weak self] in
-				guard let self = self,
-					  self.crouchTransitionId == transitionId else { return }
-
-				self.currentCrouchTransitionAnimationName = nil
-				self.isCrouchTransitionPlaying = false
-				let isMoving = self.movement.x * self.movement.x + self.movement.z * self.movement.z > 0.0001
-				self.updateWalkingAnimation(isMoving: isMoving)
-			}
-		} catch {
-			currentCrouchTransitionAnimationName = nil
-			isCrouchTransitionPlaying = false
-		}
-	}
-
-	private func stopCurrentCrouchTransitionAnimation() {
-		guard let animationName = currentCrouchTransitionAnimationName else { return }
-
-		try? stopAnimation(
-			named: animationName,
-			in: node,
-			animationKey: crouchAnimationKey
-		)
-		currentCrouchTransitionAnimationName = nil
+		updateWalkingAnimation(isMoving: movement.x * movement.x + movement.z * movement.z > 0.0001)
 	}
 
 	private func stopCurrentAirAnimation() {
@@ -387,7 +347,7 @@ final class PlayerController {
 	}
 
 	private var isWalkingAnimationHeld: Bool {
-		return isCrouchTransitionPlaying || walkingAnimationHoldCount > 0 || currentAirAnimationName != nil
+		return walkingAnimationHoldCount > 0 || currentAirAnimationName != nil
 	}
 
 	private func holdWalkingAnimation() {
@@ -408,10 +368,11 @@ final class PlayerController {
 		guard !isAirborneForAnimation else { return nil }
 
 		if isCrouching {
-			if isMoving {
-				return firstExistingAnimation(named: crouchWalkingAnimationCandidates)
+			let animationSetId = movementAnimationSetId()
+			if !isMoving {
+				return idleAnimationName(animationSetId: animationSetId)
 			}
-			return idleAnimationName(animationSetId: 8)
+			return movementAnimationName(animationSetId: animationSetId)
 		}
 
 		let animationSetId = movementAnimationSetId()
@@ -429,13 +390,24 @@ final class PlayerController {
 		let isRunningForward = requestedRunningValue && forward > 0.35
 
 		if forward < -0.35 {
+			if abs(lateral) > 0.35 {
+				let prefix = lateral < 0 ? "backL" : "backR"
+				return firstExistingAnimation(named: [
+					"anims/\(prefix)\(suffix).5ds",
+					"anims/back\(suffix).5ds",
+					"anims/\(prefix)1.5ds",
+					"anims/back1.5ds"
+				])
+			}
 			return firstExistingAnimation(named: [
 				"anims/back\(suffix).5ds",
 				"anims/back1.5ds"
 			])
 		}
 		if abs(lateral) > 0.35 && abs(forward) <= 0.35 {
-			let prefixes = lateral < 0 ? ["strafL", "left"] : ["strafR", "right"]
+			let prefixes = requestedRunningValue
+				? (lateral < 0 ? ["strafRL", "strafL", "left"] : ["strafRR", "strafR", "right"])
+				: (lateral < 0 ? ["strafL", "left"] : ["strafR", "right"])
 			return firstExistingAnimation(named: prefixes.flatMap { prefix in
 				[
 					"anims/\(prefix)\(suffix).5ds",
@@ -443,6 +415,23 @@ final class PlayerController {
 				]
 			})
 		}
+		if abs(lateral) > 0.35 && forward > 0.35 {
+			let prefix: String
+			if isRunningForward {
+				prefix = lateral < 0 ? "runL" : "runR"
+			} else {
+				prefix = lateral < 0 ? "walkL" : "walkR"
+			}
+			let fallbackPrefix = isRunningForward ? "run" : "walk"
+			return firstExistingAnimation(named: [
+				"anims/\(prefix)\(suffix).5ds",
+				"anims/\(fallbackPrefix)\(suffix).5ds",
+				"anims/\(prefix)1.5ds",
+				"anims/\(fallbackPrefix)1.5ds",
+				"anims/walk1.5ds"
+			])
+		}
+
 		let prefix = isRunningForward ? "run" : "walk"
 		return firstExistingAnimation(named: [
 			"anims/\(prefix)\(suffix).5ds",
@@ -469,9 +458,20 @@ final class PlayerController {
 
 	private func movementAnimationSetId() -> Int {
 		if isCrouching {
-			return 8
+			return crouchMovementAnimationSetId(forStandingSetId: standingMovementAnimationSetId())
 		}
 		return standingMovementAnimationSetId()
+	}
+
+	private func crouchMovementAnimationSetId(forStandingSetId animationSetId: Int) -> Int {
+		switch animationSetId {
+		case 1:
+			return 6
+		case 2, 3:
+			return 7
+		default:
+			return 8
+		}
 	}
 
 	private func standingMovementAnimationSetId() -> Int {
@@ -484,20 +484,20 @@ final class PlayerController {
 
 	private func playJumpStartAnimation() {
 		stopCurrentWalkingAnimation()
-		playAirAnimation(named: jumpStartAnimationName(lateralMovement: movement.x, usesStandingSet: false), repeat: false) { [weak self] in
+		playAirAnimation(named: jumpStartAnimationName(lateralMovement: movement.x), repeat: false) { [weak self] in
 			self?.playFallLoopAnimationIfNeeded()
 		}
 	}
 
-	private func jumpStartAnimationName(lateralMovement: SCNFloat, usesStandingSet: Bool) -> String? {
-		let animationSetId = usesStandingSet ? standingMovementAnimationSetId() : movementAnimationSetId()
-		let suffix = "\(animationSetId)"
-		let directionalPrefix = lateralMovement < -0.2 ? "jumpL" : lateralMovement > 0.2 ? "jumpR" : "jump"
-		let candidates = [
-			"anims/\(directionalPrefix)\(suffix).5ds",
-			"anims/jump\(suffix).5ds",
-			"anims/jump1.5ds"
-		]
+	private func jumpStartAnimationName(lateralMovement: SCNFloat) -> String? {
+		let candidates: [String]
+		if lateralMovement < -0.2 {
+			candidates = ["anims/jumpL1.5ds", "anims/jumpL3.5ds", "anims/jump1.5ds"]
+		} else if lateralMovement > 0.2 {
+			candidates = ["anims/jumpR1.5ds", "anims/jumpR3.5ds", "anims/jump1.5ds"]
+		} else {
+			candidates = ["anims/jump1.5ds"]
+		}
 		return firstExistingAnimation(named: candidates)
 	}
 
@@ -530,6 +530,7 @@ final class PlayerController {
 				in: node,
 				repeat: shouldRepeat,
 				animationKey: airAnimationKey,
+				includePositionAnimation: false,
 				completionHandler: { [weak self] in
 					if shouldRepeat == false && self?.currentAirAnimationName == animationName {
 						self?.currentAirAnimationName = nil

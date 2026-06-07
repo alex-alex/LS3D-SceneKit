@@ -65,6 +65,7 @@ final class HudScene: SKScene {
 	private var selectedMissionEndOptionIndex = 0
 	private var inventoryRows: [(node: SKShapeNode, dropButton: SKShapeNode?, weapon: Weapon?)] = []
 	private var selectedInventoryRowIndex = 0
+	private var inventoryRowScrollOffset: CGFloat = 0
 	private var inventoryPausedGame = false
 	private var isCutsceneOverlayVisible = false
 	private var lastSpeedText: String?
@@ -1252,6 +1253,7 @@ extension HudScene {
 		}
 		inventoryRows.removeAll()
 		selectedInventoryRowIndex = 0
+		inventoryRowScrollOffset = 0
 
 		let weapons = game.playerInventoryWeapons()
 		if weapons.isEmpty {
@@ -1284,6 +1286,7 @@ extension HudScene {
 		}) {
 			selectedInventoryRowIndex = selectedIndex
 		}
+		scrollSelectedInventoryRowIntoView()
 		refreshInventorySelection()
 		layoutInventoryRows()
 	}
@@ -1343,6 +1346,7 @@ extension HudScene {
 	private func layoutInventoryRows() {
 		guard inventoryRows.isEmpty == false else { return }
 
+		scrollSelectedInventoryRowIntoView()
 		let rowWidth = min(360, max(240, size.width - 48))
 		let startY = inventoryHintLabel.position.y - 46
 		for (index, row) in inventoryRows.enumerated() {
@@ -1352,7 +1356,7 @@ extension HudScene {
 				cornerHeight: 6,
 				transform: nil
 			)
-			row.node.position = CGPoint(x: 0, y: startY - CGFloat(index) * 50)
+			row.node.position = CGPoint(x: 0, y: startY - CGFloat(index) * 50 + inventoryRowScrollOffset)
 			for case let label as SKLabelNode in row.node.children {
 				if label.horizontalAlignmentMode == .left {
 					label.position.x = -rowWidth/2 + 14
@@ -1368,7 +1372,29 @@ extension HudScene {
 		guard !inventoryRows.isEmpty else { return }
 
 		selectedInventoryRowIndex = max(0, min(inventoryRows.count - 1, selectedInventoryRowIndex + offset))
+		scrollSelectedInventoryRowIntoView()
 		refreshInventorySelection()
+		layoutInventoryRows()
+	}
+
+	private func scrollSelectedInventoryRowIntoView() {
+		guard !inventoryRows.isEmpty else { return }
+
+		let rowSpacing: CGFloat = 50
+		let rowHeight: CGFloat = 42
+		let startY = inventoryHintLabel.position.y - 46
+		let topVisibleY = startY
+		let bottomVisibleY = -size.height / 2 + 64
+		let visibleHeight = max(rowHeight, topVisibleY - bottomVisibleY)
+		let maxScrollOffset = max(0, CGFloat(inventoryRows.count - 1) * rowSpacing - (visibleHeight - rowHeight))
+
+		let selectedRowY = startY - CGFloat(selectedInventoryRowIndex) * rowSpacing + inventoryRowScrollOffset
+		if selectedRowY - rowHeight / 2 < bottomVisibleY {
+			inventoryRowScrollOffset += bottomVisibleY - (selectedRowY - rowHeight / 2)
+		} else if selectedRowY + rowHeight / 2 > topVisibleY + rowHeight / 2 {
+			inventoryRowScrollOffset -= (selectedRowY + rowHeight / 2) - (topVisibleY + rowHeight / 2)
+		}
+		inventoryRowScrollOffset = max(0, min(maxScrollOffset, inventoryRowScrollOffset))
 	}
 
 	private func refreshInventorySelection() {
@@ -1824,12 +1850,37 @@ extension HudScene {
 	}
 
 	override func keyDown(with event: NSEvent) {
-		guard !event.isARepeat else { return }
+		if event.isARepeat {
+			if isMissionEndVisible {
+				switch event.keyCode {
+				case 125: // down
+					moveMissionEndSelection(by: 1)
+				case 126: // up
+					moveMissionEndSelection(by: -1)
+				default:
+					break
+				}
+			} else if inventoryOverlay.isHidden == false {
+				switch event.keyCode {
+				case 125: // down
+					moveInventorySelection(by: 1)
+				case 126: // up
+					moveInventorySelection(by: -1)
+				default:
+					break
+				}
+			}
+			return
+		}
 
 		if isMissionEndVisible {
 			switch event.keyCode {
+			case 125: // down
+				moveMissionEndSelection(by: 1)
+			case 126: // up
+				moveMissionEndSelection(by: -1)
 			case 36, 76: // return, keypad enter
-				game.activateMissionEndOption(at: 0)
+				activateSelectedMissionEndOption()
 			case 53: // escape
 				game.activateMissionEndOption(at: 1)
 			default:
@@ -1853,6 +1904,20 @@ extension HudScene {
 		if event.keyCode == 34 { // I
 			game.pressControl(.INVENTORY)
 			toggleInventory()
+			return
+		}
+
+		if inventoryOverlay.isHidden == false {
+			switch event.keyCode {
+			case 125: // down
+				moveInventorySelection(by: 1)
+			case 126: // up
+				moveInventorySelection(by: -1)
+			case 36, 76: // return, keypad enter
+				equipSelectedInventoryRow()
+			default:
+				break
+			}
 			return
 		}
 

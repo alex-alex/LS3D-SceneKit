@@ -532,10 +532,21 @@ func playAnimation(
 	repeat: Bool = false,
 	animationKey: String? = nil,
 	transitionDuration: TimeInterval = 0,
+	includePositionAnimation: Bool = true,
 	completionHandler: (() -> Void)? = nil) throws {
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
 	let (animations, duration) = try loadAnimation(named: name)
+	let positionAnimationName = includePositionAnimation ? siblingPositionAnimationName(for: name) : nil
+	let siblingPositionDuration = positionAnimationName.flatMap { try? positionAnimationDuration(named: $0) } ?? 0
+	if let positionAnimationName = positionAnimationName {
+		try? playPositionAnimation(
+			named: positionAnimationName,
+			in: node,
+			repeat: `repeat`,
+			animationKey: positionAnimationKey(for: animationKey)
+		)
+	}
 	let matchedAnimations = animations.compactMap { animation -> (animation: Animation, node: SCNNode)? in
 		guard let targetNode = animationTargetNode(named: animation.name, in: node) else { return nil }
 		return (animation, targetNode)
@@ -598,7 +609,7 @@ func playAnimation(
 	if matchedAnimations.isEmpty {
 		print("Animation target missing: \(name) root=\(node.name ?? "unnamed") tracks=\(animations.count)")
 	}
-	node.runAction(SCNAction.wait(duration: duration), completionHandler: completionHandler)
+	node.runAction(SCNAction.wait(duration: max(duration, siblingPositionDuration)), completionHandler: completionHandler)
 //	if name == "anims/walk1.5ds" { print("===============") }
 }
 
@@ -610,9 +621,12 @@ func animationMatchCount(named name: String, in node: SCNNode) throws -> Int {
 }
 
 func stopAnimation(named name: String, in node: SCNNode, animationKey: String) throws {
-//	if name == "anims/walk1.5ds" { print("===============") }
-//	if name == "anims/walk1.5ds" { print("stopAnimation") }
+	//	if name == "anims/walk1.5ds" { print("===============") }
+	//	if name == "anims/walk1.5ds" { print("stopAnimation") }
 	node.removeAction(forKey: animationKey)
+	if let positionAnimationKey = positionAnimationKey(for: animationKey) {
+		node.removeAction(forKey: positionAnimationKey)
+	}
 	let (animations, _) = try loadAnimation(named: name)
 	for animation in animations {
 		let node = animationTargetNode(named: animation.name, in: node)
@@ -620,6 +634,22 @@ func stopAnimation(named name: String, in node: SCNNode, animationKey: String) t
 		node?.removeAction(forKey: animationKey)
 	}
 //	if name == "anims/walk1.5ds" { print("===============") }
+}
+
+private func siblingPositionAnimationName(for animationName: String) -> String? {
+	let lowercasedName = animationName.lowercased()
+	let positionAnimationName: String
+	if lowercasedName.hasSuffix(".5ds") {
+		positionAnimationName = String(animationName.dropLast(4)) + ".tck"
+	} else {
+		positionAnimationName = animationName + ".tck"
+	}
+	return positionAnimationExists(named: positionAnimationName) ? positionAnimationName : nil
+}
+
+private func positionAnimationKey(for animationKey: String?) -> String? {
+	guard let animationKey = animationKey else { return nil }
+	return animationKey + ":position"
 }
 
 private func animationTargetNode(named name: String, in rootNode: SCNNode) -> SCNNode? {
