@@ -20,6 +20,7 @@ class MainMenu {
 	private let menuDef: MenuDef
 	private let menuControls: [MenuDefControl]
 	private let entries: [MainMenuEntry]
+	private weak var menuScene: MainMenuScene?
 	private var menuChangeSoundSource: SCNAudioSource?
 
 	init(gameManager: GameManager) throws {
@@ -138,6 +139,7 @@ class MainMenu {
 	func setup(in view: SCNView) {
 		view.scene = scnScene
 		let menuScene = MainMenuScene(size: view.bounds.size, controls: menuControls, entries: entries)
+		self.menuScene = menuScene
 		menuScene.onSelectionChanged = { [weak self] index in
 			self?.playMenuChangeSound()
 			self?.selectEntry(at: index)
@@ -185,8 +187,8 @@ class MainMenu {
 			stopMenuScripts()
 			gameManager?.loadMission(textId: MissionLoadInfo.textId(for: folder), imageName: imageName, folder: folder)
 		case .saveGameSelector:
-			stopMenuScripts()
-			gameManager?.loadSaveGameSelector()
+			guard let gameManager = gameManager else { return }
+			menuScene?.showSaveGameSelector(saveGames: SaveGame.loadSlots(), gameManager: gameManager)
 		case .missionSelector:
 			stopMenuScripts()
 			gameManager?.loadMissionSelector()
@@ -274,6 +276,7 @@ private final class MainMenuScene: SKScene {
 	private var rowHeight: CGFloat = 31
 	private var firstRowY: CGFloat = 0
 	private var menuFrame = CGRect.zero
+	private var saveGameDialog: SaveGameDialogNode?
 	#if os(iOS)
 	private var lastSwipePoint: CGPoint?
 	private var didSwipe = false
@@ -360,6 +363,20 @@ private final class MainMenuScene: SKScene {
 		}
 
 		refreshSelection()
+		saveGameDialog?.layout(size: size)
+	}
+
+	func showSaveGameSelector(saveGames: [SaveGameSlot], gameManager: GameManager) {
+		saveGameDialog?.removeFromParent()
+		let dialog = SaveGameDialogNode(saveGames: saveGames, gameManager: gameManager)
+		dialog.onDismiss = { [weak self] in
+			self?.saveGameDialog?.removeFromParent()
+			self?.saveGameDialog = nil
+		}
+		dialog.zPosition = 40
+		addChild(dialog)
+		saveGameDialog = dialog
+		dialog.layout(size: size)
 	}
 
 	private func menuScale() -> CGFloat {
@@ -422,6 +439,10 @@ private final class MainMenuScene: SKScene {
 	#if os(macOS)
 
 	override func keyDown(with event: NSEvent) {
+		if saveGameDialog?.keyDown(with: event) == true {
+			return
+		}
+
 		switch event.keyCode {
 		case 125:
 			moveSelection(by: 1)
@@ -435,6 +456,10 @@ private final class MainMenuScene: SKScene {
 	}
 
 	override func mouseDown(with event: NSEvent) {
+		if saveGameDialog?.mouseDown(at: event.location(in: self)) == true {
+			return
+		}
+
 		select(at: event.location(in: self))
 	}
 
@@ -442,11 +467,22 @@ private final class MainMenuScene: SKScene {
 
 	override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 		guard let point = touches.first?.location(in: self) else { return }
+		if saveGameDialog != nil {
+			saveGameDialog?.touchesBegan(at: point)
+			return
+		}
+
 		lastSwipePoint = point
 		didSwipe = false
 	}
 
 	override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+		if saveGameDialog != nil {
+			guard let point = touches.first?.location(in: self) else { return }
+			saveGameDialog?.touchesMoved(to: point)
+			return
+		}
+
 		guard let point = touches.first?.location(in: self),
 			  let lastPoint = lastSwipePoint else { return }
 
@@ -461,6 +497,11 @@ private final class MainMenuScene: SKScene {
 
 	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
 		guard let touch = touches.first else { return }
+		if saveGameDialog != nil {
+			saveGameDialog?.touchesEnded(tapCount: touch.tapCount)
+			return
+		}
+
 		defer {
 			lastSwipePoint = nil
 			didSwipe = false
@@ -476,6 +517,11 @@ private final class MainMenuScene: SKScene {
 	}
 
 	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+		if saveGameDialog != nil {
+			saveGameDialog?.touchesCancelled()
+			return
+		}
+
 		lastSwipePoint = nil
 		didSwipe = false
 	}
@@ -497,4 +543,353 @@ private final class MainMenuScene: SKScene {
 		return labels.firstIndex { $0.frame.insetBy(dx: -8, dy: -4).contains(point) }
 	}
 
+}
+
+private final class SaveGameDialogNode: SKNode {
+
+	var onDismiss: (() -> Void)?
+
+	private weak var gameManager: GameManager?
+	private let saveGames: [SaveGameSlot]
+	private let paperNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir3.tga")))
+	private let headerNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir5a.tga")))
+	private let selectionLine = SKShapeNode()
+	private let scrollbarTrackNode = SKShapeNode()
+	private let scrollbarThumbNode = SKShapeNode()
+	private let upArrowLabel = SKLabelNode(fontNamed: "Arial")
+	private let downArrowLabel = SKLabelNode(fontNamed: "Arial")
+	private let titleLabel = SKLabelNode(fontNamed: mafiaMenuTitleFontName)
+	private let countLabel = SKLabelNode(fontNamed: "Arial")
+	private let hintLabel = SKLabelNode(fontNamed: "Arial")
+	private let detailLabel = SKLabelNode(fontNamed: mafiaMenuFontName)
+	private var labels: [SKLabelNode] = []
+	private var selectedIndex = 0
+	private var firstVisibleIndex = 0
+	private var rowHeight: CGFloat = 24
+	private var firstRowY: CGFloat = 0
+	private var listFrame = CGRect.zero
+	private var sceneSize = CGSize.zero
+	private let maxVisibleSaveGames = 20
+	#if os(iOS)
+	private var lastSwipePoint: CGPoint?
+	private var didSwipe = false
+	#endif
+
+	init(saveGames: [SaveGameSlot], gameManager: GameManager) {
+		self.saveGames = saveGames
+		self.gameManager = gameManager
+
+		super.init()
+
+		paperNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		paperNode.alpha = 0.94
+		paperNode.zPosition = 0
+		addChild(paperNode)
+
+		headerNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		headerNode.zPosition = 1
+		addChild(headerNode)
+
+		selectionLine.strokeColor = SKColor(red: 0.88, green: 0.05, blue: 0.06, alpha: 1)
+		selectionLine.lineWidth = 3
+		selectionLine.zPosition = 13
+		addChild(selectionLine)
+
+		scrollbarTrackNode.strokeColor = SKColor(white: 0.32, alpha: 1)
+		scrollbarTrackNode.lineWidth = 1
+		scrollbarTrackNode.fillColor = SKColor(white: 0.83, alpha: 0.35)
+		scrollbarTrackNode.zPosition = 10
+		addChild(scrollbarTrackNode)
+
+		scrollbarThumbNode.strokeColor = SKColor(white: 0.28, alpha: 1)
+		scrollbarThumbNode.lineWidth = 1
+		scrollbarThumbNode.fillColor = SKColor(white: 0.93, alpha: 0.6)
+		scrollbarThumbNode.zPosition = 11
+		addChild(scrollbarThumbNode)
+
+		for arrowLabel in [upArrowLabel, downArrowLabel] {
+			arrowLabel.fontColor = SKColor(white: 0.46, alpha: 1)
+			arrowLabel.fontSize = 22
+			arrowLabel.horizontalAlignmentMode = .center
+			arrowLabel.verticalAlignmentMode = .center
+			arrowLabel.zPosition = 12
+			addChild(arrowLabel)
+		}
+		upArrowLabel.text = "▲"
+		downArrowLabel.text = "▼"
+
+		titleLabel.text = "Load Game:"
+		titleLabel.fontColor = .white
+		titleLabel.horizontalAlignmentMode = .left
+		titleLabel.verticalAlignmentMode = .center
+		titleLabel.zPosition = 12
+		addChild(titleLabel)
+
+		countLabel.text = "Total Saved Games:  \(saveGames.count)"
+		countLabel.fontColor = .white
+		countLabel.horizontalAlignmentMode = .right
+		countLabel.verticalAlignmentMode = .center
+		countLabel.zPosition = 12
+		addChild(countLabel)
+
+		#if os(iOS)
+		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Double-tap to select"
+		#else
+		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Enter-Select, Esc-Exit"
+		#endif
+		hintLabel.fontColor = .white
+		hintLabel.horizontalAlignmentMode = .center
+		hintLabel.verticalAlignmentMode = .center
+		hintLabel.zPosition = 12
+		addChild(hintLabel)
+
+		for _ in 0 ..< min(maxVisibleSaveGames, saveGames.count) {
+			let label = SKLabelNode(fontNamed: mafiaMenuFontName)
+			label.fontColor = .black
+			label.horizontalAlignmentMode = .left
+			label.verticalAlignmentMode = .center
+			label.zPosition = 12
+			addChild(label)
+			labels.append(label)
+		}
+
+		detailLabel.fontColor = .black
+		detailLabel.horizontalAlignmentMode = .left
+		detailLabel.verticalAlignmentMode = .center
+		detailLabel.zPosition = 12
+		addChild(detailLabel)
+
+		refreshLabels()
+	}
+
+	required init?(coder aDecoder: NSCoder) {
+		fatalError("init(coder:) has not been implemented")
+	}
+
+	func layout(size: CGSize) {
+		sceneSize = size
+		let scale = menuScale()
+		let panelWidth = min(size.width * 0.56, 765 * scale)
+		let panelHeight = min(size.height * 0.86, 657 * scale)
+		let panelX = min(size.width - panelWidth - 28 * scale, max(260 * scale, size.width * 0.385))
+		let panelY = max(34 * scale, (size.height - panelHeight) * 0.52)
+		let panelFrame = CGRect(x: panelX, y: panelY, width: panelWidth, height: panelHeight)
+		let titleHeight = 62 * scale
+
+		headerNode.position = CGPoint(x: panelFrame.midX, y: panelFrame.maxY - titleHeight / 2)
+		headerNode.size = CGSize(width: panelFrame.width, height: titleHeight)
+
+		let paperFrame = CGRect(
+			x: panelFrame.minX,
+			y: panelFrame.minY,
+			width: panelFrame.width,
+			height: panelFrame.height - titleHeight
+		)
+		paperNode.position = CGPoint(x: paperFrame.midX, y: paperFrame.midY)
+		paperNode.size = paperFrame.size
+
+		titleLabel.fontSize = min(34, titleHeight * 0.56)
+		titleLabel.position = CGPoint(x: panelFrame.minX + 28 * scale, y: panelFrame.maxY - titleHeight / 2 + 4 * scale)
+
+		countLabel.fontSize = min(18, titleHeight * 0.32)
+		countLabel.position = CGPoint(x: panelFrame.maxX - 20 * scale, y: panelFrame.maxY - titleHeight / 2 + scale)
+
+		hintLabel.fontSize = min(16, 16 * scale)
+		hintLabel.position = CGPoint(x: size.width * 0.205, y: max(18 * scale, panelFrame.minY - 24 * scale))
+
+		listFrame = CGRect(
+			x: paperFrame.minX + 26 * scale,
+			y: paperFrame.minY + 36 * scale,
+			width: paperFrame.width - 96 * scale,
+			height: paperFrame.height - 54 * scale
+		)
+
+		let visibleCount = max(1, labels.count)
+		rowHeight = min(27 * scale, listFrame.height / CGFloat(visibleCount))
+		firstRowY = listFrame.maxY - rowHeight / 2 - 8 * scale
+		let textX = listFrame.minX + 10 * scale
+
+		for (index, label) in labels.enumerated() {
+			label.fontSize = min(24, rowHeight * 0.86)
+			label.position = CGPoint(x: textX, y: firstRowY - CGFloat(index) * rowHeight)
+			label.preferredMaxLayoutWidth = listFrame.width - 20 * scale
+		}
+
+		detailLabel.fontSize = min(18, 18 * scale)
+		detailLabel.position = CGPoint(x: listFrame.minX, y: paperFrame.minY + 17 * scale)
+		detailLabel.preferredMaxLayoutWidth = listFrame.width + 54 * scale
+
+		layoutScrollbar(scale: scale)
+		refreshLabels()
+	}
+
+	#if os(macOS)
+	func keyDown(with event: NSEvent) -> Bool {
+		switch event.keyCode {
+		case 125:
+			moveSelection(by: 1)
+		case 126:
+			moveSelection(by: -1)
+		case 36, 76:
+			loadSelectedSaveGame()
+		case 53:
+			onDismiss?()
+		default:
+			return false
+		}
+		return true
+	}
+	#endif
+
+	func mouseDown(at point: CGPoint) -> Bool {
+		if let row = rowIndex(at: point) {
+			selectedIndex = firstVisibleIndex + row
+			refreshLabels()
+			loadSelectedSaveGame()
+			return true
+		}
+
+		return containsDialog(point)
+	}
+
+	#if os(iOS)
+	func touchesBegan(at point: CGPoint) {
+		lastSwipePoint = point
+		didSwipe = false
+	}
+
+	func touchesMoved(to point: CGPoint) {
+		guard let lastPoint = lastSwipePoint else { return }
+		let deltaY = point.y - lastPoint.y
+		let threshold = max(18, rowHeight * 0.75)
+		if abs(deltaY) >= threshold {
+			moveSelection(by: deltaY > 0 ? -1 : 1)
+			lastSwipePoint = point
+			didSwipe = true
+		}
+	}
+
+	func touchesEnded(tapCount: Int) {
+		defer {
+			lastSwipePoint = nil
+			didSwipe = false
+		}
+
+		if !didSwipe, tapCount >= 2 {
+			loadSelectedSaveGame()
+		}
+	}
+
+	func touchesCancelled() {
+		lastSwipePoint = nil
+		didSwipe = false
+	}
+	#endif
+
+	private func refreshLabels() {
+		for (labelIndex, label) in labels.enumerated() {
+			let saveGameIndex = firstVisibleIndex + labelIndex
+			guard saveGames.indices.contains(saveGameIndex) else {
+				label.text = nil
+				continue
+			}
+
+			let saveGame = saveGames[saveGameIndex]
+			label.text = saveGame.title
+			label.fontColor = saveGame.missionFolder == nil ? SKColor(white: 0.38, alpha: 1) : .black
+		}
+
+		detailLabel.text = saveGames.indices.contains(selectedIndex) ? saveGames[selectedIndex].detailText : ""
+		updateSelectionLine()
+		layoutScrollbar(scale: menuScale())
+	}
+
+	private func updateSelectionLine() {
+		let labelIndex = selectedIndex - firstVisibleIndex
+		guard labels.indices.contains(labelIndex),
+			  saveGames.indices.contains(selectedIndex) else {
+			selectionLine.path = nil
+			return
+		}
+
+		let label = labels[labelIndex]
+		let lineWidth = min(listFrame.width - 20, max(24, label.frame.width * 0.98))
+		let y = label.position.y - rowHeight * 0.36
+		let path = CGMutablePath()
+		path.move(to: CGPoint(x: label.position.x, y: y))
+		path.addLine(to: CGPoint(x: label.position.x + lineWidth, y: y))
+		selectionLine.path = path
+	}
+
+	private func moveSelection(by offset: Int) {
+		guard !saveGames.isEmpty else { return }
+
+		selectedIndex = max(0, min(saveGames.count - 1, selectedIndex + offset))
+		if selectedIndex < firstVisibleIndex {
+			firstVisibleIndex = selectedIndex
+		} else if selectedIndex >= firstVisibleIndex + labels.count {
+			firstVisibleIndex = selectedIndex - labels.count + 1
+		}
+		refreshLabels()
+	}
+
+	private func loadSelectedSaveGame() {
+		guard saveGames.indices.contains(selectedIndex) else { return }
+
+		let saveGame = saveGames[selectedIndex]
+		guard saveGame.missionFolder != nil else { return }
+		gameManager?.loadSaveGame(saveGame)
+	}
+
+	private func rowIndex(at point: CGPoint) -> Int? {
+		guard rowHeight > 0 else { return nil }
+
+		let labelIndex = Int(round((firstRowY - point.y) / rowHeight))
+		guard labels.indices.contains(labelIndex) else { return nil }
+
+		let rowCenterY = firstRowY - CGFloat(labelIndex) * rowHeight
+		guard abs(point.y - rowCenterY) <= rowHeight / 2 else { return nil }
+
+		let saveGameIndex = firstVisibleIndex + labelIndex
+		return saveGames.indices.contains(saveGameIndex) ? labelIndex : nil
+	}
+
+	private func containsDialog(_ point: CGPoint) -> Bool {
+		return headerNode.calculateAccumulatedFrame().contains(point) ||
+			paperNode.calculateAccumulatedFrame().contains(point)
+	}
+
+	private func menuScale() -> CGFloat {
+		guard sceneSize != .zero else { return 1 }
+		return min(sceneSize.width / 1360, sceneSize.height / 768, 1.6)
+	}
+
+	private func layoutScrollbar(scale: CGFloat) {
+		guard !listFrame.isEmpty else { return }
+
+		let arrowSize = 34 * scale
+		let trackWidth = 36 * scale
+		let trackFrame = CGRect(
+			x: listFrame.maxX + 18 * scale,
+			y: listFrame.minY + 8 * scale,
+			width: trackWidth,
+			height: listFrame.height - 16 * scale
+		)
+		scrollbarTrackNode.path = CGPath(rect: trackFrame, transform: nil)
+		upArrowLabel.position = CGPoint(x: trackFrame.midX, y: trackFrame.maxY - arrowSize / 2)
+		downArrowLabel.position = CGPoint(x: trackFrame.midX, y: trackFrame.minY + arrowSize / 2)
+
+		let scrollableHeight = max(1, trackFrame.height - arrowSize * 2)
+		let thumbHeight = saveGames.isEmpty ? scrollableHeight : max(36 * scale, scrollableHeight * CGFloat(labels.count) / CGFloat(saveGames.count))
+		let maxFirstVisibleIndex = max(0, saveGames.count - labels.count)
+		let scrollProgress = maxFirstVisibleIndex == 0 ? 0 : CGFloat(firstVisibleIndex) / CGFloat(maxFirstVisibleIndex)
+		let thumbTop = trackFrame.maxY - arrowSize - scrollProgress * (scrollableHeight - thumbHeight)
+		let thumbFrame = CGRect(
+			x: trackFrame.minX + 2 * scale,
+			y: thumbTop - thumbHeight,
+			width: trackFrame.width - 4 * scale,
+			height: thumbHeight
+		)
+		scrollbarThumbNode.path = CGPath(rect: thumbFrame, transform: nil)
+	}
 }

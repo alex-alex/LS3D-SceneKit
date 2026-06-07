@@ -932,11 +932,14 @@ final class Scene {
 									pendingScriptStringsByName[name] = scriptStr
 								}
 
-							case .unknown2:
-								stream.currentOffset += partSize - 6
+								case .unknown2:
+									stream.currentOffset += partSize - 6
 
-							case .wagons:
-								stream.currentOffset += partSize - 6
+								case .unknown26:
+									stream.currentOffset += partSize - 6
+
+								case .wagons:
+									stream.currentOffset += partSize - 6
 
 							case .clock:
 								stream.currentOffset += partSize - 6

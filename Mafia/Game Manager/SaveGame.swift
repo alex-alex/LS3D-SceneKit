@@ -19,10 +19,23 @@ struct SaveGameSlot {
 	}
 
 	var title: String {
+		if let title = checkpointTitle {
+			return title
+		}
+
 		guard let checkpoint = checkpoint else {
 			return String(format: "%03d  Unsupported checkpoint", checkpointCode)
 		}
 		return String(format: "%03d  %@", checkpointCode, MissionLoadInfo.title(for: checkpoint.missionFolder))
+	}
+
+	var checkpointTitle: String? {
+		return TextDb.get(5000 + checkpointCode)
+	}
+
+	var detailText: String {
+		guard let summary = checkpoint?.summary else { return "" }
+		return "Health: \(summary.healthPercent)%, Save Time: \(summary.saveDateText), \(summary.saveTimeText), Play Time: \(summary.playTimeText)"
 	}
 
 	var missionFolder: String? {
@@ -80,6 +93,34 @@ struct SaveGameSummary {
 	let healthPercent: UInt32
 	let missionTimer: UInt32
 	let unknown1C: UInt32
+
+	var saveTimeText: String {
+		let parts = packedBytes(saveTimePacked)
+		return String(format: "%d:%02d", parts.2, parts.1)
+	}
+
+	var saveDateText: String {
+		let parts = packedBytes(saveDatePacked)
+		let year = UInt32(parts.2) | (UInt32(parts.3) << 8)
+		return "\(parts.0).\(parts.1).\(year)"
+	}
+
+	var playTimeText: String {
+		let totalSeconds = missionTimer / 1000
+		let hours = totalSeconds / 3600
+		let minutes = (totalSeconds % 3600) / 60
+		let seconds = totalSeconds % 60
+		return String(format: "%uh%02umin %02us", hours, minutes, seconds)
+	}
+
+	private func packedBytes(_ value: UInt32) -> (UInt32, UInt32, UInt32, UInt32) {
+		return (
+			value & 0xff,
+			(value >> 8) & 0xff,
+			(value >> 16) & 0xff,
+			(value >> 24) & 0xff
+		)
+	}
 }
 
 struct SaveGameSession {
