@@ -18,6 +18,7 @@ class GameViewController: NSViewController {
 	private var mouseEventMonitor: Any?
 	private var isCursorHidden = false
 	private var isCursorCaptureActive = false
+	private var shouldDropNextMouseDelta = false
 
     override func awakeFromNib() {
         super.awakeFromNib()
@@ -101,6 +102,10 @@ class GameViewController: NSViewController {
 	private func handleMouseEvent(_ event: NSEvent, source: MouseSource) {
 		updateCursorCapture()
 		if source == .monitor && (abs(event.deltaX) > 0 || abs(event.deltaY) > 0) {
+			if shouldDropNextMouseDelta {
+				shouldDropNextMouseDelta = false
+				return
+			}
 			handleMouseDelta(x: SCNFloat(event.deltaX), y: SCNFloat(event.deltaY))
 		}
 	}
@@ -138,10 +143,12 @@ class GameViewController: NSViewController {
 		isCursorCaptureActive = isActive
 
 		if isActive {
+			shouldDropNextMouseDelta = true
 			setCursorHidden(true)
 			centerCursorInGameView()
 			_ = CGAssociateMouseAndMouseCursorPosition(0)
 		} else {
+			shouldDropNextMouseDelta = false
 			_ = CGAssociateMouseAndMouseCursorPosition(1)
 			setCursorHidden(false)
 		}
