@@ -92,6 +92,9 @@ final class Game: NSObject {
 	var lastControl: Control?
 	var playerHealth = 100
 	private var activeControls: Set<Control> = []
+	private let pendingLookLock = NSLock()
+	private var pendingLookDeltaX: SCNFloat = 0
+	private var pendingLookDeltaY: SCNFloat = 0
 	private(set) var arePlayerControlsLocked = false
 	private(set) var isGamePaused = false
 	let scriptStartTime = Date.timeIntervalSinceReferenceDate
@@ -388,22 +391,48 @@ final class Game: NSObject {
 	func look(deltaX: SCNFloat, deltaY: SCNFloat) {
 		guard !isGamePaused, !isCutsceneCameraActive else { return }
 
+		pendingLookLock.lock()
+		pendingLookDeltaX += deltaX
+		pendingLookDeltaY += deltaY
+		pendingLookLock.unlock()
+	}
+
+	func clearPendingLook() {
+		pendingLookLock.lock()
+		pendingLookDeltaX = 0
+		pendingLookDeltaY = 0
+		pendingLookLock.unlock()
+	}
+
+	private func applyPendingLook() {
+		let delta = consumePendingLook()
+		guard delta.x != 0 || delta.y != 0 else { return }
+
 		switch mode {
 		case .walk:
 			guard scene.playerNode != nil else { return }
-			walkCameraYaw = normalizedAngle(walkCameraYaw - deltaX)
-			playerController?.look(deltaX: 0, deltaY: deltaY)
+			walkCameraYaw = normalizedAngle(walkCameraYaw - delta.x)
+			playerController?.look(deltaX: 0, deltaY: delta.y)
 			cameraContainer.eulerAngles.y = walkCameraYaw
 		case .car:
-			carCameraYaw = normalizedAngle(carCameraYaw - deltaX)
-			carCameraPitch = max(minCarCameraPitch, min(maxCarCameraPitch, carCameraPitch + deltaY))
+			carCameraYaw = normalizedAngle(carCameraYaw - delta.x)
+			carCameraPitch = max(minCarCameraPitch, min(maxCarCameraPitch, carCameraPitch + delta.y))
 			carCameraMouseIdleTime = 0
 			applyCarCameraLook()
 		case .freeCamera:
-			freeCameraYaw = normalizedAngle(freeCameraYaw - deltaX)
-			freeCameraPitch = max(minFreeCameraPitch, min(maxFreeCameraPitch, freeCameraPitch + deltaY))
+			freeCameraYaw = normalizedAngle(freeCameraYaw - delta.x)
+			freeCameraPitch = max(minFreeCameraPitch, min(maxFreeCameraPitch, freeCameraPitch + delta.y))
 			cameraContainer.eulerAngles = SCNVector3(x: freeCameraPitch, y: freeCameraYaw, z: 0)
 		}
+	}
+
+	private func consumePendingLook() -> (x: SCNFloat, y: SCNFloat) {
+		pendingLookLock.lock()
+		let delta = (x: pendingLookDeltaX, y: pendingLookDeltaY)
+		pendingLookDeltaX = 0
+		pendingLookDeltaY = 0
+		pendingLookLock.unlock()
+		return delta
 	}
 
 	func toggleFreeCamera() {
@@ -1090,6 +1119,7 @@ final class Game: NSObject {
 				playPauseMenuOpenSound()
 			}
 			scene.setScriptsPaused(isPaused)
+			clearPendingLook()
 			lastUpdateTime = nil
 		}
 
@@ -1471,6 +1501,8 @@ extension Game: SCNSceneRendererDelegate {
 			updateEnvironment(deltaTime: deltaTime)
 			return
 		}
+
+		applyPendingLook()
 
 		if mode == .walk {
 			if let playerController = playerController {

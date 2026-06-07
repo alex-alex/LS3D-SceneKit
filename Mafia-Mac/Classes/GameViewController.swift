@@ -106,11 +106,11 @@ class GameViewController: NSViewController {
 				shouldDropNextMouseDelta = false
 				return
 			}
-			handleMouseDelta(x: SCNFloat(event.deltaX), y: SCNFloat(event.deltaY))
+			queueMouseDelta(x: SCNFloat(event.deltaX), y: SCNFloat(event.deltaY))
 		}
 	}
 
-	private func handleMouseDelta(x deltaX: SCNFloat, y deltaY: SCNFloat) {
+	private func queueMouseDelta(x deltaX: SCNFloat, y deltaY: SCNFloat) {
 		guard let game = gameManager.game,
 			  !game.isGamePaused else {
 			return
@@ -144,11 +144,13 @@ class GameViewController: NSViewController {
 
 		if isActive {
 			shouldDropNextMouseDelta = true
+			gameManager.game?.clearPendingLook()
 			setCursorHidden(true)
 			centerCursorInGameView()
 			_ = CGAssociateMouseAndMouseCursorPosition(0)
 		} else {
 			shouldDropNextMouseDelta = false
+			gameManager.game?.clearPendingLook()
 			_ = CGAssociateMouseAndMouseCursorPosition(1)
 			setCursorHidden(false)
 		}
