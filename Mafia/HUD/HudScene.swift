@@ -1889,6 +1889,12 @@ extension HudScene {
 			return
 		}
 
+		if event.keyCode == 11 { // B
+			game.addAllPossiblePlayerInventoryItems()
+			SCNTransaction.commit()
+			return
+		}
+
 		if game.mode == .freeCamera && handleFreeCameraKeyDown(event.keyCode) {
 			SCNTransaction.commit()
 			return

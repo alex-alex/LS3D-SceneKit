@@ -94,6 +94,10 @@ final class Weapon {
 		return definitions[id] != nil
 	}
 
+	static var allDefinitionIds: [Int] {
+		return definitions.keys.sorted()
+	}
+
 }
 
 private extension Weapon {

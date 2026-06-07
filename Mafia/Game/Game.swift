@@ -1719,6 +1719,36 @@ extension Game {
 		return scene.weapons(for: playerNode)
 	}
 
+	@discardableResult
+	func addAllPossiblePlayerInventoryItems() -> Int {
+		guard let playerNode = scene.playerNode else { return 0 }
+
+		var addedCount = 0
+		scene.updateWeapons(for: playerNode) { weapons in
+			var existingIds = Set(weapons.map { $0.id })
+			for id in Weapon.allDefinitionIds where !existingIds.contains(id) {
+				let weapon = Weapon(id: id)
+				if let profile = weapon.profile {
+					weapon.clipAmmo = profile.clipSize
+				} else {
+					weapon.clipAmmo = -1
+				}
+				weapon.position = .inventory
+				weapons.append(weapon)
+				existingIds.insert(id)
+				addedCount += 1
+			}
+		}
+
+		if addedCount > 0 {
+			hud?.showConsoleText("Added \(addedCount) inventory items")
+			refreshPlayerStatusHud()
+		} else {
+			hud?.showConsoleText("Inventory already has all items")
+		}
+		return addedCount
+	}
+
 	func equipPlayerWeapon(_ selectedWeapon: Weapon?) {
 		guard let playerNode = scene.playerNode else { return }
 
