@@ -142,6 +142,9 @@ class GameManager {
 				game.onMissionRestarted = { [weak self] in
 					self?.loadMission(textId: textId, imageName: imageName, folder: folder)
 				}
+				game.onLoadGameRequested = { [weak self] in
+					self?.loadSaveGameSelector()
+				}
 				DispatchQueue.main.async {
 					self.game = game
 					game.setup(in: self.view)

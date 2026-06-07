@@ -24,6 +24,7 @@ final class Game: NSObject {
 	var hud: HudScene!
 	var onMissionEnded: (() -> Void)?
 	var onMissionRestarted: (() -> Void)?
+	var onLoadGameRequested: (() -> Void)?
 
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
@@ -1143,6 +1144,24 @@ final class Game: NSObject {
 		default:
 			break
 		}
+	}
+
+	func exitPausedGameToMainMenu() {
+		guard isGamePaused else { return }
+
+		onMissionEnded?()
+	}
+
+	func restartPausedGame() {
+		guard isGamePaused else { return }
+
+		onMissionRestarted?()
+	}
+
+	func loadGameFromPauseMenu() {
+		guard isGamePaused else { return }
+
+		onLoadGameRequested?()
 	}
 
 	private func playPauseMenuOpenSound() {

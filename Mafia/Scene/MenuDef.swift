@@ -24,6 +24,7 @@ final class MenuDef {
 
 	enum Screen: Int {
 		case mainMenu = 6
+		case gameMenu = 7
 		case loadGame = 12
 		case gameOver = 48
 	}

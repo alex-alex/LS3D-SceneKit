@@ -45,8 +45,17 @@ final class HudScene: SKScene {
 	private var ammoValueShadowLabel: SKLabelNode!
 	private var ammoValueLabel: SKLabelNode!
 	private var pauseOverlay: SKShapeNode!
-	private var pauseTitleLabel: SKLabelNode!
-	private var pauseHintLabel: SKLabelNode!
+	private var pauseDialogControls: [MenuDefControl] = []
+	private var pauseDialogNode: SKNode!
+	private var pauseDialogPaperNode: SKSpriteNode!
+	private var pauseDialogHeaderNode: SKSpriteNode!
+	private var pauseDialogTitleLabel: SKLabelNode!
+	private var pauseSelectionLine: SKShapeNode!
+	private var pauseOptionLabels: [SKLabelNode] = []
+	private var pauseOptionControls: [MenuDefControl] = []
+	private var pauseOptionFrames: [CGRect] = []
+	private var selectedPauseOptionIndex = 0
+	private var pauseHiddenStates: [(node: SKNode, isHidden: Bool)] = []
 	private var inventoryOverlay: SKShapeNode!
 	private var inventoryTitleLabel: SKLabelNode!
 	private var inventoryHintLabel: SKLabelNode!
@@ -307,6 +316,11 @@ final class HudScene: SKScene {
 				  healthHudPanel != nil,
 				  ammoHudPanel != nil,
 				  pauseOverlay != nil,
+				  pauseDialogNode != nil,
+				  pauseDialogPaperNode != nil,
+				  pauseDialogHeaderNode != nil,
+				  pauseDialogTitleLabel != nil,
+				  pauseSelectionLine != nil,
 				  inventoryOverlay != nil,
 				  letterboxTopBar != nil,
 				  letterboxBottomBar != nil,
@@ -339,8 +353,7 @@ final class HudScene: SKScene {
 			rect: CGRect(x: -size.width/2, y: -size.height/2, width: size.width, height: size.height),
 			transform: nil
 		)
-		pauseTitleLabel.position = CGPoint(x: 0, y: 20)
-		pauseHintLabel.position = CGPoint(x: 0, y: -24)
+		layoutPauseDialog()
 		layoutInventoryOverlay()
 		layoutCinematicOverlays()
 		layoutMissionEndMenu()
@@ -539,7 +552,7 @@ final class HudScene: SKScene {
 	}
 
 	private func isGameplayHudVisible(_ requestedVisibility: Bool) -> Bool {
-		return requestedVisibility && !isCutsceneOverlayVisible
+		return requestedVisibility && !isCutsceneOverlayVisible && !isPauseScreenVisible
 	}
 
 	private func updateInstrumentNeedles(speed: CGFloat, force: CGFloat) {
@@ -1119,10 +1132,10 @@ extension HudScene {
 	private func updatePlayerStatusHud(health: Int, weapon: Weapon?) {
 		healthValueLabel.text = "\(max(0, health))"
 		healthValueShadowLabel.text = healthValueLabel.text
-		healthHudPanel.isHidden = isCutsceneOverlayVisible
+		healthHudPanel.isHidden = isCutsceneOverlayVisible || isPauseScreenVisible
 
 		let ammoText: String
-		if let weapon = weapon, weapon.isFirearm, !isCutsceneOverlayVisible {
+		if let weapon = weapon, weapon.isFirearm, !isCutsceneOverlayVisible, !isPauseScreenVisible {
 			ammoText = weapon.clipAmmo == -1 ? "INF" : "\(max(0, weapon.clipAmmo))/\(max(0, weapon.restAmmo))"
 			ammoHudPanel.isHidden = false
 		} else {
@@ -1438,37 +1451,233 @@ extension HudScene {
 extension HudScene {
 
 	private func renderPauseScreen() {
+		pauseDialogControls = (try? MenuDef().controls(for: .gameMenu)) ?? []
+
 		pauseOverlay = SKShapeNode(rectOf: size)
-		pauseOverlay.fillColor = SKColor.black.withAlphaComponent(0.68)
+		pauseOverlay.fillColor = SKColor.black.withAlphaComponent(0.45)
 		pauseOverlay.strokeColor = SKColor.clear
 		pauseOverlay.zPosition = 2200
 		pauseOverlay.isHidden = true
 		addChild(pauseOverlay)
 
-		pauseTitleLabel = SKLabelNode()
-		pauseTitleLabel.fontName = "Arial-BoldMT"
-		pauseTitleLabel.fontSize = 38
-		pauseTitleLabel.fontColor = SKColor.white
-		pauseTitleLabel.text = "Paused"
-		pauseTitleLabel.verticalAlignmentMode = .center
-		pauseOverlay.addChild(pauseTitleLabel)
+		pauseDialogNode = SKNode()
+		pauseDialogNode.zPosition = 1
+		pauseOverlay.addChild(pauseDialogNode)
 
-		pauseHintLabel = SKLabelNode()
-		pauseHintLabel.fontName = "Arial"
-		pauseHintLabel.fontSize = 17
-		pauseHintLabel.fontColor = SKColor.white
-		#if os(iOS)
-		pauseHintLabel.text = "Tap Pause to resume"
-		#else
-		pauseHintLabel.text = "Press Esc to resume"
-		#endif
-		pauseHintLabel.verticalAlignmentMode = .center
-		pauseOverlay.addChild(pauseHintLabel)
+		pauseDialogPaperNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir3.tga")))
+		pauseDialogPaperNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		pauseDialogPaperNode.alpha = 0.94
+		pauseDialogPaperNode.zPosition = 0
+		pauseDialogNode.addChild(pauseDialogPaperNode)
+
+		pauseDialogHeaderNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir5a.tga")))
+		pauseDialogHeaderNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		pauseDialogHeaderNode.zPosition = 1
+		pauseDialogNode.addChild(pauseDialogHeaderNode)
+
+		pauseDialogTitleLabel = SKLabelNode(fontNamed: mafiaMenuTitleFontName)
+		pauseDialogTitleLabel.fontColor = .white
+		pauseDialogTitleLabel.horizontalAlignmentMode = .center
+		pauseDialogTitleLabel.verticalAlignmentMode = .center
+		pauseDialogTitleLabel.zPosition = 2
+		pauseDialogNode.addChild(pauseDialogTitleLabel)
+
+		pauseSelectionLine = SKShapeNode()
+		pauseSelectionLine.strokeColor = SKColor(red: 0.88, green: 0.05, blue: 0.06, alpha: 1)
+		pauseSelectionLine.lineWidth = 2
+		pauseSelectionLine.zPosition = 3
+		pauseDialogNode.addChild(pauseSelectionLine)
+
+		pauseOptionControls = pauseDialogControls
+			.filter { $0.type == "meti" }
+			.sorted { $0.position.y < $1.position.y }
+
+		for control in pauseOptionControls {
+			let label = SKLabelNode(fontNamed: mafiaMenuFontName)
+			label.text = TextDb.get(Int(control.textId))
+			label.fontColor = .black
+			label.horizontalAlignmentMode = .center
+			label.verticalAlignmentMode = .center
+			label.zPosition = 1
+			pauseDialogNode.addChild(label)
+			pauseOptionLabels.append(label)
+		}
 	}
 
 	func setPauseScreenVisible(_ isVisible: Bool) {
-		pauseOverlay.isHidden = !isVisible
-		pauseButton?.zPosition = isVisible ? 2300 : 0
+		if isVisible {
+			setGameplayHudHiddenForPause(true)
+			pauseOverlay.isHidden = false
+			selectedPauseOptionIndex = pauseOptionControls.firstIndex(where: { $0.id == 102 }) ?? 0
+			refreshPauseSelection()
+		} else {
+			pauseOverlay.isHidden = true
+			setGameplayHudHiddenForPause(false)
+		}
+	}
+
+	private var isPauseScreenVisible: Bool {
+		return pauseOverlay?.isHidden == false
+	}
+
+	private func layoutPauseDialog() {
+		let scale = pauseDialogScale()
+		let dialogControl = pauseDialogControls.first { $0.type == "tniw" }
+		let dialogFrame = pauseDialogFrame(for: dialogControl)
+		let titleHeight = min(50 * scale, dialogFrame.height * 0.28)
+		let bodyFrame = CGRect(
+			x: dialogFrame.minX,
+			y: dialogFrame.minY,
+			width: dialogFrame.width,
+			height: dialogFrame.height - titleHeight
+		)
+
+		pauseDialogHeaderNode.position = CGPoint(x: dialogFrame.midX - size.width / 2, y: dialogFrame.maxY - titleHeight / 2 - size.height / 2)
+		pauseDialogHeaderNode.size = CGSize(width: dialogFrame.width, height: titleHeight)
+
+		pauseDialogPaperNode.position = CGPoint(x: bodyFrame.midX - size.width / 2, y: bodyFrame.midY - size.height / 2)
+		pauseDialogPaperNode.size = bodyFrame.size
+
+		pauseDialogTitleLabel.text = dialogControl.flatMap { TextDb.get(Int($0.textId)) }
+		pauseDialogTitleLabel.fontSize = min(34 * scale, titleHeight * 0.68)
+		pauseDialogTitleLabel.position = pauseDialogHeaderNode.position
+
+		pauseOptionFrames = []
+		for (index, control) in pauseOptionControls.enumerated() where pauseOptionLabels.indices.contains(index) {
+			let frame = pauseDialogChildFrame(for: control, in: bodyFrame, scale: scale)
+				.insetBy(dx: 12 * scale, dy: 3 * scale)
+			let label = pauseOptionLabels[index]
+			label.fontSize = min(36 * scale, max(16 * scale, frame.height * 0.82))
+			label.position = CGPoint(x: frame.midX - size.width / 2, y: frame.midY - size.height / 2)
+			label.preferredMaxLayoutWidth = frame.width
+			pauseOptionFrames.append(frame)
+		}
+		refreshPauseSelection()
+	}
+
+	private func handlePauseSelection(at point: CGPoint) -> Bool {
+		guard game.isGamePaused, pauseOverlay.isHidden == false else { return false }
+
+		for (index, frame) in pauseOptionFrames.enumerated() where frame.contains(point) {
+			selectedPauseOptionIndex = index
+			refreshPauseSelection()
+			activateSelectedPauseOption()
+			return true
+		}
+
+		return pauseDialogPaperNode.calculateAccumulatedFrame().contains(point)
+	}
+
+	private func movePauseSelection(by offset: Int) {
+		guard !pauseOptionLabels.isEmpty else { return }
+
+		selectedPauseOptionIndex = max(
+			0,
+			min(pauseOptionLabels.count - 1, selectedPauseOptionIndex + offset)
+		)
+		refreshPauseSelection()
+	}
+
+	private func refreshPauseSelection() {
+		for (index, label) in pauseOptionLabels.enumerated() {
+			let selected = index == selectedPauseOptionIndex
+			label.fontColor = .black
+			label.setScale(selected ? 1.07 : 1)
+		}
+		updatePauseSelectionLine()
+	}
+
+	private func updatePauseSelectionLine() {
+		guard pauseOptionFrames.indices.contains(selectedPauseOptionIndex),
+			  pauseOptionLabels.indices.contains(selectedPauseOptionIndex) else {
+			pauseSelectionLine.path = nil
+			return
+		}
+
+		let frame = pauseOptionFrames[selectedPauseOptionIndex]
+		let label = pauseOptionLabels[selectedPauseOptionIndex]
+		let lineWidth = min(frame.width - 16, max(24, label.frame.width * 0.98))
+		let lineY = label.position.y - frame.height * 0.28
+		let path = CGMutablePath()
+		path.move(to: CGPoint(x: label.position.x - lineWidth / 2, y: lineY))
+		path.addLine(to: CGPoint(x: label.position.x + lineWidth / 2, y: lineY))
+		pauseSelectionLine.path = path
+	}
+
+	private func activateSelectedPauseOption() {
+		guard pauseOptionControls.indices.contains(selectedPauseOptionIndex) else { return }
+
+		switch pauseOptionControls[selectedPauseOptionIndex].id {
+		case 102:
+			game.exitPausedGameToMainMenu()
+		case 103:
+			game.loadGameFromPauseMenu()
+		case 111:
+			game.setPaused(false)
+		default:
+			break
+		}
+	}
+
+	private func pauseDialogScale() -> CGFloat {
+		return min(size.width / 800, size.height / 600)
+	}
+
+	private func pauseDialogFrame(for control: MenuDefControl?) -> CGRect {
+		let scale = pauseDialogScale()
+		let xOffset = (size.width - 800 * scale) / 2
+		let yOffset = (size.height - 600 * scale) / 2
+		let x = xOffset + (control?.position.x ?? 200) * scale
+		let yTop = yOffset + (control?.position.y ?? 60) * scale
+		let width = CGFloat(control?.scaleX ?? 217) * scale
+		let height = CGFloat(control?.scaleY ?? 190) * scale
+		return CGRect(x: x, y: size.height - yTop - height, width: width, height: height)
+	}
+
+	private func pauseDialogChildFrame(for control: MenuDefControl, in dialogFrame: CGRect, scale: CGFloat) -> CGRect {
+		let x = dialogFrame.minX + control.position.x * scale
+		let y = dialogFrame.maxY - control.position.y * scale - CGFloat(control.scaleY) * scale
+		return CGRect(x: x, y: y, width: CGFloat(control.scaleX) * scale, height: CGFloat(control.scaleY) * scale)
+	}
+
+	private func setGameplayHudHiddenForPause(_ isHidden: Bool) {
+		if isHidden {
+			guard pauseHiddenStates.isEmpty else { return }
+			let nodes: [SKNode?] = [
+				compass,
+				actionButton,
+				speedometer,
+				speedLimitIndicator,
+				revCounter,
+				speedLabel,
+				playerStatusLabel,
+				diagnosticsLabel,
+				consoleLabel,
+				subtitleLabel,
+				crosshairNode,
+				vehicleStealProgressBackground,
+				vehicleStealProgressFill,
+				vehicleStealProgressLabel,
+				healthHudPanel,
+				ammoHudPanel,
+				objectivesNode,
+				pauseButton,
+				inventoryButton,
+				reloadButton,
+				sprintButton,
+				crouchButton,
+				jumpButton
+			]
+			pauseHiddenStates = nodes.compactMap { node in
+				guard let node = node else { return nil }
+				return (node: node, isHidden: node.isHidden)
+			}
+			pauseHiddenStates.forEach { $0.node.isHidden = true }
+		} else {
+			pauseHiddenStates.forEach { $0.node.isHidden = $0.isHidden }
+			pauseHiddenStates.removeAll()
+			layoutTouchButtons()
+		}
 	}
 
 }
@@ -1591,6 +1800,15 @@ extension HudScene {
 		}
 
 		let isVisible = !isCutsceneOverlayVisible
+		guard !isPauseScreenVisible else {
+			pauseButton?.isHidden = true
+			inventoryButton?.isHidden = true
+			reloadButton?.isHidden = true
+			sprintButton?.isHidden = true
+			crouchButton?.isHidden = true
+			jumpButton?.isHidden = true
+			return
+		}
 		let showsWalkingControls = isVisible && game.mode == .walk && game.scene.playerNode != nil
 		pauseButton?.isHidden = !isVisible
 		inventoryButton?.isHidden = !isVisible
@@ -1681,6 +1899,9 @@ extension HudScene {
 			return
 		}
 		if handleInventorySelection(at: location) {
+			return
+		}
+		if handlePauseSelection(at: location) {
 			return
 		}
 		if game.isGamePaused,
@@ -1846,6 +2067,9 @@ extension HudScene {
 		if handleInventorySelection(at: location) {
 			return
 		}
+		if handlePauseSelection(at: location) {
+			return
+		}
 		super.mouseDown(with: event)
 	}
 
@@ -1866,6 +2090,15 @@ extension HudScene {
 					moveInventorySelection(by: 1)
 				case 126: // up
 					moveInventorySelection(by: -1)
+				default:
+					break
+				}
+			} else if game.isGamePaused {
+				switch event.keyCode {
+				case 125: // down
+					movePauseSelection(by: 1)
+				case 126: // up
+					movePauseSelection(by: -1)
 				default:
 					break
 				}
@@ -1915,6 +2148,20 @@ extension HudScene {
 				moveInventorySelection(by: -1)
 			case 36, 76: // return, keypad enter
 				equipSelectedInventoryRow()
+			default:
+				break
+			}
+			return
+		}
+
+		if game.isGamePaused {
+			switch event.keyCode {
+			case 125: // down
+				movePauseSelection(by: 1)
+			case 126: // up
+				movePauseSelection(by: -1)
+			case 36, 76: // return, keypad enter
+				activateSelectedPauseOption()
 			default:
 				break
 			}
