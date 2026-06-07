@@ -84,6 +84,7 @@ enum ObjectDefinitionType: UInt32 {
 	case plane			= 22
 	case railRoute		= 24
 	case pumpar			= 25
+	case unknown26		= 26
 	case enemy			= 27
 	case unknown2		= 28
 	case wagons			= 30

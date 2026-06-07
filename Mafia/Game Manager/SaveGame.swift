@@ -40,7 +40,99 @@ struct SaveGameSlot {
 }
 
 struct SaveGameCheckpoint {
+	let innerSignature: UInt32
+	let version: UInt32
+	let checkpointCode: UInt32
+	let checkpointMarker: UInt32
+	let summary: SaveGameSummary
+	let session: SaveGameSession
+	let variableBlocks: [SaveGameVariableBlock]
+	let entities: [SaveGameEntity]
+
 	let missionFolder: String
+
+	init(
+		innerSignature: UInt32,
+		version: UInt32,
+		checkpointCode: UInt32,
+		checkpointMarker: UInt32,
+		summary: SaveGameSummary,
+		session: SaveGameSession,
+		variableBlocks: [SaveGameVariableBlock],
+		entities: [SaveGameEntity]
+	) {
+		self.innerSignature = innerSignature
+		self.version = version
+		self.checkpointCode = checkpointCode
+		self.checkpointMarker = checkpointMarker
+		self.summary = summary
+		self.session = session
+		self.variableBlocks = variableBlocks
+		self.entities = entities
+		self.missionFolder = session.missionFolder
+	}
+}
+
+struct SaveGameSummary {
+	let checkpointCode: UInt32
+	let saveTimePacked: UInt32
+	let saveDatePacked: UInt32
+	let healthPercent: UInt32
+	let missionTimer: UInt32
+	let unknown1C: UInt32
+}
+
+struct SaveGameSession {
+	let missionFolder: String
+	let missionStateSize: UInt32
+	let unknown24: UInt32
+	let missionStateA: [UInt32]
+	let missionStateB: [UInt32]
+	let extraStateASize: UInt32
+	let extraStateBSize: UInt32
+	let globalFlag: UInt32
+	let globalValueA: UInt32
+	let globalValueB: UInt32
+	let globalValueC: UInt32
+}
+
+struct SaveGameVariableBlock {
+	let name: String
+	let offset: Int
+	let size: UInt32
+	let data: Data
+}
+
+struct SaveGameEntity {
+	let offset: Int
+	let name: String
+	let modelName: String
+	let objectTypeRawValue: UInt32
+	let payloadSize: UInt32
+	let playerSlot: Int32
+	let payloadPrefix: SaveGameEntityPayloadPrefix?
+	let doorState: SaveGameDoorState?
+	let payload: Data
+
+	var objectType: ObjectDefinitionType? {
+		return ObjectDefinitionType(rawValue: objectTypeRawValue)
+	}
+}
+
+struct SaveGameEntityPayloadPrefix {
+	let version: UInt8
+	let group: UInt8
+	let sceneObjectId: UInt16
+	let stateA: UInt32
+	let stateB: UInt32
+	let stateC: UInt16
+	let stateD: UInt8
+}
+
+struct SaveGameDoorState {
+	let angle: Float
+	let rawState: UInt32
+	let flags: UInt16
 }
 
 struct MissionLoadInfo {
@@ -164,6 +256,15 @@ struct MissionLoadInfo {
 
 enum SaveGame {
 	private static let checkpointSignature = Data([0x47, 0x76, 0x61, 0x53]) // SavG
+	private static let nestedCheckpointSignature: UInt32 = 0x47766153 // SavG
+	private static let streamSeedA: UInt32 = 0x23101976
+	private static let streamSeedB: UInt32 = 0x10072002
+	private static let saveHeaderSize = 24
+	private static let innerHeaderSize = 24
+	private static let summarySize = 0x20
+	private static let sessionSize = 0x108
+	private static let entityHeaderSize = 0x8c
+	private static let entityPayloadPrefixSize = 15
 
 	static func loadSlots() -> [SaveGameSlot] {
 		let directory = mainDirectory.appendingPathComponent("savegame")
@@ -193,7 +294,7 @@ enum SaveGame {
 			return nil
 		}
 
-		guard hasCheckpointSignature(url: url) else { return nil }
+		guard let checkpoint = loadCheckpoint(url: url) else { return nil }
 
 		let resourceValues = try? url.resourceValues(forKeys: [.fileSizeKey])
 		let fileSize = resourceValues?.fileSize ?? 0
@@ -202,138 +303,223 @@ enum SaveGame {
 			profileNumber: profileNumber,
 			checkpointCode: checkpointCode,
 			fileSize: UInt64(max(0, fileSize)),
-			checkpoint: checkpoints[checkpointCode]
+			checkpoint: checkpoint
 		)
 	}
 
-	private static func hasCheckpointSignature(url: URL) -> Bool {
-		guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
-		defer {
-			handle.closeFile()
+	private static func loadCheckpoint(url: URL) -> SaveGameCheckpoint? {
+		guard let data = try? Data(contentsOf: url),
+			  data.count >= saveHeaderSize + innerHeaderSize + summarySize + sessionSize,
+			  data.starts(with: checkpointSignature) else {
+			return nil
 		}
-		return handle.readData(ofLength: checkpointSignature.count) == checkpointSignature
+
+		var cursor = saveHeaderSize
+		let decoder = SaveGameStreamDecoder(data: data, seedA: streamSeedA, seedB: streamSeedB)
+		let innerHeader = decoder.readEncoded(offset: cursor, size: innerHeaderSize)
+		cursor += innerHeaderSize
+
+		let innerSignature = readUInt32(in: innerHeader, at: 0)
+		let version = readUInt32(in: innerHeader, at: 4)
+		guard innerSignature == nestedCheckpointSignature,
+			  version == 0x10 else {
+			return nil
+		}
+
+		let summaryData = decoder.readEncoded(offset: cursor, size: summarySize)
+		let summary = SaveGameSummary(
+			checkpointCode: readUInt32(in: summaryData, at: 0),
+			saveTimePacked: readUInt32(in: summaryData, at: 8),
+			saveDatePacked: readUInt32(in: summaryData, at: 12),
+			healthPercent: readUInt32(in: summaryData, at: 16),
+			missionTimer: readUInt32(in: summaryData, at: 20),
+			unknown1C: readUInt32(in: summaryData, at: 28)
+		)
+		cursor += summarySize
+
+		let sessionData = decoder.readEncoded(offset: cursor, size: sessionSize)
+		let session = SaveGameSession(
+			missionFolder: readString(in: sessionData, at: 0, length: 0x20),
+			missionStateSize: readUInt32(in: sessionData, at: 0x20),
+			unknown24: readUInt32(in: sessionData, at: 0x24),
+			missionStateA: readUInt32Array(in: sessionData, at: 0x28, count: 25),
+			missionStateB: readUInt32Array(in: sessionData, at: 0x8c, count: 25),
+			extraStateASize: readUInt32(in: sessionData, at: 0xf0),
+			extraStateBSize: readUInt32(in: sessionData, at: 0xf4),
+			globalFlag: readUInt32(in: sessionData, at: 0xf8),
+			globalValueA: readUInt32(in: sessionData, at: 0xfc),
+			globalValueB: readUInt32(in: sessionData, at: 0x100),
+			globalValueC: readUInt32(in: sessionData, at: 0x104)
+		)
+		cursor += sessionSize
+
+		guard !session.missionFolder.isEmpty else { return nil }
+
+		var variableBlocks: [SaveGameVariableBlock] = []
+		for (name, size) in [
+			("mission_state", session.missionStateSize),
+			("extra_state_a", session.extraStateASize),
+			("extra_state_b", session.extraStateBSize),
+		] {
+			guard let blockSize = Int(exactly: size),
+				  cursor + blockSize <= data.count else {
+				return nil
+			}
+			let blockData = decoder.readEncoded(offset: cursor, size: blockSize)
+			variableBlocks.append(SaveGameVariableBlock(name: name, offset: cursor, size: size, data: blockData))
+			cursor += blockSize
+		}
+
+		var entities: [SaveGameEntity] = []
+		while cursor + entityHeaderSize <= data.count {
+			let entityOffset = cursor
+			let header = decoder.readEncoded(offset: cursor, size: entityHeaderSize)
+			let payloadSize = readUInt32(in: header, at: 0x84)
+			guard let payloadByteCount = Int(exactly: payloadSize) else { return nil }
+
+			let payloadOffset = cursor + entityHeaderSize
+			let payloadEnd = payloadOffset + payloadByteCount
+			guard payloadEnd <= data.count else { return nil }
+
+			let payload = decoder.readEncoded(offset: payloadOffset, size: payloadByteCount)
+			let objectTypeRawValue = readUInt32(in: header, at: 0x80)
+			entities.append(SaveGameEntity(
+				offset: entityOffset,
+				name: readString(in: header, at: 0, length: 0x40),
+				modelName: readString(in: header, at: 0x40, length: 0x40),
+				objectTypeRawValue: objectTypeRawValue,
+				payloadSize: payloadSize,
+				playerSlot: readInt32(in: header, at: 0x88),
+				payloadPrefix: readPayloadPrefix(in: payload),
+				doorState: readDoorState(objectTypeRawValue: objectTypeRawValue, payload: payload),
+				payload: payload
+			))
+			cursor = payloadEnd
+		}
+
+		guard cursor == data.count else { return nil }
+
+		return SaveGameCheckpoint(
+			innerSignature: innerSignature,
+			version: version,
+			checkpointCode: readUInt32(in: innerHeader, at: 8),
+			checkpointMarker: readUInt32(in: innerHeader, at: 20),
+			summary: summary,
+			session: session,
+			variableBlocks: variableBlocks,
+			entities: entities
+		)
 	}
 
-	private static func checkpoint(_ missionFolder: String) -> SaveGameCheckpoint {
-		return SaveGameCheckpoint(missionFolder: missionFolder)
+	private static func readString(in data: Data, at offset: Int, length: Int) -> String {
+		guard offset + length <= data.count else { return "" }
+
+		let bytes = data[offset ..< offset + length]
+		let trimmed = bytes.prefix { $0 != 0 }
+		guard !trimmed.isEmpty else { return "" }
+
+		return String(data: Data(trimmed), encoding: .windowsCP1250) ?? ""
 	}
 
-	private static let checkpoints: [Int: SaveGameCheckpoint] = [
-		0: checkpoint("mise01"),
-		5: checkpoint("mise02a-taxi"),
-		10: checkpoint("mise02a-taxi"),
-		15: checkpoint("mise02a-taxi"),
-		20: checkpoint("mise02a-taxi"),
-		25: checkpoint("mise02a-taxi"),
-		30: checkpoint("mise02-saliery"),
-		35: checkpoint("mise03-saliery"),
-		40: checkpoint("mise03-saliery"),
-		45: checkpoint("mise03-morello"),
-		50: checkpoint("mise04-saliery"),
-		55: checkpoint("mise04-mesto"),
-		60: checkpoint("mise04-motorest"),
-		65: checkpoint("mise04-krajina"),
-		70: checkpoint("mise05-saliery"),
-		75: checkpoint("mise05-mesto"),
-		80: checkpoint("mise06-autodrom"),
-		85: checkpoint("mise06-mesto"),
-		90: checkpoint("mise06-saliery"),
-		95: checkpoint("mise06-saliery"),
-		100: checkpoint("mise06-mesto"),
-		105: checkpoint("mise06-autodrom"),
-		110: checkpoint("mise06-autodrom"),
-		115: checkpoint("mise06-mesto"),
-		125: checkpoint("mise07-saliery"),
-		130: checkpoint("mise07-sara"),
-		131: checkpoint("mise07-sara"),
-		135: checkpoint("mise07b-saliery"),
-		140: checkpoint("mise07b-saliery"),
-		145: checkpoint("mise07b-chuligani"),
-		146: checkpoint("mise07b-chuligani"),
-		150: checkpoint("mise08-mesto"),
-		155: checkpoint("mise08-hotel"),
-		160: checkpoint("mise08-hotel"),
-		165: checkpoint("mise08-kostel"),
-		170: checkpoint("mise08-kostel"),
-		185: checkpoint("mise09-saliery"),
-		190: checkpoint("mise09-mesto"),
-		195: checkpoint("mise09-krajina"),
-		197: checkpoint("mise09-krajina"),
-		200: checkpoint("mise09-mesto"),
-		205: checkpoint("mise09-prejimka"),
-		220: checkpoint("mise09-mesto"),
-		223: checkpoint("mise09-mesto"),
-		225: checkpoint("mise10-saliery"),
-		230: checkpoint("mise10-mesto"),
-		235: checkpoint("mise10-mesto"),
-		240: checkpoint("mise10-letiste"),
-		243: checkpoint("mise10-letiste"),
-		245: checkpoint("mise10-letiste"),
-		260: checkpoint("mise10-mesto"),
-		263: checkpoint("mise10-mesto"),
-		265: checkpoint("mise11-saliery"),
-		270: checkpoint("mise11-mesto"),
-		275: checkpoint("mise11-vila"),
-		277: checkpoint("mise11-vila"),
-		280: checkpoint("mise11-vila"),
-		285: checkpoint("mise12-saliery"),
-		290: checkpoint("mise12-garage"),
-		295: checkpoint("mise12-mesto"),
-		300: checkpoint("mise12-saliery"),
-		310: checkpoint("mise13-mesto"),
-		315: checkpoint("mise13-restaurace"),
-		320: checkpoint("mise13-mesto2"),
-		325: checkpoint("mise13-zradce"),
-		330: checkpoint("mise14-saliery"),
-		335: checkpoint("mise14-mesto"),
-		340: checkpoint("mise14-parnik"),
-		345: checkpoint("mise15-saliery"),
-		350: checkpoint("mise15-mesto"),
-		355: checkpoint("mise15-saliery"),
-		360: checkpoint("mise15-mesto"),
-		370: checkpoint("mise15-mesto"),
-		372: checkpoint("mise15-mesto"),
-		375: checkpoint("mise15-mesto"),
-		380: checkpoint("mise15-pristav"),
-		385: checkpoint("mise15-pristav"),
-		390: checkpoint("mise15-saliery"),
-		405: checkpoint("mise15-mesto"),
-		407: checkpoint("mise15-mesto"),
-		410: checkpoint("mise16-saliery"),
-		415: checkpoint("mise16-mesto"),
-		425: checkpoint("mise16-krajina"),
-		430: checkpoint("mise16-letiste"),
-		435: checkpoint("mise16-saliery"),
-		450: checkpoint("mise16-mesto"),
-		452: checkpoint("mise16-mesto"),
-		455: checkpoint("mise17-saliery"),
-		460: checkpoint("mise17-mesto"),
-		465: checkpoint("mise17-vezeni"),
-		466: checkpoint("mise17-vezeni"),
-		470: checkpoint("mise17-saliery"),
-		485: checkpoint("mise17-mesto"),
-		487: checkpoint("mise17-mesto"),
-		490: checkpoint("mise18-saliery"),
-		495: checkpoint("mise18-mesto"),
-		497: checkpoint("mise18-mesto"),
-		500: checkpoint("mise18-pristav"),
-		505: checkpoint("mise18-pristav"),
-		510: checkpoint("mise19-pauli"),
-		515: checkpoint("mise19-mesto"),
-		520: checkpoint("mise19-banka"),
-		525: checkpoint("mise19-mesto"),
-		530: checkpoint("mise19-mesto"),
-		532: checkpoint("mise19-mesto"),
-		535: checkpoint("mise19-banka"),
-		540: checkpoint("mise19-mesto"),
-		545: checkpoint("mise20-pauli"),
-		550: checkpoint("mise20-mesto"),
-		555: checkpoint("mise20-mesto"),
-		557: checkpoint("mise20-mesto"),
-		560: checkpoint("mise20-galery"),
-		561: checkpoint("mise20-galery"),
-		584: checkpoint("freeride"),
-		585: checkpoint("extreme"),
-		590: checkpoint("extreme")
-	]
+	private static func readUInt32(in data: Data, at offset: Int) -> UInt32 {
+		guard offset + 4 <= data.count else { return 0 }
+
+		return UInt32(data[offset]) |
+			(UInt32(data[offset + 1]) << 8) |
+			(UInt32(data[offset + 2]) << 16) |
+			(UInt32(data[offset + 3]) << 24)
+	}
+
+	private static func readUInt16(in data: Data, at offset: Int) -> UInt16 {
+		guard offset + 2 <= data.count else { return 0 }
+
+		return UInt16(data[offset]) |
+			(UInt16(data[offset + 1]) << 8)
+	}
+
+	private static func readInt32(in data: Data, at offset: Int) -> Int32 {
+		return Int32(bitPattern: readUInt32(in: data, at: offset))
+	}
+
+	private static func readFloat32(in data: Data, at offset: Int) -> Float {
+		return Float(bitPattern: readUInt32(in: data, at: offset))
+	}
+
+	private static func readUInt32Array(in data: Data, at offset: Int, count: Int) -> [UInt32] {
+		return (0 ..< count).map { readUInt32(in: data, at: offset + ($0 * 4)) }
+	}
+
+	private static func readPayloadPrefix(in payload: Data) -> SaveGameEntityPayloadPrefix? {
+		guard payload.count >= entityPayloadPrefixSize else { return nil }
+
+		return SaveGameEntityPayloadPrefix(
+			version: payload[0],
+			group: payload[1],
+			sceneObjectId: readUInt16(in: payload, at: 2),
+			stateA: readUInt32(in: payload, at: 4),
+			stateB: readUInt32(in: payload, at: 8),
+			stateC: readUInt16(in: payload, at: 12),
+			stateD: payload[14]
+		)
+	}
+
+	private static func readDoorState(objectTypeRawValue: UInt32, payload: Data) -> SaveGameDoorState? {
+		guard objectTypeRawValue == ObjectDefinitionType.door.rawValue,
+			  payload.count >= 25 else {
+			return nil
+		}
+
+		return SaveGameDoorState(
+			angle: readFloat32(in: payload, at: 15),
+			rawState: readUInt32(in: payload, at: 19),
+			flags: readUInt16(in: payload, at: 23)
+		)
+	}
+}
+
+private final class SaveGameStreamDecoder {
+	private let data: Data
+	private var seedA: UInt32
+	private var seedB: UInt32
+
+	init(data: Data, seedA: UInt32, seedB: UInt32) {
+		self.data = data
+		self.seedA = seedA
+		self.seedB = seedB
+	}
+
+	func readEncoded(offset: Int, size: Int) -> Data {
+		guard offset + size <= data.count else { return Data() }
+
+		var decoded = Data(data[offset ..< offset + size])
+		var wordOffset = 0
+		while wordOffset + 4 <= decoded.count {
+			let encryptedWord = readUInt32(in: decoded, at: wordOffset)
+			let plainWord = encryptedWord ^ seedA
+			writeUInt32(plainWord, in: &decoded, at: wordOffset)
+			seedB = seedB &+ plainWord
+			seedA = seedA &+ seedB
+			wordOffset += 4
+		}
+
+		return decoded
+	}
+
+	private func readUInt32(in data: Data, at offset: Int) -> UInt32 {
+		guard offset + 4 <= data.count else { return 0 }
+
+		return UInt32(data[offset]) |
+			(UInt32(data[offset + 1]) << 8) |
+			(UInt32(data[offset + 2]) << 16) |
+			(UInt32(data[offset + 3]) << 24)
+	}
+
+	private func writeUInt32(_ value: UInt32, in data: inout Data, at offset: Int) {
+		guard offset + 4 <= data.count else { return }
+
+		data[offset] = UInt8(value & 0xff)
+		data[offset + 1] = UInt8((value >> 8) & 0xff)
+		data[offset + 2] = UInt8((value >> 16) & 0xff)
+		data[offset + 3] = UInt8((value >> 24) & 0xff)
+	}
 }
