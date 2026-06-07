@@ -507,6 +507,7 @@ final class Scene {
 	private var pendingScriptStringsByName: [String: String] = [:]
 	private var pendingObjectTypesByName: [String: ObjectDefinitionType] = [:]
 	private var pendingHumanEnergyByName: [String: Float] = [:]
+	private var pendingPlayerNodeName: String?
 	private var activeAudioPlayers: [ObjectIdentifier: ActiveAudioPlayer] = [:]
 	private var loadedDifferenceFiles: [String: DifferenceFile] = [:]
 	private let differenceLoadQueue = DispatchQueue(label: "difference.load", qos: .userInitiated)
@@ -741,8 +742,8 @@ final class Scene {
 						y: objectNode.orientation.x,
 						z: objectNode.orientation.y
 					)
-					registerNodeName(objectNode)
 					self.rootNode.addChildNode(objectNode)
+					registerNodeTree(objectNode)
 
 				case .objDef:
 					var name: String = ""
@@ -805,10 +806,15 @@ final class Scene {
 								print("Player \(name) energy: \(energy)")
 								if let node = node {
 									node.humanEnergy = energy
+									self.playerNode = node
+									print("== Player Node from object definition: \(name), node=\(node.name ?? "<unnamed>"), energy=\(energy), position=\(node.worldPosition)")
 								} else if !name.isEmpty {
 									pendingHumanEnergyByName[name] = energy
+									pendingPlayerNodeName = name
+									print("== Pending Player Node: \(name), energy=\(energy)")
+								} else {
+									print("== Player Node missing name in object definition, energy=\(energy)")
 								}
-								self.playerNode = node
 
 							case .car:
 								stream.currentOffset += partSize - 6
@@ -1109,14 +1115,21 @@ final class Scene {
 	func resolvePendingObjectTypes(in rootNode: SCNNode) {
 		for (name, type) in pendingObjectTypesByName {
 			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
+			registerNodeTree(node)
 			applyObjectDefinitionType(type, to: node)
 		}
 		pendingObjectTypesByName.removeAll()
 		for (name, energy) in pendingHumanEnergyByName {
 			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
+			registerNodeTree(node)
 			node.humanEnergy = energy
+			if name == pendingPlayerNodeName {
+				playerNode = node
+				print("== Resolved Player Node: \(name), energy=\(energy)")
+			}
 		}
 		pendingHumanEnergyByName.removeAll()
+		pendingPlayerNodeName = nil
 	}
 
 	private func applyObjectDefinitionType(_ type: ObjectDefinitionType, to node: SCNNode) {
@@ -1171,6 +1184,7 @@ final class Scene {
 		pendingScriptStringsByName.removeAll()
 		pendingObjectTypesByName.removeAll()
 		pendingHumanEnergyByName.removeAll()
+		pendingPlayerNodeName = nil
 		unusableCarIds.removeAll()
 		trafficSettings = nil
 		cutscenePausedScriptIds.removeAll()
@@ -3398,21 +3412,37 @@ final class Scene {
 	func node(named name: String) -> SCNNode? {
 		let lowercasedName = name.lowercased()
 		nodesByNameLock.lock()
-		let indexedNode = nodesByName[name] ?? nodesByName[lowercasedName]
+		let indexedNode = lockedNode(named: name, lowercasedName: lowercasedName)
 		let isKnownMissing = missingNodeNames.contains(lowercasedName)
-		nodesByNameLock.unlock()
 		if let indexedNode = indexedNode {
+			nodesByNameLock.unlock()
 			return indexedNode
 		}
-		guard !isKnownMissing else { return nil }
-		guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else {
-			nodesByNameLock.lock()
-			missingNodeNames.insert(lowercasedName)
+		if isKnownMissing {
 			nodesByNameLock.unlock()
 			return nil
 		}
-		registerNodeName(node)
-		return node
+		missingNodeNames.insert(lowercasedName)
+		nodesByNameLock.unlock()
+		return nil
+	}
+
+	private func lockedNode(named name: String, lowercasedName: String) -> SCNNode? {
+		if let indexedNode = nodesByName[name] ?? nodesByName[lowercasedName] {
+			return indexedNode
+		}
+		guard name.count >= 16 else { return nil }
+
+		var visitedNodeIds = Set<ObjectIdentifier>()
+		for node in nodesByName.values {
+			let nodeId = ObjectIdentifier(node)
+			guard visitedNodeIds.insert(nodeId).inserted else { continue }
+			guard let nodeName = node.name?.lowercased() else { continue }
+			if nodeName.hasPrefix(lowercasedName) {
+				return node
+			}
+		}
+		return nil
 	}
 
 	func registerNodeName(_ node: SCNNode) {

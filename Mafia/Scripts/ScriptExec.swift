@@ -817,6 +817,13 @@ extension Script {
 			} else if let node = findNode(named: name) {
 				actors[actorId] = node
 			}
+			if name.lowercased() == "tommy" {
+				let actor = actors[actorId]
+				let player = scene.playerNode
+				let actorEnergy = actor?.humanEnergy.map { "\($0)" } ?? "<nil>"
+				let playerEnergy = player?.humanEnergy.map { "\($0)" } ?? "<nil>"
+				print("== Script findactor Tommy: script=\(self.name), actorId=\(actorId), found=\(actor?.name ?? "<nil>"), isPlayer=\(actor === player), actorEnergy=\(actorEnergy), player=\(player?.name ?? "<nil>"), playerEnergy=\(playerEnergy), playerHealth=\(scene.game.playerHealth)")
+			}
 		} else {
 			actors[actorId] = self.node
 		}
@@ -1263,6 +1270,13 @@ extension Script {
 			} else {
 				vars[varId] = 0
 			}
+			if actorId == 0 {
+				let actor = node(forScriptId: actorId)
+				let player = scene.playerNode
+				let actorEnergy = actor?.humanEnergy.map { "\($0)" } ?? "<nil>"
+				let playerEnergy = player?.humanEnergy.map { "\($0)" } ?? "<nil>"
+				print("== Script human_getproperty Energy: script=\(self.name), actorId=\(actorId), varId=\(varId), value=\(vars[varId] ?? -1), actor=\(actor?.name ?? "<nil>"), isPlayer=\(actor === player), actorEnergy=\(actorEnergy), player=\(player?.name ?? "<nil>"), playerEnergy=\(playerEnergy), playerHealth=\(scene.game.playerHealth)")
+			}
 		} else {
 			vars[varId] = 0
 		}
@@ -1511,7 +1525,7 @@ extension Script {
 			let model = try loadModel(named: modelName)
 			model.name = (modelName as NSString).lastPathComponent
 			scene.rootNode.addChildNode(model)
-			scene.registerNodeName(model)
+			scene.registerNodeTree(model)
 			actors[actorId] = model
 		} catch {
 			print("Failed to create model '\(modelName)':", error)

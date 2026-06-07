@@ -254,7 +254,12 @@ final class Game: NSObject {
 			scene.playerNode?.removeFromParentNode()
 			scene.playerNode = nil
 		} else if scene.playerNode == nil {
+			print("== Player Node missing after scene resolve; spawning fallback")
 			spawnPlayer()
+		} else {
+			let playerName = scene.playerNode?.name ?? "<unnamed>"
+			let playerEnergy = scene.playerNode?.humanEnergy.map { "\($0)" } ?? "<nil>"
+			print("== Player Node from mission: \(playerName), energy=\(playerEnergy)")
 		}
 
 		if !isMenuMission, scene.playerNode != nil {
