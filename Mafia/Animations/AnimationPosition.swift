@@ -116,6 +116,17 @@ private struct LoadedPositionAnimation {
 private let loadedPositionAnimationsLock = NSLock()
 private var loadedPositionAnimationsByName: [String: LoadedPositionAnimation] = [:]
 
+private func positionAnimationResourceURL(named name: String) -> URL? {
+	let normalizedName = name.replacingOccurrences(of: "\\", with: "/")
+	let components = normalizedName.split(separator: "/", maxSplits: 1).map(String.init)
+	if components.count == 2, components[0].lowercased() == "anims" {
+		return mafiaResourceURL(directory: "anims", name: components[1])
+	}
+
+	let directURL = mainDirectory.appendingPathComponent(normalizedName.lowercased())
+	return FileManager.default.fileExists(atPath: directURL.path) ? directURL : nil
+}
+
 func loadPositionAnimation(named name: String) throws -> PositionAnimation {
 	let key = name.lowercased()
 	loadedPositionAnimationsLock.lock()
@@ -125,8 +136,8 @@ func loadPositionAnimation(named name: String) throws -> PositionAnimation {
 	}
 	loadedPositionAnimationsLock.unlock()
 
-	let url = mainDirectory.appendingPathComponent(key)
-	guard let stream = InputStream(url: url) else { throw AnimationError.file }
+	guard let url = positionAnimationResourceURL(named: name),
+		  let stream = InputStream(url: url) else { throw AnimationError.file }
 	stream.open()
 	defer { stream.close() }
 
@@ -165,9 +176,7 @@ func loadPositionAnimation(named name: String) throws -> PositionAnimation {
 }
 
 func positionAnimationExists(named name: String) -> Bool {
-	let key = name.lowercased()
-	let url = mainDirectory.appendingPathComponent(key)
-	return FileManager.default.fileExists(atPath: url.path)
+	return positionAnimationResourceURL(named: name) != nil
 }
 
 func positionAnimationDuration(named name: String) throws -> TimeInterval {

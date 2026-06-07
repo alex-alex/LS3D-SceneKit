@@ -607,14 +607,31 @@ final class Record {
 			return []
 		}
 
-		return metadata.enumerated().flatMap { index, metadata in
+		let bindingEvents = metadata.enumerated().flatMap { index, metadata in
 			data.readBindingAnimationEvents(
 				metadata: metadata,
 				payloadOffset: payloadOffset,
 				bindingIndex: index,
 				animationCount: animationCount
 			)
-		}.sorted {
+		}
+		let trackStartEvents = data.readAnimationTrackStarts(
+			offset: payloadOffset,
+			endOffset: data.count
+		).compactMap {
+			data.readTrackStartAnimationEvent(at: $0, animationCount: animationCount)
+		}
+		var eventsByKey: [String: RecordAnimationEvent] = [:]
+		for event in bindingEvents + trackStartEvents {
+			let key = [
+				String(event.animationId),
+				String(event.trackId),
+				String(format: "%.3f", event.time),
+				String(event.packedTrackId)
+			].joined(separator: ":")
+			eventsByKey[key] = event
+		}
+		return eventsByKey.values.sorted {
 			if $0.animationId == $1.animationId {
 				return $0.time < $1.time
 			}

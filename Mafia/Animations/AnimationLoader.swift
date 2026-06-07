@@ -427,6 +427,17 @@ private var loadedAnimationsByName: [String: LoadedAnimation] = [:]
 private let animationTargetCacheLock = NSLock()
 private var animationTargetCache: [ObjectIdentifier: [String: WeakNode]] = [:]
 
+private func animationResourceURL(named name: String) -> URL? {
+	let normalizedName = name.replacingOccurrences(of: "\\", with: "/")
+	let components = normalizedName.split(separator: "/", maxSplits: 1).map(String.init)
+	if components.count == 2, components[0].lowercased() == "anims" {
+		return mafiaResourceURL(directory: "anims", name: components[1])
+	}
+
+	let directURL = mainDirectory.appendingPathComponent(normalizedName.lowercased())
+	return FileManager.default.fileExists(atPath: directURL.path) ? directURL : nil
+}
+
 func readAnimation(stream: InputStream, timerMax: Int, nameOffset: UInt32, animOffset: UInt32) throws -> Animation {
 	let startOffset = stream.currentOffset
 
@@ -474,9 +485,8 @@ func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	}
 	loadedAnimationsLock.unlock()
 
-	let url = mainDirectory.appendingPathComponent(key)
-
-	guard let stream = InputStream(url: url) else { throw AnimationError.file }
+	guard let url = animationResourceURL(named: name),
+		  let stream = InputStream(url: url) else { throw AnimationError.file }
 	stream.open()
 	defer { stream.close() }
 
