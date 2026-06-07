@@ -366,7 +366,7 @@ extension Script {
 	}
 
 	private func getArgs_compareownerwithex(_ scanner: Scanner) -> [Argument] {
-		return [scanVarOrValue(scanner), scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
+		return [scanVarOrValue(scanner), scanVarOrValueOrNull(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
 	}
 
 	private func getArgs_console_addtext(_ scanner: Scanner) -> [Argument] {
@@ -1073,6 +1073,18 @@ extension Script {
 		} else {
 			scriptArgumentFatalError("Expected variable or numeric value")
 		}
+	}
+
+	private func scanVarOrValueOrNull(_ scanner: Scanner) -> Argument {
+		if let varId = scanVar(scanner) {
+			return .variable(varId)
+		}
+		guard let token = scanParamOptional(scanner) else { scriptArgumentFatalError("Expected variable, numeric value, or NULL") }
+		if token.lowercased() == "null" {
+			return .label(token)
+		}
+		guard let arg = parseVarOrNumberToken(token) else { scriptArgumentFatalError("Expected variable, numeric value, or NULL, got '\(token)'") }
+		return arg
 	}
 
 }

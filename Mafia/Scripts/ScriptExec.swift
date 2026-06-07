@@ -16,6 +16,15 @@ private let scriptNullActorNode: SCNNode = {
 	return node
 }()
 
+private extension Argument {
+	var isNullLabel: Bool {
+		if case .label(let value) = self {
+			return value.lowercased() == "null"
+		}
+		return false
+	}
+}
+
 extension Script {
 
 	private static let loopYieldInterval: DispatchTimeInterval = .milliseconds(16)
@@ -481,11 +490,18 @@ extension Script {
 
 	private func compareownerwithex(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
-		let carId = args[1].getValueOrVarValue(vars: vars)
 		let label1 = args[2].getString()
 		let label2 = args[3].getString()
-		let humanMatches = humanOwnerMatches(actorId: actorId, carId: carId)
-		let playerMatches = isPlayerActor(actorId) && playerOwnerMatches(carId: carId)
+		let humanMatches: Bool
+		let playerMatches: Bool
+		if args[1].isNullLabel {
+			humanMatches = node(forScriptId: actorId) != nil && ownerNode(forActorId: actorId) == nil
+			playerMatches = isPlayerActor(actorId) && (scene.game.mode != .car || scene.game.vehicle == nil)
+		} else {
+			let carId = args[1].getValueOrVarValue(vars: vars)
+			humanMatches = humanOwnerMatches(actorId: actorId, carId: carId)
+			playerMatches = isPlayerActor(actorId) && playerOwnerMatches(carId: carId)
+		}
 		if humanMatches || playerMatches {
 			goto(label: label1)
 		} else {
