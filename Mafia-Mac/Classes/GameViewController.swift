@@ -17,6 +17,7 @@ class GameViewController: NSViewController {
 	private var cursorCaptureTimer: Timer?
 	private var mouseEventMonitor: Any?
 	private var isCursorHidden = false
+	private var isCursorCaptureActive = false
 
     override func awakeFromNib() {
         super.awakeFromNib()
@@ -53,7 +54,7 @@ class GameViewController: NSViewController {
 	override func viewWillDisappear() {
 		super.viewWillDisappear()
 
-		setCursorHidden(false)
+		setCursorCaptureActive(false)
 	}
 
 	deinit {
@@ -61,7 +62,7 @@ class GameViewController: NSViewController {
 		if let mouseEventMonitor = mouseEventMonitor {
 			NSEvent.removeMonitor(mouseEventMonitor)
 		}
-		setCursorHidden(false)
+		setCursorCaptureActive(false)
 	}
 
 	override func viewDidLayout() {
@@ -124,12 +125,26 @@ class GameViewController: NSViewController {
 			  !game.isGamePaused,
 			  game.hud?.isInventoryVisible != true,
 			  isMouseLookMode(game.mode) else {
-			setCursorHidden(false)
+			setCursorCaptureActive(false)
 			return
 		}
 
-		setCursorHidden(true)
-		centerCursorInGameView()
+		setCursorCaptureActive(true)
+	}
+
+	private func setCursorCaptureActive(_ isActive: Bool) {
+		guard isCursorCaptureActive != isActive else { return }
+
+		isCursorCaptureActive = isActive
+
+		if isActive {
+			setCursorHidden(true)
+			centerCursorInGameView()
+			_ = CGAssociateMouseAndMouseCursorPosition(0)
+		} else {
+			_ = CGAssociateMouseAndMouseCursorPosition(1)
+			setCursorHidden(false)
+		}
 	}
 
 	private func setCursorHidden(_ isHidden: Bool) {
