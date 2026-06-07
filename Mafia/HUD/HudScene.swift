@@ -12,7 +12,7 @@ import SpriteKit
 
 final class HudScene: SKScene {
 
-	let game: Game
+	weak var game: Game!
 
 	var compass: SKSpriteNode!
 	var compassNeedle: SKSpriteNode!

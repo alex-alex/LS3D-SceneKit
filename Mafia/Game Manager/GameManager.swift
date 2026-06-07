@@ -27,7 +27,7 @@ class GameManager {
 
 	var mainMenu: MainMenu?
 	var animationsGallery: AnimationsGallery?
-	var game: Game!
+	var game: Game?
 	private var missions: [MissionEntry] = []
 	private var saveGames: [SaveGameSlot] = []
 
@@ -65,6 +65,7 @@ class GameManager {
 	}
 
 	func loadMissionSelector() {
+		releaseCurrentGame()
 		view.isPlaying = true
 		view.rendersContinuously = true
 		missions = MissionEntry.loadAll()
@@ -76,6 +77,7 @@ class GameManager {
 	}
 
 	func loadSaveGameSelector() {
+		releaseCurrentGame()
 		view.isPlaying = true
 		view.rendersContinuously = true
 		saveGames = SaveGame.loadSlots()
@@ -87,6 +89,7 @@ class GameManager {
 	}
 
 	func loadAnimationsGallery() {
+		releaseCurrentGame()
 		view.isPlaying = true
 		view.rendersContinuously = true
 		view.scene = SCNScene()
@@ -108,6 +111,7 @@ class GameManager {
 	}
 
 	func loadMenu() {
+		releaseCurrentGame()
 		view.isPlaying = true
 		view.rendersContinuously = true
 		view.scene = SCNScene()
@@ -124,6 +128,7 @@ class GameManager {
 	}
 
 	func loadMission(textId: Int, imageName: String, folder: String) {
+		releaseCurrentGame()
 		view.isPlaying = true
 		view.rendersContinuously = true
 		view.scene = SCNScene()
@@ -165,6 +170,11 @@ class GameManager {
 		}
 
 		loadMission(textId: saveGame.textId, imageName: saveGame.imageName, folder: folder)
+	}
+
+	private func releaseCurrentGame() {
+		game?.tearDown(from: view)
+		game = nil
 	}
 
 }

@@ -444,7 +444,7 @@ struct TrafficSettings {
 
 final class Scene {
 
-	var game: Game!
+	weak var game: Game!
 	let rootNode = SCNNode()
 	var playerNode: SCNNode?
 
@@ -1137,6 +1137,53 @@ final class Scene {
 		}
 	}
 
+	func tearDown() {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.tearDown()
+			}
+			return
+		}
+
+		setScriptsPaused(true)
+		let allScripts = Array(initScripts.values) + Array(scripts.values)
+		for script in allScripts {
+			script.stop()
+		}
+		destroyScriptMusicStreams()
+		unloadRecords()
+		clearDifferenceFiles()
+		stopActiveAudioPlayers()
+		rootNode.removeAllActionsRecursively()
+		rootNode.childNodes.forEach { $0.removeFromParentNode() }
+		playerNode = nil
+		compassNode = nil
+		playerFireEvent = nil
+		playerHornEvent = nil
+		initScripts.removeAll()
+		scripts.removeAll()
+		sounds.removeAll()
+		humanVehicleOwners.removeAll()
+		actions.removeAll()
+		environmentLights.removeAll()
+		pendingDoorDataByName.removeAll()
+		pendingPhysicalDataByName.removeAll()
+		pendingScriptStringsByName.removeAll()
+		pendingObjectTypesByName.removeAll()
+		pendingHumanEnergyByName.removeAll()
+		unusableCarIds.removeAll()
+		trafficSettings = nil
+		cutscenePausedScriptIds.removeAll()
+		isCutsceneSkipRequested = false
+		nodesByNameLock.lock()
+		nodesByName.removeAll()
+		missingNodeNames.removeAll()
+		nodesByNameLock.unlock()
+		weaponsLock.lock()
+		weaponsByOwner.removeAll()
+		weaponsLock.unlock()
+	}
+
 	@discardableResult
 	func loadDifferenceFile(named name: String) throws -> DifferenceFile {
 		let key = differenceKey(for: name)
@@ -1161,7 +1208,8 @@ final class Scene {
 		named name: String,
 		completion: @escaping (Result<DifferenceFile, Swift.Error>) -> Void
 	) {
-		DispatchQueue.main.async {
+		DispatchQueue.main.async { [weak self] in
+			guard let self = self else { return }
 			let key = self.differenceKey(for: name)
 			if let differenceFile = self.loadedDifferenceFiles[key] {
 				print("== Difference already loaded: \(name)")
@@ -1177,9 +1225,10 @@ final class Scene {
 			self.pendingDifferenceLoads[key] = [pendingLoad]
 
 			print("== Loading Difference async: \(name)")
-			self.differenceLoadQueue.async {
+			self.differenceLoadQueue.async { [weak self] in
 				let result = Result { try DifferenceFile(named: name) }
-				DispatchQueue.main.async {
+				DispatchQueue.main.async { [weak self] in
+					guard let self = self else { return }
 					let pendingLoads = self.pendingDifferenceLoads.removeValue(forKey: key) ?? []
 					guard !pendingLoads.isEmpty else { return }
 					switch result {
@@ -1296,11 +1345,13 @@ final class Scene {
 		full: Bool = false,
 		completion: @escaping (Result<Record, Swift.Error>) -> Void
 	) {
-		DispatchQueue.main.async {
+		DispatchQueue.main.async { [weak self] in
+			guard let self = self else { return }
 			let key = self.recordKey(for: name)
 			if let record = self.loadedRecords[key] {
 				print("== Record already loaded: \(name)")
-				self.waitForPendingDifferenceLoads { result in
+				self.waitForPendingDifferenceLoads { [weak self] result in
+					guard let self = self else { return }
 					switch result {
 					case .success:
 						self.playRecord(record, full: full)
@@ -1321,13 +1372,14 @@ final class Scene {
 			self.pendingRecordLoads[key] = [pendingLoad]
 
 			print("== Loading Record async: \(name)")
-			self.recordLoadQueue.async {
+			self.recordLoadQueue.async { [weak self] in
 				let result = Result { () -> Record in
 					let record = try Record(name: name)
 					Self.preloadRecordAnimations(record)
 					return record
 				}
-				DispatchQueue.main.async {
+				DispatchQueue.main.async { [weak self] in
+					guard let self = self else { return }
 					let pendingLoads = self.pendingRecordLoads.removeValue(forKey: key) ?? []
 					guard !pendingLoads.isEmpty else { return }
 					switch result {
@@ -1340,7 +1392,8 @@ final class Scene {
 							"speech=\(record.speechEvents.count) animationEvents=\(record.animationEvents.count) " +
 							"targetLinks=\(record.targetLinks.count)"
 						)
-						self.waitForPendingDifferenceLoads { result in
+						self.waitForPendingDifferenceLoads { [weak self] result in
+							guard let self = self else { return }
 							switch result {
 							case .success:
 								for pendingLoad in pendingLoads {
@@ -1367,8 +1420,8 @@ final class Scene {
 
 	private func waitForPendingDifferenceLoads(completion: @escaping (Result<Void, Swift.Error>) -> Void) {
 		guard Thread.isMainThread else {
-			DispatchQueue.main.async {
-				self.waitForPendingDifferenceLoads(completion: completion)
+			DispatchQueue.main.async { [weak self] in
+				self?.waitForPendingDifferenceLoads(completion: completion)
 			}
 			return
 		}
@@ -3148,6 +3201,15 @@ final class Scene {
 		activePlayer.player.didFinishPlayback = nil
 		activePlayer.node.removeAudioPlayer(activePlayer.player)
 		activePlayer.completion?()
+	}
+
+	private func stopActiveAudioPlayers() {
+		for activePlayer in activeAudioPlayers.values {
+			activePlayer.fallbackWorkItem?.cancel()
+			activePlayer.player.didFinishPlayback = nil
+			activePlayer.node.removeAudioPlayer(activePlayer.player)
+		}
+		activeAudioPlayers.removeAll()
 	}
 
 	private func scheduleAudioCompletionFallback(for playerId: ObjectIdentifier, after delay: TimeInterval) {

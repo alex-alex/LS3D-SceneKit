@@ -247,8 +247,8 @@ extension Script {
 		let isBackwardJump = line < currentLine
 		currentLine = line
 		if isBackwardJump {
-			queue.asyncAfter(deadline: .now() + Self.loopYieldInterval) {
-				self.next()
+			queue.asyncAfter(deadline: .now() + Self.loopYieldInterval) { [weak self] in
+				self?.next()
 			}
 		} else {
 			next()
@@ -1664,7 +1664,8 @@ extension Script {
 			return
 		}
 		let waitsForCommandBlock = beginCommandBlockAsyncOperation()
-		waitForCutscene(secondsRemaining: duration, lastTick: Date.timeIntervalSinceReferenceDate) {
+		waitForCutscene(secondsRemaining: duration, lastTick: Date.timeIntervalSinceReferenceDate) { [weak self] in
+			guard let self = self else { return }
 			if waitsForCommandBlock {
 				self.finishCommandBlockAsyncOperation()
 			} else {
@@ -1678,7 +1679,8 @@ extension Script {
 
 	private func waitForCutscene(secondsRemaining: TimeInterval, lastTick: TimeInterval, completion: @escaping () -> Void) {
 		let interval: TimeInterval = 0.1
-		queue.asyncAfter(deadline: .now() + interval) {
+		queue.asyncAfter(deadline: .now() + interval) { [weak self] in
+			guard let self = self else { return }
 			let now = Date.timeIntervalSinceReferenceDate
 			let elapsed = self.scene.game.isGamePaused ? 0 : now - lastTick
 			let remaining = secondsRemaining - elapsed
@@ -2110,13 +2112,16 @@ extension Script {
 	private func wait(_ args: [Argument]) {
 		let delay = args[0].getValueOrVarValue(vars: vars)
 		if beginCommandBlockAsyncOperation() {
-			queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: finishCommandBlockAsyncOperation)
+			queue.asyncAfter(deadline: .now() + .milliseconds(delay)) { [weak self] in
+				self?.finishCommandBlockAsyncOperation()
+			}
 			next()
 		} else {
 			waitGeneration += 1
 			let generation = waitGeneration
 			isWaitingForScriptWait = true
-			queue.asyncAfter(deadline: .now() + .milliseconds(delay)) {
+			queue.asyncAfter(deadline: .now() + .milliseconds(delay)) { [weak self] in
+				guard let self = self else { return }
 				guard self.waitGeneration == generation else { return }
 				self.isWaitingForScriptWait = false
 				self.next()
@@ -2360,7 +2365,8 @@ extension Script {
 		let generation = timerGeneration
 		let seconds = TimeInterval(milliseconds) / 1000
 		timerEndTime = Date.timeIntervalSinceReferenceDate + seconds
-		queue.asyncAfter(deadline: .now() + seconds) {
+		queue.asyncAfter(deadline: .now() + seconds) { [weak self] in
+			guard let self = self else { return }
 			guard self.timerGeneration == generation else { return }
 			self.timerEndTime = nil
 			self.timerRemainingMilliseconds = 0
@@ -2385,7 +2391,8 @@ extension Script {
 		duration: TimeInterval,
 		startTime: TimeInterval
 	) {
-		queue.asyncAfter(deadline: .now() + .milliseconds(50)) {
+		queue.asyncAfter(deadline: .now() + .milliseconds(50)) { [weak self] in
+			guard let self = self else { return }
 			let elapsed = Date.timeIntervalSinceReferenceDate - startTime
 			let progress = min(1, Float(elapsed / duration))
 			sound.audioSource.volume = startVolume + (endVolume - startVolume) * progress

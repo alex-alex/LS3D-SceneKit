@@ -15,7 +15,7 @@ final class Sound {
 		case unknown0 = 0, local, unknown, global
 	}
 
-	let scene: Scene
+	weak var scene: Scene!
 	let node: SCNNode
 	let sourceType: SourceType
 	let url: URL
@@ -82,6 +82,7 @@ final class Sound {
 	}
 
 	func play() {
+		guard let scene = scene else { return }
 		if sourceType == .global {
 			scene.playAudio(audioSource, on: scene.rootNode)
 		} else {

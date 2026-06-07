@@ -492,6 +492,44 @@ final class Script {
 		}
 	}
 
+	func stop() {
+		queue.async {
+			self.isPaused = true
+			self.isRunning = false
+			self.hasPendingRun = false
+			self.hasPendingNext = false
+			self.commandBlockDepth = 0
+			self.pendingCommandBlockAsyncOperations = 0
+			self.isWaitingForCommandBlockAsyncOperations = false
+			self.waitGeneration += 1
+			self.timerGeneration += 1
+			self.timerEndTime = nil
+			self.timerRemainingMilliseconds = 0
+			self.timeoutEventBinding = nil
+			self.pendingEnemyTalk = nil
+			self.completionHandler = nil
+			self.eventCompletionHandler = nil
+			self.eventIdQueue.removeAll()
+			self.eventIdQueueStartIndex = 0
+			self.currentEventId = nil
+			self.executingEvent = false
+			let streams = Array(self.streams.values)
+			let soundPlaybacks = Array(self.soundPlaybacks.values)
+			self.streams.removeAll()
+			self.sharedStreamIds.removeAll()
+			self.soundPlaybacks.removeAll()
+			DispatchQueue.main.async {
+				for stream in streams {
+					stream.destroy()
+				}
+				for playback in soundPlaybacks {
+					playback.player.didFinishPlayback = nil
+					playback.node.removeAudioPlayer(playback.player)
+				}
+			}
+		}
+	}
+
 	func setAudioPaused(_ paused: Bool) {
 		queue.async {
 			for stream in self.streams.values {
