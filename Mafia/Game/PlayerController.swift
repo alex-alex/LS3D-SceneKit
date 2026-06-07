@@ -31,11 +31,14 @@ final class PlayerController {
 	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
 	private var currentWalkingAnimationName: String?
+	private var currentAirAnimationName: String?
 	private var currentCrouchTransitionAnimationName: String?
 	private var crouchTransitionId = 0
 	private var isCrouchTransitionPlaying = false
 	private var walkingAnimationHoldCount = 0
+	private var wasAirborneLastFrame = false
 	private var footstepAudio = FootstepAudio()
+	var movementAnimationSetProvider: (() -> Int?)?
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
 	private(set) var lastDesiredVelocity = SCNVector3Zero
@@ -70,13 +73,13 @@ final class PlayerController {
 	private let minGroundNormalY: SCNFloat = 0.65
 	private let minLookPitch: SCNFloat = -0.65
 	private let maxLookPitch: SCNFloat = 0.45
-	private let standingWalkingAnimationName = "anims/walk1.5ds"
 	private let crouchWalkingAnimationCandidates = [
 		"anims/x panika drep chuze.5ds",
 		"anims/x panika drep krok.5ds",
 		"anims/walk drep.5ds"
 	]
 	private let walkingAnimationKey = "__walking__"
+	private let airAnimationKey = "__air__"
 	private let crouchDownAnimationName = "anims/x panika drep dolu.5ds"
 	private let crouchUpAnimationName = "anims/x panika drep nahoru.5ds"
 	private let crouchAnimationKey = "__crouch__"
@@ -136,6 +139,8 @@ final class PlayerController {
 		pendingPitch = 0
 		horizontalVelocity = SCNVector3Zero
 		verticalVelocity = 0
+		wasAirborneLastFrame = false
+		stopCurrentAirAnimation()
 		updateWalkingAnimation(isMoving: false)
 		footstepAudio.reset()
 		resetAngularVelocity()
@@ -228,6 +233,8 @@ final class PlayerController {
 		)
 		if wantsJump && !isCrouching && grounded {
 			verticalVelocity = jumpSpeed
+			wasAirborneLastFrame = true
+			playJumpStartAnimation()
 		}
 		wantsJump = false
 		verticalVelocity -= gravity * dt
@@ -237,6 +244,7 @@ final class PlayerController {
 			node.position.y = standingY
 			verticalVelocity = 0
 		}
+		updateAirAnimationState()
 		body.velocity = SCNVector3Zero
 	}
 
@@ -247,13 +255,13 @@ final class PlayerController {
 			return
 		}
 
-		let animationName = walkingAnimationName()
-		guard isMoving != isWalkingAnimationPlaying || currentWalkingAnimationName != animationName else { return }
+		let animationName = walkingAnimationName(isMoving: isMoving)
+		guard currentWalkingAnimationName != animationName else { return }
 
 		stopCurrentWalkingAnimation()
 
-		isWalkingAnimationPlaying = isMoving
-		if isMoving, let animationName = animationName {
+		isWalkingAnimationPlaying = animationName != nil
+		if let animationName = animationName {
 			try? playAnimation(
 				named: animationName,
 				in: node,
@@ -261,7 +269,7 @@ final class PlayerController {
 				animationKey: walkingAnimationKey
 			)
 		}
-		currentWalkingAnimationName = isMoving ? animationName : nil
+		currentWalkingAnimationName = animationName
 	}
 
 	private var requestedCrouchingValue: Bool {
@@ -278,6 +286,8 @@ final class PlayerController {
 		stopCurrentWalkingAnimation()
 		if isCrouching {
 			wantsJump = false
+			wasAirborneLastFrame = false
+			stopCurrentAirAnimation()
 			playCrouchTransition(named: crouchDownAnimationName)
 		} else {
 			playCrouchTransition(named: crouchUpAnimationName)
@@ -323,6 +333,17 @@ final class PlayerController {
 		currentCrouchTransitionAnimationName = nil
 	}
 
+	private func stopCurrentAirAnimation() {
+		guard let animationName = currentAirAnimationName else { return }
+
+		try? stopAnimation(
+			named: animationName,
+			in: node,
+			animationKey: airAnimationKey
+		)
+		currentAirAnimationName = nil
+	}
+
 	private func stopCurrentWalkingAnimation() {
 		guard let animationName = currentWalkingAnimationName else { return }
 
@@ -335,7 +356,7 @@ final class PlayerController {
 	}
 
 	private var isWalkingAnimationHeld: Bool {
-		return isCrouchTransitionPlaying || walkingAnimationHoldCount > 0
+		return isCrouchTransitionPlaying || walkingAnimationHoldCount > 0 || currentAirAnimationName != nil
 	}
 
 	private func holdWalkingAnimation() {
@@ -352,11 +373,149 @@ final class PlayerController {
 		updateWalkingAnimation(isMoving: isMoving)
 	}
 
-	private func walkingAnimationName() -> String? {
+	private func walkingAnimationName(isMoving: Bool) -> String? {
+		guard !isAirborneForAnimation else { return nil }
+
 		if isCrouching {
-			return crouchWalkingAnimationCandidates.first { animationExists(named: $0) }
+			if isMoving {
+				return firstExistingAnimation(named: crouchWalkingAnimationCandidates)
+			}
+			return idleAnimationName(animationSetId: 8)
 		}
-		return standingWalkingAnimationName
+
+		let animationSetId = movementAnimationSetId()
+		if !isMoving {
+			return turnAnimationName(animationSetId: animationSetId) ?? idleAnimationName(animationSetId: animationSetId)
+		}
+
+		return movementAnimationName(animationSetId: animationSetId)
+	}
+
+	private func movementAnimationName(animationSetId: Int) -> String? {
+		let suffix = "\(animationSetId)"
+		let lateral = movement.x
+		let forward = movement.z
+		let isRunningForward = requestedRunningValue && forward > 0.35
+
+		if forward < -0.35 {
+			return firstExistingAnimation(named: [
+				"anims/back\(suffix).5ds",
+				"anims/back1.5ds"
+			])
+		}
+		if abs(lateral) > 0.35 && abs(forward) <= 0.35 {
+			let prefixes = lateral < 0 ? ["strafL", "left"] : ["strafR", "right"]
+			return firstExistingAnimation(named: prefixes.flatMap { prefix in
+				[
+					"anims/\(prefix)\(suffix).5ds",
+					"anims/\(prefix)1.5ds"
+				]
+			})
+		}
+		let prefix = isRunningForward ? "run" : "walk"
+		return firstExistingAnimation(named: [
+			"anims/\(prefix)\(suffix).5ds",
+			"anims/\(prefix)1.5ds",
+			"anims/walk1.5ds"
+		])
+	}
+
+	private func turnAnimationName(animationSetId: Int) -> String? {
+		guard abs(turn) > 0.1 else { return nil }
+		return firstExistingAnimation(named: [
+			"anims/turn\(animationSetId).5ds",
+			"anims/turn1.5ds"
+		])
+	}
+
+	private func idleAnimationName(animationSetId: Int) -> String? {
+		let suffix = String(format: "%02d", animationSetId)
+		let variants = ["a", "b", "c", "d"]
+		let candidates = variants.map { "anims/breath\(suffix)\($0).5ds" } +
+			variants.map { "anims/breath01\($0).5ds" }
+		return firstExistingAnimation(named: candidates)
+	}
+
+	private func movementAnimationSetId() -> Int {
+		if isCrouching {
+			return 8
+		}
+		guard let providedId = movementAnimationSetProvider?(),
+			  (1...8).contains(providedId) else {
+			return 1
+		}
+		return providedId
+	}
+
+	private func playJumpStartAnimation() {
+		stopCurrentWalkingAnimation()
+		let suffix = "\(movementAnimationSetId())"
+		let directionalPrefix = movement.x < -0.2 ? "jumpL" : movement.x > 0.2 ? "jumpR" : "jump"
+		let candidates = [
+			"anims/\(directionalPrefix)\(suffix).5ds",
+			"anims/jump\(suffix).5ds",
+			"anims/jump1.5ds"
+		]
+		playAirAnimation(named: firstExistingAnimation(named: candidates), repeat: false) { [weak self] in
+			self?.playFallLoopAnimationIfNeeded()
+		}
+	}
+
+	private func playFallLoopAnimationIfNeeded() {
+		guard isAirborneForAnimation else { return }
+		playAirAnimation(named: firstExistingAnimation(named: [
+			"anims/!plachteni.5ds"
+		]), repeat: true)
+	}
+
+	private func playLandingAnimation() {
+		stopCurrentAirAnimation()
+		guard let animationName = firstExistingAnimation(named: [
+			"anims/!doskok.5ds"
+		]) else { return }
+		playActionAnimation(named: animationName, animationKey: "__landing__")
+	}
+
+	private func playAirAnimation(named animationName: String?, repeat shouldRepeat: Bool, completionHandler: (() -> Void)? = nil) {
+		stopCurrentAirAnimation()
+		guard let animationName = animationName, animationExists(named: animationName) else {
+			completionHandler?()
+			return
+		}
+
+		currentAirAnimationName = animationName
+		do {
+			try playAnimation(
+				named: animationName,
+				in: node,
+				repeat: shouldRepeat,
+				animationKey: airAnimationKey,
+				completionHandler: { [weak self] in
+					if shouldRepeat == false && self?.currentAirAnimationName == animationName {
+						self?.currentAirAnimationName = nil
+					}
+					completionHandler?()
+				}
+			)
+		} catch {
+			currentAirAnimationName = nil
+			completionHandler?()
+		}
+	}
+
+	private func updateAirAnimationState() {
+		let isAirborne = isAirborneForAnimation
+		if wasAirborneLastFrame && !isAirborne {
+			wasAirborneLastFrame = false
+			playLandingAnimation()
+			updateWalkingAnimation(isMoving: movement.x * movement.x + movement.z * movement.z > 0.0001)
+		} else if isAirborne {
+			wasAirborneLastFrame = true
+		}
+	}
+
+	private var isAirborneForAnimation: Bool {
+		return node.position.y > standingY + 0.05 || verticalVelocity > 0.05
 	}
 
 	private var currentMoveSpeed: SCNFloat {
@@ -375,6 +534,10 @@ final class PlayerController {
 	private func animationExists(named animationName: String) -> Bool {
 		let url = mainDirectory.appendingPathComponent(animationName.lowercased())
 		return FileManager.default.fileExists(atPath: url.path)
+	}
+
+	private func firstExistingAnimation(named candidates: [String]) -> String? {
+		return candidates.first { animationExists(named: $0) }
 	}
 
 	private func horizontalMovementBasis() -> (forward: SCNVector3, right: SCNVector3) {

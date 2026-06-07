@@ -251,7 +251,11 @@ final class Game: NSObject {
 		// -----
 
 		if let playerNode = scene.playerNode {
-			playerController = PlayerController(node: playerNode, scene: scnScene)
+			let controller = PlayerController(node: playerNode, scene: scnScene)
+			controller.movementAnimationSetProvider = { [weak self] in
+				self?.equippedPlayerMovementAnimationSetId()
+			}
+			playerController = controller
 		}
 
 		// -----
@@ -2199,6 +2203,10 @@ extension Game {
 	func equippedPlayerWeapon() -> Weapon? {
 		guard let playerNode = scene.playerNode else { return nil }
 		return scene.weapons(for: playerNode).first { $0.position == .hand }
+	}
+
+	private func equippedPlayerMovementAnimationSetId() -> Int? {
+		return equippedPlayerWeapon()?.profile?.animationSetId
 	}
 
 	func refreshPlayerStatusHud() {
