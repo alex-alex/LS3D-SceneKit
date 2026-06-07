@@ -26,6 +26,7 @@ class GameManager {
 	let view: SCNView
 
 	var mainMenu: MainMenu?
+	var animationsGallery: AnimationsGallery?
 	var game: Game!
 	private var missions: [MissionEntry] = []
 	private var saveGames: [SaveGameSlot] = []
@@ -83,6 +84,27 @@ class GameManager {
 		view.pointOfView = nil
 		view.audioListener = nil
 		view.overlaySKScene = SaveGameSelectorScene(size: view.bounds.size, saveGames: saveGames, gameManager: self)
+	}
+
+	func loadAnimationsGallery() {
+		view.isPlaying = true
+		view.rendersContinuously = true
+		view.scene = SCNScene()
+		view.overlaySKScene = LoadingScene(textId: 0, imageName: "00menu.tga")
+		DispatchQueue.global().async {
+			do {
+				let gallery = try AnimationsGallery(gameManager: self)
+				DispatchQueue.main.async {
+					self.animationsGallery = gallery
+					gallery.setup(in: self.view)
+				}
+			} catch {
+				print("Failed to load animations gallery:", error)
+				DispatchQueue.main.async {
+					self.loadMenu()
+				}
+			}
+		}
 	}
 
 	func loadMenu() {

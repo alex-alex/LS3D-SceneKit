@@ -128,6 +128,8 @@ class MainMenu {
 			return .saveGameSelector
 		case 990109:
 			return .mission(folder: "autosalon", imageName: "carcyklopedia.tga")
+		case 990110:
+			return .animationsGallery
 		default:
 			return .none
 		}
@@ -188,6 +190,9 @@ class MainMenu {
 		case .missionSelector:
 			stopMenuScripts()
 			gameManager?.loadMissionSelector()
+		case .animationsGallery:
+			stopMenuScripts()
+			gameManager?.loadAnimationsGallery()
 		case .none:
 			break
 		}
@@ -249,6 +254,7 @@ private enum MainMenuAction {
 	case mission(folder: String, imageName: String)
 	case saveGameSelector
 	case missionSelector
+	case animationsGallery
 	case none
 }
 
