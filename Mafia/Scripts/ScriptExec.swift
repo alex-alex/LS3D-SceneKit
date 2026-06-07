@@ -1509,7 +1509,9 @@ extension Script {
 
 	private func model_stopanim(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
-		node(forScriptId: actorId)?.removeAllAnimations()
+		if let actor = node(forScriptId: actorId) {
+			removeDefaultAnimationActions(in: actor)
+		}
 		next()
 	}
 
@@ -1529,7 +1531,9 @@ extension Script {
 
 	private func person_stopanim(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
-		node(forScriptId: actorId)?.removeAllAnimations()
+		if let actor = node(forScriptId: actorId) {
+			removeDefaultAnimationActions(in: actor)
+		}
 		next()
 	}
 

@@ -254,6 +254,11 @@ final class Game: NSObject {
 			spawnPlayer()
 		}
 
+		if !isMenuMission, scene.playerNode != nil {
+			PlayerController.preloadAnimations()
+		}
+		progressHandler?(0.88)
+
 		// -----
 
 		if let playerNode = scene.playerNode {

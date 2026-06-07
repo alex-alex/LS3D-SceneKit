@@ -19,7 +19,6 @@ func playPlayerAnimation(
 	transitionDuration: TimeInterval = playerAnimationTransitionDuration,
 	includePositionAnimation: Bool = true,
 	completionHandler: (() -> Void)? = nil) throws {
-	print("Player animation [\(animationKey ?? "none")]: \(name)")
 	try playAnimation(
 		named: name,
 		in: node,
@@ -32,6 +31,9 @@ func playPlayerAnimation(
 }
 
 final class PlayerController {
+
+	private static let animationExistenceCacheLock = NSLock()
+	private static var animationExistenceCache: [String: Bool] = [:]
 
 	private let node: SCNNode
 	private let scene: SCNScene
@@ -106,6 +108,12 @@ final class PlayerController {
 		baseHeading = PlayerController.worldYaw(for: node)
 		standingY = node.presentation.position.y
 		configurePhysics()
+	}
+
+	static func preloadAnimations() {
+		for animationName in preloadedAnimationNames() where animationExists(named: animationName) {
+			preloadAnimation(named: animationName)
+		}
 	}
 
 	func setMovement(x: SCNFloat, z: SCNFloat) {
@@ -579,12 +587,82 @@ final class PlayerController {
 	}
 
 	private func animationExists(named animationName: String) -> Bool {
-		let url = mainDirectory.appendingPathComponent(animationName.lowercased())
-		return FileManager.default.fileExists(atPath: url.path)
+		return PlayerController.animationExists(named: animationName)
 	}
 
 	private func firstExistingAnimation(named candidates: [String]) -> String? {
 		return candidates.first { animationExists(named: $0) }
+	}
+
+	private static func animationExists(named animationName: String) -> Bool {
+		let key = animationName.lowercased()
+		animationExistenceCacheLock.lock()
+		if let cachedValue = animationExistenceCache[key] {
+			animationExistenceCacheLock.unlock()
+			return cachedValue
+		}
+		animationExistenceCacheLock.unlock()
+
+		let url = mainDirectory.appendingPathComponent(key)
+		let exists = FileManager.default.fileExists(atPath: url.path)
+
+		animationExistenceCacheLock.lock()
+		animationExistenceCache[key] = exists
+		animationExistenceCacheLock.unlock()
+		return exists
+	}
+
+	private static func preloadedAnimationNames() -> Set<String> {
+		var names = Set<String>()
+
+		for animationSetId in 1...8 {
+			let suffix = "\(animationSetId)"
+			let prefixes = [
+				"walk",
+				"run",
+				"walkL",
+				"walkR",
+				"runL",
+				"runR",
+				"back",
+				"backL",
+				"backR",
+				"strafL",
+				"strafR",
+				"strafRL",
+				"strafRR",
+				"left",
+				"right",
+				"turn"
+			]
+			for prefix in prefixes {
+				names.insert("anims/\(prefix)\(suffix).5ds")
+			}
+		}
+
+		for animationSetId in 1...8 {
+			let suffix = String(format: "%02d", animationSetId)
+			for variant in ["a", "b", "c", "d"] {
+				names.insert("anims/breath\(suffix)\(variant).5ds")
+			}
+		}
+
+		for variant in ["a", "b", "c", "d"] {
+			names.insert("anims/breath01\(variant).5ds")
+		}
+
+		names.formUnion([
+			"anims/walk1.5ds",
+			"anims/jump1.5ds",
+			"anims/jumpL1.5ds",
+			"anims/jumpL3.5ds",
+			"anims/jumpR1.5ds",
+			"anims/jumpR3.5ds",
+			"anims/!plachteni.5ds",
+			"anims/!doskok.5ds"
+		])
+
+		return names
 	}
 
 	private func horizontalMovementBasis() -> (forward: SCNVector3, right: SCNVector3) {

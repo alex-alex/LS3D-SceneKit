@@ -536,6 +536,7 @@ private let loadedAnimationsLock = NSLock()
 private var loadedAnimationsByName: [String: LoadedAnimation] = [:]
 private let animationTargetCacheLock = NSLock()
 private var animationTargetCache: [ObjectIdentifier: [String: WeakNode]] = [:]
+private let defaultAnimationActionKeyPrefix = "__animation:"
 
 private func animationResourceURL(named name: String) -> URL? {
 	let normalizedName = name.replacingOccurrences(of: "\\", with: "/")
@@ -638,6 +639,13 @@ func animationDuration(named name: String) throws -> TimeInterval {
 	return duration
 }
 
+func preloadAnimation(named name: String, includePositionAnimation: Bool = true) {
+	guard (try? loadAnimation(named: name)) != nil else { return }
+	guard includePositionAnimation,
+		  let positionAnimationName = siblingPositionAnimationName(for: name) else { return }
+	_ = try? loadPositionAnimation(named: positionAnimationName)
+}
+
 func applyAnimationInitialPose(named name: String, in node: SCNNode) throws {
 	let (animations, _) = try loadAnimation(named: name)
 	for animation in animations {
@@ -657,6 +665,7 @@ func playAnimation(
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
 	let (animations, duration) = try loadAnimation(named: name)
+	let effectiveAnimationKey = animationKey ?? defaultAnimationActionKey(for: name)
 	let positionAnimationName = includePositionAnimation ? siblingPositionAnimationName(for: name) : nil
 	let siblingPositionDuration = positionAnimationName.flatMap { try? positionAnimationDuration(named: $0) } ?? 0
 	if let positionAnimationName = positionAnimationName {
@@ -664,7 +673,7 @@ func playAnimation(
 			named: positionAnimationName,
 			in: node,
 			repeat: `repeat`,
-			animationKey: positionAnimationKey(for: animationKey)
+			animationKey: positionAnimationKey(for: effectiveAnimationKey)
 		)
 	}
 	let matchedAnimations = animations.compactMap { animation -> (animation: Animation, node: SCNNode, sampler: AnimationSampler)? in
@@ -715,13 +724,13 @@ func playAnimation(
 				}
 				node.runAction(
 					SCNAction.sequence([transitionAction, SCNAction.repeatForever(animationAction)]),
-					forKey: animationKey
+					forKey: effectiveAnimationKey
 				)
 			} else {
-				node.runAction(SCNAction.repeatForever(animationAction), forKey: animationKey)
+				node.runAction(SCNAction.repeatForever(animationAction), forKey: effectiveAnimationKey)
 			}
 		} else {
-			node.runAction(animationAction, forKey: animationKey)
+			node.runAction(animationAction, forKey: effectiveAnimationKey)
 		}
 	} else {
 		for matchedAnimation in matchedAnimations {
@@ -732,7 +741,11 @@ func playAnimation(
 	if matchedAnimations.isEmpty {
 		print("Animation target missing: \(name) root=\(node.name ?? "unnamed") tracks=\(animations.count)")
 	}
-	node.runAction(SCNAction.wait(duration: max(duration, siblingPositionDuration)), completionHandler: completionHandler)
+	node.runAction(
+		SCNAction.wait(duration: max(duration, siblingPositionDuration)),
+		forKey: effectiveAnimationKey + ":completion",
+		completionHandler: completionHandler
+	)
 //	if name == "anims/walk1.5ds" { print("===============") }
 }
 
@@ -773,6 +786,21 @@ private func siblingPositionAnimationName(for animationName: String) -> String? 
 private func positionAnimationKey(for animationKey: String?) -> String? {
 	guard let animationKey = animationKey else { return nil }
 	return animationKey + ":position"
+}
+
+func removeDefaultAnimationActions(in node: SCNNode) {
+	for actionKey in node.actionKeys where actionKey.hasPrefix(defaultAnimationActionKeyPrefix) {
+		node.removeAction(forKey: actionKey)
+	}
+	for childNode in node.childNodes {
+		removeDefaultAnimationActions(in: childNode)
+	}
+}
+
+private func defaultAnimationActionKey(for animationName: String) -> String {
+	return defaultAnimationActionKeyPrefix + animationName
+		.replacingOccurrences(of: "\\", with: "/")
+		.lowercased()
 }
 
 private func animationTargetNode(named name: String, in rootNode: SCNNode) -> SCNNode? {
