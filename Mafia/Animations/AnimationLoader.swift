@@ -33,6 +33,65 @@ fileprivate struct AnimationKeyframe<Value> {
 	let value: Value
 }
 
+fileprivate final class AnimationSampler {
+	private let animation: Animation
+	private var lastTick: CGFloat = -.greatestFiniteMagnitude
+	private var rotationCursor = KeyframeCursor<SCNQuaternion>()
+	private var scaleCursor = KeyframeCursor<SCNVector3>()
+	private var positionCursor = KeyframeCursor<SCNVector3>()
+
+	init(animation: Animation) {
+		self.animation = animation
+	}
+
+	func samplePose(elapsedTime: TimeInterval) -> Animation.Pose {
+		let tick = CGFloat(elapsedTime / Animation.frameDuration)
+		if tick < lastTick {
+			rotationCursor.reset()
+			scaleCursor.reset()
+			positionCursor.reset()
+		}
+		lastTick = tick
+
+		return Animation.Pose(
+			position: Animation.interpolatedVector(keyframes: animation.positions, at: tick, cursor: &positionCursor),
+			scale: Animation.interpolatedVector(keyframes: animation.scales, at: tick, cursor: &scaleCursor),
+			rotation: Animation.interpolatedQuaternion(keyframes: animation.rotations, at: tick, cursor: &rotationCursor)
+		)
+	}
+}
+
+fileprivate struct KeyframeCursor<Value> {
+	private var nextIndex = 0
+
+	mutating func reset() {
+		nextIndex = 0
+	}
+
+	mutating func bounds(
+		in keyframes: [AnimationKeyframe<Value>],
+		at tick: CGFloat
+	) -> (previous: AnimationKeyframe<Value>, next: AnimationKeyframe<Value>)? {
+		guard let firstKeyframe = keyframes.first else { return nil }
+		guard tick >= CGFloat(firstKeyframe.tick) else { return nil }
+		guard let lastKeyframe = keyframes.last else { return nil }
+		guard tick <= CGFloat(lastKeyframe.tick) else {
+			nextIndex = keyframes.count - 1
+			return (lastKeyframe, lastKeyframe)
+		}
+
+		while nextIndex < keyframes.count, tick > CGFloat(keyframes[nextIndex].tick) {
+			nextIndex += 1
+		}
+		while nextIndex > 0, tick <= CGFloat(keyframes[nextIndex - 1].tick) {
+			nextIndex -= 1
+		}
+
+		guard nextIndex > 0 else { return (keyframes[0], keyframes[0]) }
+		return (keyframes[nextIndex - 1], keyframes[nextIndex])
+	}
+}
+
 fileprivate func normalizedKeyframes<Value>(_ keyframes: [AnimationKeyframe<Value>]) -> [AnimationKeyframe<Value>] {
 	guard !keyframes.isEmpty else { return [] }
 
@@ -167,7 +226,7 @@ fileprivate func readPositions(stream: InputStream) throws -> [AnimationKeyframe
 }
 
 class Animation {
-	private static let frameDuration: TimeInterval = 1.0 / 25.0
+	fileprivate static let frameDuration: TimeInterval = 1.0 / 25.0
 	struct Pose {
 		let position: SCNVector3?
 		let scale: SCNVector3?
@@ -230,6 +289,10 @@ class Animation {
 		applyPose(samplePose(elapsedTime: elapsedTime), to: node)
 	}
 
+	fileprivate func apply(elapsedTime: TimeInterval, to node: SCNNode, sampler: AnimationSampler) {
+		applyPose(sampler.samplePose(elapsedTime: elapsedTime), to: node)
+	}
+
 	func samplePose(elapsedTime: TimeInterval) -> Pose {
 		let tick = CGFloat(elapsedTime / Animation.frameDuration)
 		return Pose(
@@ -245,6 +308,18 @@ class Animation {
 		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
 	}
 
+	fileprivate func blend(
+		from pose: Pose,
+		elapsedTime: TimeInterval,
+		transitionDuration: TimeInterval,
+		to node: SCNNode,
+		sampler: AnimationSampler
+	) {
+		let targetPose = sampler.samplePose(elapsedTime: elapsedTime)
+		let amount = Animation.smoothstep(CGFloat(elapsedTime / max(transitionDuration, 0.0001)))
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+	}
+
 	func blend(
 		from pose: Pose,
 		toElapsedTime targetElapsedTime: TimeInterval,
@@ -253,6 +328,19 @@ class Animation {
 		to node: SCNNode
 	) {
 		let targetPose = samplePose(elapsedTime: targetElapsedTime)
+		let amount = Animation.smoothstep(CGFloat(transitionElapsedTime / max(transitionDuration, 0.0001)))
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+	}
+
+	fileprivate func blend(
+		from pose: Pose,
+		toElapsedTime targetElapsedTime: TimeInterval,
+		transitionElapsedTime: TimeInterval,
+		transitionDuration: TimeInterval,
+		to node: SCNNode,
+		sampler: AnimationSampler
+	) {
+		let targetPose = sampler.samplePose(elapsedTime: targetElapsedTime)
 		let amount = Animation.smoothstep(CGFloat(transitionElapsedTime / max(transitionDuration, 0.0001)))
 		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
 	}
@@ -293,15 +381,37 @@ class Animation {
 		return keyframes.first { $0.tick == tick }?.value
 	}
 
-	private static func interpolatedVector(keyframes: [AnimationKeyframe<SCNVector3>], at tick: CGFloat) -> SCNVector3? {
+	fileprivate static func interpolatedVector(keyframes: [AnimationKeyframe<SCNVector3>], at tick: CGFloat) -> SCNVector3? {
 		guard let bounds = keyframeBounds(in: keyframes, at: tick) else { return nil }
 		guard bounds.previous.tick != bounds.next.tick else { return bounds.previous.value }
 		let t = CGFloat((tick - CGFloat(bounds.previous.tick)) / CGFloat(bounds.next.tick - bounds.previous.tick))
 		return lerp(bounds.previous.value, bounds.next.value, smoothstep(t))
 	}
 
-	private static func interpolatedQuaternion(keyframes: [AnimationKeyframe<SCNQuaternion>], at tick: CGFloat) -> SCNQuaternion? {
+	fileprivate static func interpolatedVector(
+		keyframes: [AnimationKeyframe<SCNVector3>],
+		at tick: CGFloat,
+		cursor: inout KeyframeCursor<SCNVector3>
+	) -> SCNVector3? {
+		guard let bounds = cursor.bounds(in: keyframes, at: tick) else { return nil }
+		guard bounds.previous.tick != bounds.next.tick else { return bounds.previous.value }
+		let t = CGFloat((tick - CGFloat(bounds.previous.tick)) / CGFloat(bounds.next.tick - bounds.previous.tick))
+		return lerp(bounds.previous.value, bounds.next.value, smoothstep(t))
+	}
+
+	fileprivate static func interpolatedQuaternion(keyframes: [AnimationKeyframe<SCNQuaternion>], at tick: CGFloat) -> SCNQuaternion? {
 		guard let bounds = keyframeBounds(in: keyframes, at: tick) else { return nil }
+		guard bounds.previous.tick != bounds.next.tick else { return bounds.previous.value }
+		let t = CGFloat((tick - CGFloat(bounds.previous.tick)) / CGFloat(bounds.next.tick - bounds.previous.tick))
+		return slerp(bounds.previous.value, bounds.next.value, smoothstep(t))
+	}
+
+	fileprivate static func interpolatedQuaternion(
+		keyframes: [AnimationKeyframe<SCNQuaternion>],
+		at tick: CGFloat,
+		cursor: inout KeyframeCursor<SCNQuaternion>
+	) -> SCNQuaternion? {
+		guard let bounds = cursor.bounds(in: keyframes, at: tick) else { return nil }
 		guard bounds.previous.tick != bounds.next.tick else { return bounds.previous.value }
 		let t = CGFloat((tick - CGFloat(bounds.previous.tick)) / CGFloat(bounds.next.tick - bounds.previous.tick))
 		return slerp(bounds.previous.value, bounds.next.value, smoothstep(t))
@@ -557,9 +667,9 @@ func playAnimation(
 			animationKey: positionAnimationKey(for: animationKey)
 		)
 	}
-	let matchedAnimations = animations.compactMap { animation -> (animation: Animation, node: SCNNode)? in
+	let matchedAnimations = animations.compactMap { animation -> (animation: Animation, node: SCNNode, sampler: AnimationSampler)? in
 		guard let targetNode = animationTargetNode(named: animation.name, in: node) else { return nil }
-		return (animation, targetNode)
+		return (animation, targetNode, AnimationSampler(animation: animation))
 	}
 	if duration > 0, !matchedAnimations.isEmpty {
 		let transitionDuration = max(0, min(transitionDuration, duration))
@@ -577,12 +687,14 @@ func playAnimation(
 						from: startPoses[index],
 						elapsedTime: elapsedTime,
 						transitionDuration: transitionDuration,
-						to: matchedAnimation.node
+						to: matchedAnimation.node,
+						sampler: matchedAnimation.sampler
 					)
 				} else {
 					matchedAnimation.animation.apply(
 						elapsedTime: elapsedTime,
-						to: matchedAnimation.node
+						to: matchedAnimation.node,
+						sampler: matchedAnimation.sampler
 					)
 				}
 			}
@@ -596,7 +708,8 @@ func playAnimation(
 							toElapsedTime: 0,
 							transitionElapsedTime: TimeInterval(elapsedTime),
 							transitionDuration: transitionDuration,
-							to: matchedAnimation.node
+							to: matchedAnimation.node,
+							sampler: matchedAnimation.sampler
 						)
 					}
 				}
