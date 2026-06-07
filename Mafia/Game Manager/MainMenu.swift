@@ -268,6 +268,10 @@ private final class MainMenuScene: SKScene {
 	private var rowHeight: CGFloat = 31
 	private var firstRowY: CGFloat = 0
 	private var menuFrame = CGRect.zero
+	#if os(iOS)
+	private var lastSwipePoint: CGPoint?
+	private var didSwipe = false
+	#endif
 
 	init(size: CGSize, controls: [MenuDefControl], entries: [MainMenuEntry]) {
 		self.controls = controls
@@ -432,7 +436,42 @@ private final class MainMenuScene: SKScene {
 
 	override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
 		guard let point = touches.first?.location(in: self) else { return }
-		select(at: point)
+		lastSwipePoint = point
+		didSwipe = false
+	}
+
+	override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+		guard let point = touches.first?.location(in: self),
+			  let lastPoint = lastSwipePoint else { return }
+
+		let deltaY = point.y - lastPoint.y
+		let threshold = max(18, rowHeight * 0.75)
+		if abs(deltaY) >= threshold {
+			moveSelection(by: deltaY > 0 ? -1 : 1)
+			lastSwipePoint = point
+			didSwipe = true
+		}
+	}
+
+	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+		guard let touch = touches.first else { return }
+		defer {
+			lastSwipePoint = nil
+			didSwipe = false
+		}
+
+		if didSwipe {
+			return
+		}
+
+		if touch.tapCount >= 2 {
+			onEntryActivated?(selectedIndex)
+		}
+	}
+
+	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+		lastSwipePoint = nil
+		didSwipe = false
 	}
 
 	#endif

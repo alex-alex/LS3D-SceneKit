@@ -19,11 +19,14 @@ final class HudScene: SKScene {
 	var actionButton: SKSpriteNode!
 	var speedometer: SKSpriteNode!
 	var speedometerNeedle: SKShapeNode!
+	var speedLimitIndicator: SKSpriteNode!
 	var revCounter: SKSpriteNode!
 	var revCounterNeedle: SKShapeNode!
+	var pauseButton: SKShapeNode!
 	var inventoryButton: SKShapeNode!
 	var reloadButton: SKShapeNode!
-	var dropButton: SKShapeNode!
+	var sprintButton: SKShapeNode!
+	var crouchButton: SKShapeNode!
 	var jumpButton: SKShapeNode!
 	var objectivesNode: SKNode!
 	var consoleLabel: SKLabelNode!
@@ -59,7 +62,9 @@ final class HudScene: SKScene {
 	private var missionEndOptionLabels: [SKLabelNode] = []
 	private var missionEndOptionFrames: [CGRect] = []
 	private var missionEndControls: [MenuDefControl] = []
-	private var inventoryRows: [(node: SKShapeNode, weapon: Weapon?)] = []
+	private var selectedMissionEndOptionIndex = 0
+	private var inventoryRows: [(node: SKShapeNode, dropButton: SKShapeNode?, weapon: Weapon?)] = []
+	private var selectedInventoryRowIndex = 0
 	private var inventoryPausedGame = false
 	private var isCutsceneOverlayVisible = false
 	private var lastSpeedText: String?
@@ -81,7 +86,16 @@ final class HudScene: SKScene {
 	}
 	#if os(iOS)
 	private var activeTouchControl: Control?
+	private var activeTouchButton: SKNode?
+	private var lastMissionEndSwipePoint: CGPoint?
+	private var didSwipeMissionEndOption = false
+	private var lastInventorySwipePoint: CGPoint?
+	private var didSwipeInventory = false
 	#endif
+	private var running = false
+	private var crouching = false
+	private var lastCrouchSidestepTapDirection = 0
+	private var lastCrouchSidestepTapTime: TimeInterval = 0
 	var isInventoryVisible: Bool {
 		return inventoryOverlay?.isHidden == false
 	}
@@ -100,10 +114,6 @@ final class HudScene: SKScene {
 	private var walkingBackward = false
 	private var walkingLeft = false
 	private var walkingRight = false
-	private var running = false
-	private var crouching = false
-	private var lastCrouchSidestepTapDirection = 0
-	private var lastCrouchSidestepTapTime: TimeInterval = 0
 	private var freeCameraForward = false
 	private var freeCameraBackward = false
 	private var freeCameraLeft = false
@@ -163,6 +173,19 @@ final class HudScene: SKScene {
 		speedometerNeedle = HudScene.instrumentNeedle(length: 93, width: 5)
 		speedometerNeedle.position = CGPoint(x: speedometer.size.width * 0.5, y: speedometer.size.height * 0.5)
 		speedometer.addChild(speedometerNeedle)
+
+		let speedLimitIndicatorTexture = HudScene.spriteTexture(
+			imageName: "2int.tga",
+			rect: CGRect(x: 36, y: 116, width: 27, height: 27),
+			masksBlack: true
+		)
+		speedLimitIndicator = SKSpriteNode(texture: speedLimitIndicatorTexture)
+		speedLimitIndicator.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		speedLimitIndicator.isHidden = true
+		speedLimitIndicator.size = CGSize(width: 27, height: 27)
+		speedLimitIndicator.zRotation = CGFloat.pi / 4
+		speedLimitIndicator.zPosition = 802
+		addChild(speedLimitIndicator)
 
 		let revCounterTexture = HudScene.spriteTexture(
 			imageName: "2int.tga",
@@ -267,6 +290,7 @@ final class HudScene: SKScene {
 				  actionButton != nil,
 				  speedometer != nil,
 				  speedometerNeedle != nil,
+				  speedLimitIndicator != nil,
 				  revCounter != nil,
 				  revCounterNeedle != nil,
 				  objectivesNode != nil,
@@ -295,11 +319,7 @@ final class HudScene: SKScene {
 
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 104)
-		speedometer.position = CGPoint(x: size.width - speedometer.size.width - 18, y: 18)
-		revCounter.position = CGPoint(
-			x: speedometer.position.x - revCounter.size.width - 10,
-			y: 18
-		)
+		layoutVehicleInstruments()
 		objectivesNode.position = CGPoint(x: size.width/2, y: size.height * 2 / 3)
 		consoleLabel.position = CGPoint(x: 24, y: actionButton.position.y + actionButton.size.height / 2 + 36)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
@@ -327,14 +347,22 @@ final class HudScene: SKScene {
 		layoutTouchButtons()
 	}
 
-	func updateVehicleSpeed(_ speed: CGFloat, vehicleSpeed: CGFloat, force: CGFloat, isVisible: Bool) {
+	func updateVehicleSpeed(
+		_ speed: CGFloat,
+		vehicleSpeed: CGFloat,
+		force: CGFloat,
+		isVisible: Bool,
+		isSpeedLimiterEnabled: Bool
+	) {
 		if wasSpeedVisible != isVisible {
 			wasSpeedVisible = isVisible
 			speedometer.isHidden = !isGameplayHudVisible(isVisible)
+			speedLimitIndicator.isHidden = !isGameplayHudVisible(isVisible && isSpeedLimiterEnabled)
 			revCounter.isHidden = !isGameplayHudVisible(isVisible)
 			speedLabel.isHidden = true
 		}
 		speedometer.isHidden = !isGameplayHudVisible(isVisible)
+		speedLimitIndicator.isHidden = !isGameplayHudVisible(isVisible && isSpeedLimiterEnabled)
 		revCounter.isHidden = !isGameplayHudVisible(isVisible)
 		speedLabel.isHidden = true
 		guard isVisible else { return }
@@ -348,6 +376,33 @@ final class HudScene: SKScene {
 			lastSpeedText = speedText
 			speedLabel.text = speedText
 		}
+	}
+
+	private func layoutVehicleInstruments() {
+		let shortSide = min(size.width, size.height)
+		let scale: CGFloat = shortSide <= 430 ? 0.72 : 1
+		let rightPadding: CGFloat = shortSide <= 430 ? 10 : 18
+		let bottomPadding: CGFloat = shortSide <= 430 ? 10 : 18
+		let gaugeGap: CGFloat = shortSide <= 430 ? 7 : 10
+
+		speedometer.setScale(scale)
+		revCounter.setScale(scale)
+		speedLimitIndicator.setScale(scale)
+
+		let speedometerWidth = speedometer.size.width * scale
+		let speedometerHeight = speedometer.size.height * scale
+		let revCounterWidth = revCounter.size.width * scale
+		let indicatorWidth = speedLimitIndicator.size.width * scale
+
+		speedometer.position = CGPoint(x: size.width - speedometerWidth - rightPadding, y: bottomPadding)
+		speedLimitIndicator.position = CGPoint(
+			x: speedometer.position.x + speedometerWidth - indicatorWidth / 2,
+			y: speedometer.position.y + speedometerHeight + indicatorWidth / 2
+		)
+		revCounter.position = CGPoint(
+			x: speedometer.position.x - revCounterWidth - gaugeGap,
+			y: bottomPadding
+		)
 	}
 
 	func updatePlayerStatus(health: Int, weapon: Weapon?) {
@@ -523,6 +578,7 @@ final class HudScene: SKScene {
 
 	func setActionButtonVisible(_ isVisible: Bool) {
 		actionButton.isHidden = !isGameplayHudVisible(isVisible)
+		layoutTouchButtons()
 	}
 
 	func setCompassVisible(_ isVisible: Bool) {
@@ -540,6 +596,7 @@ final class HudScene: SKScene {
 			compass.isHidden = true
 			actionButton.isHidden = true
 			speedometer.isHidden = true
+			speedLimitIndicator.isHidden = true
 			revCounter.isHidden = true
 			speedLabel.isHidden = true
 			playerStatusLabel.isHidden = true
@@ -551,9 +608,11 @@ final class HudScene: SKScene {
 			ammoHudPanel.isHidden = true
 			objectivesNode.isHidden = true
 			consoleLabel.alpha = 0
+			pauseButton?.isHidden = true
 			inventoryButton?.isHidden = true
 			reloadButton?.isHidden = true
-			dropButton?.isHidden = true
+			sprintButton?.isHidden = true
+			crouchButton?.isHidden = true
 			jumpButton?.isHidden = true
 			playCutsceneFadeIn()
 		} else {
@@ -562,6 +621,7 @@ final class HudScene: SKScene {
 			cutsceneFadeOverlay.alpha = 0
 			healthHudPanel.isHidden = false
 			speedometer.isHidden = !wasSpeedVisible
+			speedLimitIndicator.isHidden = true
 			revCounter.isHidden = !wasSpeedVisible
 			speedLabel.isHidden = true
 			objectivesNode.isHidden = objectivesNode.children.isEmpty
@@ -597,6 +657,7 @@ final class HudScene: SKScene {
 		missionEndLabel.text = text
 		missionEndLabel.alpha = text == nil ? 0 : 1
 		missionEndContainer.isHidden = text == nil
+		selectedMissionEndOptionIndex = 0
 		layoutMissionEndMenu()
 	}
 
@@ -762,6 +823,31 @@ extension HudScene {
 			label.preferredMaxLayoutWidth = frame.width
 			missionEndOptionFrames.append(frame)
 		}
+		refreshMissionEndSelection()
+	}
+
+	private func moveMissionEndSelection(by offset: Int) {
+		guard !missionEndOptionLabels.isEmpty else { return }
+
+		selectedMissionEndOptionIndex = max(
+			0,
+			min(missionEndOptionLabels.count - 1, selectedMissionEndOptionIndex + offset)
+		)
+		refreshMissionEndSelection()
+	}
+
+	private func refreshMissionEndSelection() {
+		for (index, label) in missionEndOptionLabels.enumerated() {
+			let selected = index == selectedMissionEndOptionIndex
+			label.fontColor = selected ? SKColor(red: 0.42, green: 0.04, blue: 0.03, alpha: 1) : .black
+			label.setScale(selected ? 1.07 : 1)
+		}
+	}
+
+	private func activateSelectedMissionEndOption() {
+		guard missionEndOptionLabels.indices.contains(selectedMissionEndOptionIndex) else { return }
+
+		game.activateMissionEndOption(at: selectedMissionEndOptionIndex)
 	}
 
 	private func missionEndFontSize(for frame: CGRect, maximum: CGFloat) -> CGFloat {
@@ -1141,6 +1227,16 @@ extension HudScene {
 
 		let overlayPoint = convert(point, to: inventoryOverlay)
 		for row in inventoryRows where row.node.frame.contains(overlayPoint) {
+			if let weapon = row.weapon,
+			   let dropButton = row.dropButton {
+				let rowPoint = row.node.convert(overlayPoint, from: inventoryOverlay)
+				if dropButton.frame.contains(rowPoint) {
+					game.dropPlayerWeapon(weapon)
+					rebuildInventoryRows()
+					return true
+				}
+			}
+
 			game.equipPlayerWeapon(row.weapon)
 			setInventoryVisible(false)
 			return true
@@ -1155,6 +1251,7 @@ extension HudScene {
 			row.node.removeFromParent()
 		}
 		inventoryRows.removeAll()
+		selectedInventoryRowIndex = 0
 
 		let weapons = game.playerInventoryWeapons()
 		if weapons.isEmpty {
@@ -1179,6 +1276,15 @@ extension HudScene {
 			)
 		}
 
+		if let selectedIndex = inventoryRows.firstIndex(where: { row in
+			if let weapon = row.weapon {
+				return weapon.position == .hand
+			}
+			return !weapons.contains(where: { $0.position == .hand })
+		}) {
+			selectedInventoryRowIndex = selectedIndex
+		}
+		refreshInventorySelection()
 		layoutInventoryRows()
 	}
 
@@ -1211,7 +1317,27 @@ extension HudScene {
 			row.addChild(subtitleLabel)
 		}
 
-		inventoryRows.append((node: row, weapon: weapon))
+		let dropButton: SKShapeNode?
+		if weapon != nil {
+			let button = SKShapeNode(rectOf: CGSize(width: 58, height: 28), cornerRadius: 5)
+			button.fillColor = SKColor.white.withAlphaComponent(0.18)
+			button.strokeColor = SKColor.white.withAlphaComponent(0.34)
+			button.lineWidth = 1
+			row.addChild(button)
+
+			let dropLabel = SKLabelNode()
+			dropLabel.fontName = "Arial-BoldMT"
+			dropLabel.fontSize = 12
+			dropLabel.fontColor = SKColor.white
+			dropLabel.text = "Drop"
+			dropLabel.verticalAlignmentMode = .center
+			button.addChild(dropLabel)
+			dropButton = button
+		} else {
+			dropButton = nil
+		}
+
+		inventoryRows.append((node: row, dropButton: dropButton, weapon: weapon))
 	}
 
 	private func layoutInventoryRows() {
@@ -1231,10 +1357,52 @@ extension HudScene {
 				if label.horizontalAlignmentMode == .left {
 					label.position.x = -rowWidth/2 + 14
 				} else if label.horizontalAlignmentMode == .right {
-					label.position.x = rowWidth/2 - 14
+					label.position.x = row.dropButton == nil ? rowWidth/2 - 14 : rowWidth/2 - 84
 				}
 			}
+			row.dropButton?.position = CGPoint(x: rowWidth/2 - 42, y: 0)
 		}
+	}
+
+	private func moveInventorySelection(by offset: Int) {
+		guard !inventoryRows.isEmpty else { return }
+
+		selectedInventoryRowIndex = max(0, min(inventoryRows.count - 1, selectedInventoryRowIndex + offset))
+		refreshInventorySelection()
+	}
+
+	private func refreshInventorySelection() {
+		for (index, row) in inventoryRows.enumerated() {
+			let selected = index == selectedInventoryRowIndex
+			row.node.fillColor = selected ? SKColor.white.withAlphaComponent(0.24) : SKColor.white.withAlphaComponent(0.12)
+			row.node.strokeColor = selected ? SKColor.white : SKColor.white.withAlphaComponent(0.28)
+		}
+	}
+
+	private func equipSelectedInventoryRow() {
+		guard inventoryRows.indices.contains(selectedInventoryRowIndex) else { return }
+
+		game.equipPlayerWeapon(inventoryRows[selectedInventoryRowIndex].weapon)
+		setInventoryVisible(false)
+	}
+
+	private func handleInventoryDropButton(at point: CGPoint) -> Bool {
+		guard inventoryOverlay.isHidden == false else { return false }
+
+		let overlayPoint = convert(point, to: inventoryOverlay)
+		for row in inventoryRows {
+			guard let weapon = row.weapon,
+				  let dropButton = row.dropButton,
+				  row.node.frame.contains(overlayPoint) else { continue }
+
+			let rowPoint = row.node.convert(overlayPoint, from: inventoryOverlay)
+			guard dropButton.frame.contains(rowPoint) else { continue }
+
+			game.dropPlayerWeapon(weapon)
+			rebuildInventoryRows()
+			return true
+		}
+		return false
 	}
 
 }
@@ -1263,13 +1431,18 @@ extension HudScene {
 		pauseHintLabel.fontName = "Arial"
 		pauseHintLabel.fontSize = 17
 		pauseHintLabel.fontColor = SKColor.white
+		#if os(iOS)
+		pauseHintLabel.text = "Tap Pause to resume"
+		#else
 		pauseHintLabel.text = "Press Esc to resume"
+		#endif
 		pauseHintLabel.verticalAlignmentMode = .center
 		pauseOverlay.addChild(pauseHintLabel)
 	}
 
 	func setPauseScreenVisible(_ isVisible: Bool) {
 		pauseOverlay.isHidden = !isVisible
+		pauseButton?.zPosition = isVisible ? 2300 : 0
 	}
 
 }
@@ -1280,6 +1453,21 @@ extension HudScene {
 
 	func renderButtons() {
 		let isVisible = showsTouchControls
+
+		pauseButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
+		pauseButton.isHidden = !isVisible
+		pauseButton.position = CGPoint(x: 45, y: size.height-45)
+		pauseButton.fillColor = SKColor.white
+		pauseButton.strokeColor = SKColor.clear
+		addChild(pauseButton)
+
+		let pauseButtonLabel = SKLabelNode()
+		pauseButtonLabel.fontName = "Arial"
+		pauseButtonLabel.fontSize = 17
+		pauseButtonLabel.fontColor = SKColor.black
+		pauseButtonLabel.text = "Pau"
+		pauseButtonLabel.verticalAlignmentMode = .center
+		pauseButton.addChild(pauseButtonLabel)
 
 		inventoryButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
 		inventoryButton.isHidden = !isVisible
@@ -1307,28 +1495,43 @@ extension HudScene {
 		reloadButtonLabel.fontName = "Arial"
 		reloadButtonLabel.fontSize = 17
 		reloadButtonLabel.fontColor = SKColor.black
-		reloadButtonLabel.text = "Rel"
+		reloadButtonLabel.text = "Rld"
 		reloadButtonLabel.verticalAlignmentMode = .center
 		reloadButton.addChild(reloadButtonLabel)
 
-		dropButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
-		dropButton.isHidden = !isVisible
-		dropButton.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
-		dropButton.fillColor = SKColor.white
-		dropButton.strokeColor = SKColor.clear
-		addChild(dropButton)
+		sprintButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
+		sprintButton.isHidden = !isVisible
+		sprintButton.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
+		sprintButton.strokeColor = SKColor.clear
+		addChild(sprintButton)
 
-		let dropButtonLabel = SKLabelNode()
-		dropButtonLabel.fontName = "Arial"
-		dropButtonLabel.fontSize = 17
-		dropButtonLabel.fontColor = SKColor.black
-		dropButtonLabel.text = "Drp"
-		dropButtonLabel.verticalAlignmentMode = .center
-		dropButton.addChild(dropButtonLabel)
+		let sprintButtonLabel = SKLabelNode()
+		sprintButtonLabel.fontName = "Arial"
+		sprintButtonLabel.fontSize = 17
+		sprintButtonLabel.fontColor = SKColor.black
+		sprintButtonLabel.text = "Spr"
+		sprintButtonLabel.verticalAlignmentMode = .center
+		sprintButton.addChild(sprintButtonLabel)
+		updateSprintButtonAppearance()
+
+		crouchButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
+		crouchButton.isHidden = !isVisible
+		crouchButton.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
+		crouchButton.strokeColor = SKColor.clear
+		addChild(crouchButton)
+
+		let crouchButtonLabel = SKLabelNode()
+		crouchButtonLabel.fontName = "Arial"
+		crouchButtonLabel.fontSize = 17
+		crouchButtonLabel.fontColor = SKColor.black
+		crouchButtonLabel.text = "Crh"
+		crouchButtonLabel.verticalAlignmentMode = .center
+		crouchButton.addChild(crouchButtonLabel)
+		updateCrouchButtonAppearance()
 
 		jumpButton = SKShapeNode(ellipseOf: CGSize(width: 50, height: 50))
 		jumpButton.isHidden = !isVisible
-		jumpButton.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
+		jumpButton.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
 		jumpButton.fillColor = SKColor.white
 		jumpButton.strokeColor = SKColor.clear
 		addChild(jumpButton)
@@ -1344,24 +1547,31 @@ extension HudScene {
 	}
 
 	private func layoutTouchButtons() {
+		pauseButton?.position = CGPoint(x: 45, y: size.height-45)
 		inventoryButton?.position = CGPoint(x: size.width-45, y: size.height-45)
 		reloadButton?.position = CGPoint(x: size.width-45, y: size.height-45-60)
-		dropButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
-		jumpButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
+		sprintButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*2)
+		crouchButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*3)
+		jumpButton?.position = CGPoint(x: size.width-45, y: size.height-45-60*4)
 
 		guard showsTouchControls else {
+			pauseButton?.isHidden = true
 			inventoryButton?.isHidden = true
 			reloadButton?.isHidden = true
-			dropButton?.isHidden = true
+			sprintButton?.isHidden = true
+			crouchButton?.isHidden = true
 			jumpButton?.isHidden = true
 			return
 		}
 
 		let isVisible = !isCutsceneOverlayVisible
+		let showsWalkingControls = isVisible && game.mode == .walk && game.scene.playerNode != nil
+		pauseButton?.isHidden = !isVisible
 		inventoryButton?.isHidden = !isVisible
 		reloadButton?.isHidden = !isVisible
-		dropButton?.isHidden = !isVisible
-		jumpButton?.isHidden = !isVisible
+		sprintButton?.isHidden = !showsWalkingControls
+		crouchButton?.isHidden = !showsWalkingControls
+		jumpButton?.isHidden = !showsWalkingControls
 	}
 
 	func handlesTouchControl(at point: CGPoint) -> Bool {
@@ -1370,6 +1580,9 @@ extension HudScene {
 			return true
 		}
 		if isInventoryVisible {
+			return true
+		}
+		if game.isGamePaused {
 			return true
 		}
 		return touchControlNode(at: point) != nil
@@ -1399,9 +1612,13 @@ extension HudScene {
 	private func isTouchControlNode(_ node: SKNode) -> Bool {
 		let controls: [SKNode?] = [
 			actionButton,
+			speedometer,
+			speedLimitIndicator,
+			pauseButton,
 			inventoryButton,
 			reloadButton,
-			dropButton,
+			sprintButton,
+			crouchButton,
 			jumpButton
 		]
 
@@ -1424,10 +1641,25 @@ extension HudScene {
 
 		guard let touch = touches.first else { return }
 		let location = touch.location(in: self)
-		if handleMissionEndSelection(at: location) {
+		if isMissionEndVisible {
+			lastMissionEndSwipePoint = location
+			didSwipeMissionEndOption = false
+			return
+		}
+		if isInventoryVisible {
+			if handleInventoryDropButton(at: location) {
+				return
+			}
+			lastInventorySwipePoint = location
+			didSwipeInventory = false
 			return
 		}
 		if handleInventorySelection(at: location) {
+			return
+		}
+		if game.isGamePaused,
+		   let node = touchControlNode(at: location),
+		   !(node === pauseButton || node.parent === pauseButton) {
 			return
 		}
 
@@ -1437,6 +1669,11 @@ extension HudScene {
 				activeTouchControl = .ACTION
 				game.pressControl(.ACTION)
 				game.actionButtonTapped()
+			case pauseButton, pauseButton.children[0]:
+				activeTouchButton = nil
+				setRunning(false)
+				setCrouching(false)
+				game.setPaused(!game.isGamePaused)
 			case inventoryButton, inventoryButton.children[0]:
 				game.lastControl = .INVENTORY
 				game.openInventory()
@@ -1452,9 +1689,16 @@ extension HudScene {
 				} else if let vehicle = game.vehicle {
 					print("pos:", vehicle.node.presentation.position)
 				}
-			case dropButton, dropButton.children[0]:
-				game.lastControl = .WEAPONDROP
-				game.dropPlayerWeapon()
+			case speedometer, speedometerNeedle, speedLimitIndicator:
+				game.toggleSpeedLimiter()
+			case sprintButton, sprintButton.children[0]:
+				guard game.mode == .walk, game.scene.playerNode != nil else { break }
+				activeTouchButton = sprintButton
+				setRunning(true)
+			case crouchButton, crouchButton.children[0]:
+				guard game.mode == .walk, game.scene.playerNode != nil else { break }
+				activeTouchButton = crouchButton
+				setCrouching(true)
 			case jumpButton, jumpButton.children[0]:
 				game.lastControl = .JUMP
 				game.playerController?.jump()
@@ -1465,8 +1709,44 @@ extension HudScene {
 		}
 	}
 
+	override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+		super.touchesMoved(touches, with: event)
+
+		guard isMissionEndVisible,
+			  let point = touches.first?.location(in: self) else {
+			handleInventoryTouchMoved(touches)
+			return
+		}
+
+		handleMissionEndTouchMoved(to: point)
+	}
+
 	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
 		super.touchesEnded(touches, with: event)
+
+		if isMissionEndVisible {
+			defer {
+				lastMissionEndSwipePoint = nil
+				didSwipeMissionEndOption = false
+			}
+			guard didSwipeMissionEndOption == false,
+				  (touches.first?.tapCount ?? 0) >= 2 else { return }
+
+			activateSelectedMissionEndOption()
+			return
+		}
+
+		if isInventoryVisible {
+			defer {
+				lastInventorySwipePoint = nil
+				didSwipeInventory = false
+			}
+			guard didSwipeInventory == false,
+				  (touches.first?.tapCount ?? 0) >= 2 else { return }
+
+			equipSelectedInventoryRow()
+			return
+		}
 
 		releaseActiveTouchControl()
 	}
@@ -1474,14 +1754,60 @@ extension HudScene {
 	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
 		super.touchesCancelled(touches, with: event)
 
+		if isMissionEndVisible {
+			lastMissionEndSwipePoint = nil
+			didSwipeMissionEndOption = false
+			return
+		}
+		if isInventoryVisible {
+			lastInventorySwipePoint = nil
+			didSwipeInventory = false
+			return
+		}
+
 		releaseActiveTouchControl()
 	}
 
-	private func releaseActiveTouchControl() {
-		guard let control = activeTouchControl else { return }
+	private func handleMissionEndTouchMoved(to point: CGPoint) {
+		guard let lastPoint = lastMissionEndSwipePoint else { return }
 
-		game.releaseControl(control)
-		activeTouchControl = nil
+		let deltaY = point.y - lastPoint.y
+		let rowHeight = missionEndOptionFrames.first?.height ?? 32
+		let threshold = max(18, rowHeight * 0.75)
+		if abs(deltaY) >= threshold {
+			moveMissionEndSelection(by: deltaY > 0 ? -1 : 1)
+			lastMissionEndSwipePoint = point
+			didSwipeMissionEndOption = true
+		}
+	}
+
+	private func handleInventoryTouchMoved(_ touches: Set<UITouch>) {
+		guard isInventoryVisible,
+			  let point = touches.first?.location(in: self),
+			  let lastPoint = lastInventorySwipePoint else { return }
+
+		let deltaY = point.y - lastPoint.y
+		let rowHeight = inventoryRows.first?.node.frame.height ?? 42
+		let threshold = max(18, rowHeight * 0.75)
+		if abs(deltaY) >= threshold {
+			moveInventorySelection(by: deltaY > 0 ? -1 : 1)
+			lastInventorySwipePoint = point
+			didSwipeInventory = true
+		}
+	}
+
+	private func releaseActiveTouchControl() {
+		if activeTouchButton === sprintButton {
+			setRunning(false)
+		} else if activeTouchButton === crouchButton {
+			setCrouching(false)
+		}
+		activeTouchButton = nil
+
+		if let control = activeTouchControl {
+			game.releaseControl(control)
+			activeTouchControl = nil
+		}
 	}
 
 	#elseif os(macOS)
@@ -1903,44 +2229,6 @@ extension HudScene {
 		setCrouching(flags.contains(.control))
 	}
 
-	private func setRunning(_ isRunning: Bool) {
-		guard !isRunning || (game.mode == .walk && game.scene.playerNode != nil) else { return }
-		guard running != isRunning else { return }
-
-		running = isRunning
-		game.playerController?.setRunning(isRunning)
-	}
-
-	private func setCrouching(_ isCrouching: Bool) {
-		guard crouching != isCrouching else { return }
-
-		crouching = isCrouching
-		game.setPlayerCrouching(isCrouching)
-		resetCrouchSidestepTap()
-	}
-
-	private func registerCrouchSidestepTap(direction: Int) {
-		guard crouching else {
-			resetCrouchSidestepTap()
-			return
-		}
-
-		let now = Date.timeIntervalSinceReferenceDate
-		let isDoubleTap = direction == lastCrouchSidestepTapDirection && now - lastCrouchSidestepTapTime <= 0.32
-		lastCrouchSidestepTapDirection = direction
-		lastCrouchSidestepTapTime = now
-
-		guard isDoubleTap else { return }
-
-		resetCrouchSidestepTap()
-		game.playDodgeAnimation(direction: direction < 0 ? .left : .right)
-	}
-
-	private func resetCrouchSidestepTap() {
-		lastCrouchSidestepTapDirection = 0
-		lastCrouchSidestepTapTime = 0
-	}
-
 	private func updateFreeCameraControls() {
 		let forward: SCNFloat
 		if freeCameraForward == freeCameraBackward {
@@ -1967,5 +2255,61 @@ extension HudScene {
 	}
 
 	#endif
+
+	private func setRunning(_ isRunning: Bool) {
+		guard !isRunning || (game.mode == .walk && game.scene.playerNode != nil) else { return }
+		guard running != isRunning else { return }
+
+		running = isRunning
+		game.playerController?.setRunning(isRunning)
+		updateSprintButtonAppearance()
+	}
+
+	private func setCrouching(_ isCrouching: Bool) {
+		guard crouching != isCrouching else { return }
+
+		crouching = isCrouching
+		game.setPlayerCrouching(isCrouching)
+		resetCrouchSidestepTap()
+		updateCrouchButtonAppearance()
+	}
+
+	func registerCrouchSidestepSwipe(direction: Int) {
+		registerCrouchSidestepTap(direction: direction)
+	}
+
+	private func registerCrouchSidestepTap(direction: Int) {
+		guard crouching else {
+			resetCrouchSidestepTap()
+			return
+		}
+
+		let now = Date.timeIntervalSinceReferenceDate
+		let isDoubleTap = direction == lastCrouchSidestepTapDirection && now - lastCrouchSidestepTapTime <= 0.32
+		lastCrouchSidestepTapDirection = direction
+		lastCrouchSidestepTapTime = now
+
+		guard isDoubleTap else { return }
+
+		resetCrouchSidestepTap()
+		game.playDodgeAnimation(direction: direction < 0 ? .left : .right)
+	}
+
+	private func resetCrouchSidestepTap() {
+		lastCrouchSidestepTapDirection = 0
+		lastCrouchSidestepTapTime = 0
+	}
+
+	private func updateCrouchButtonAppearance() {
+		guard let crouchButton = crouchButton else { return }
+
+		crouchButton.fillColor = crouching ? SKColor(red: 0.78, green: 0.88, blue: 1, alpha: 1) : SKColor.white
+	}
+
+	private func updateSprintButtonAppearance() {
+		guard let sprintButton = sprintButton else { return }
+
+		sprintButton.fillColor = running ? SKColor(red: 0.82, green: 1, blue: 0.76, alpha: 1) : SKColor.white
+	}
 
 }

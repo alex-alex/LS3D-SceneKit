@@ -40,7 +40,11 @@ class GameManager {
 
 		view.rendersContinuously = true
 		view.backgroundColor = .black
+		#if os(iOS)
+		view.showsStatistics = false
+		#else
 		view.showsStatistics = true
+		#endif
 //		view.debugOptions = [.showPhysicsShapes]
 		view.antialiasingMode = .none
 		view.allowsCameraControl = false
@@ -224,7 +228,7 @@ private final class SaveGameSelectorScene: SKScene {
 		addChild(titleLabel)
 
 		#if os(iOS)
-		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Tap a save, or swipe to change selection"
+		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Swipe up/down, double-tap to select"
 		#else
 		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Use arrows and Return, or click a save"
 		#endif
@@ -343,14 +347,14 @@ private final class SaveGameSelectorScene: SKScene {
 		let deltaY = point.y - lastPoint.y
 		let threshold = max(18, rowHeight * 0.75)
 		if abs(deltaY) >= threshold {
-			moveSelection(by: deltaY > 0 ? 1 : -1)
+			moveSelection(by: deltaY > 0 ? -1 : 1)
 			lastSwipePoint = point
 			didSwipe = true
 		}
 	}
 
 	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-		guard let point = touches.first?.location(in: self) else { return }
+		guard let touch = touches.first else { return }
 		defer {
 			lastSwipePoint = nil
 			didSwipe = false
@@ -360,7 +364,9 @@ private final class SaveGameSelectorScene: SKScene {
 			return
 		}
 
-		selectSaveGame(at: point)
+		if touch.tapCount >= 2 {
+			loadSelectedSaveGame()
+		}
 	}
 
 	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -425,7 +431,7 @@ private final class MissionSelectorScene: SKScene {
 		addChild(titleLabel)
 
 		#if os(iOS)
-		hintLabel.text = "Tap a mission, or swipe to change selection"
+		hintLabel.text = "Swipe up/down, double-tap to select"
 		#else
 		hintLabel.text = "Use arrows and Return, or click a mission"
 		#endif
@@ -538,14 +544,14 @@ private final class MissionSelectorScene: SKScene {
 		let deltaY = point.y - lastPoint.y
 		let threshold = max(18, rowHeight * 0.75)
 		if abs(deltaY) >= threshold {
-			moveSelection(by: deltaY > 0 ? 1 : -1)
+			moveSelection(by: deltaY > 0 ? -1 : 1)
 			lastSwipePoint = point
 			didSwipe = true
 		}
 	}
 
 	override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-		guard let point = touches.first?.location(in: self) else { return }
+		guard let touch = touches.first else { return }
 		defer {
 			lastSwipePoint = nil
 			didSwipe = false
@@ -555,7 +561,9 @@ private final class MissionSelectorScene: SKScene {
 			return
 		}
 
-		selectMission(at: point)
+		if touch.tapCount >= 2 {
+			loadSelectedMission()
+		}
 	}
 
 	override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {

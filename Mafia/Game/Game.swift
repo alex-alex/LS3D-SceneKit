@@ -1378,7 +1378,8 @@ extension Game: SCNSceneRendererDelegate {
 			CGFloat(vehicleSpeed),
 			vehicleSpeed: vehicle?.speed ?? 0,
 			force: vehicle?.force ?? 0,
-			isVisible: mode == .car && vehicle != nil
+			isVisible: mode == .car && vehicle != nil,
+			isSpeedLimiterEnabled: vehicle?.isSpeedLimiterEnabled == true
 		)
 		refreshPlayerStatusHud()
 		updateNPCHealthLabels()
@@ -1640,6 +1641,16 @@ extension Game {
 	func dropPlayerWeapon() {
 		guard let playerNode = scene.playerNode,
 			  let weapon = scene.weapons(for: playerNode).first(where: { $0.position == .hand }) else { return }
+		dropPlayerWeapon(weapon, from: playerNode)
+	}
+
+	func dropPlayerWeapon(_ weapon: Weapon) {
+		guard let playerNode = scene.playerNode,
+			  scene.weapons(for: playerNode).contains(where: { $0 === weapon }) else { return }
+		dropPlayerWeapon(weapon, from: playerNode)
+	}
+
+	private func dropPlayerWeapon(_ weapon: Weapon, from playerNode: SCNNode) {
 		guard let dropNode = droppedWeaponNode(for: weapon, from: playerNode) else { return }
 
 		scene.updateWeaponsIfPresent(for: playerNode) { weapons in

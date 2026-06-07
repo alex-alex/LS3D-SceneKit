@@ -21,6 +21,8 @@ class GameViewController: UIViewController {
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
 	var fireGesture: UITapGestureRecognizer!
+	var sidestepLeftSwipeGesture: UISwipeGestureRecognizer!
+	var sidestepRightSwipeGesture: UISwipeGestureRecognizer!
 	private var isTouchDriving = false
 
 	let motionManager = CMMotionManager()
@@ -49,6 +51,19 @@ class GameViewController: UIViewController {
 		fireGesture.delegate = self
 		fireGesture.cancelsTouchesInView = false
 		view.addGestureRecognizer(fireGesture)
+
+		// crouch sidestep gestures
+		sidestepLeftSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(sidestepSwipeRecognized))
+		sidestepLeftSwipeGesture.direction = .left
+		sidestepLeftSwipeGesture.delegate = self
+		sidestepLeftSwipeGesture.cancelsTouchesInView = false
+		view.addGestureRecognizer(sidestepLeftSwipeGesture)
+
+		sidestepRightSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(sidestepSwipeRecognized))
+		sidestepRightSwipeGesture.direction = .right
+		sidestepRightSwipeGesture.delegate = self
+		sidestepRightSwipeGesture.cancelsTouchesInView = false
+		view.addGestureRecognizer(sidestepRightSwipeGesture)
 
 		// ------
 
@@ -144,6 +159,11 @@ extension GameViewController {
 		gameManager.game?.releaseControl(.FIRE)
 	}
 
+	@objc func sidestepSwipeRecognized(gesture: UISwipeGestureRecognizer) {
+		let direction = gesture.direction == .left ? -1 : 1
+		gameManager.game?.hud?.registerCrouchSidestepSwipe(direction: direction)
+	}
+
 }
 
 extension GameViewController: UIGestureRecognizerDelegate {
@@ -161,6 +181,8 @@ extension GameViewController: UIGestureRecognizerDelegate {
 		if gestureRecognizer == lookGesture {
 			return touch.location(in: view).x > view.frame.size.width / 2
 		} else if gestureRecognizer == walkGesture {
+			return touch.location(in: view).x < view.frame.size.width / 2
+		} else if gestureRecognizer == sidestepLeftSwipeGesture || gestureRecognizer == sidestepRightSwipeGesture {
 			return touch.location(in: view).x < view.frame.size.width / 2
 		}
 		return true
