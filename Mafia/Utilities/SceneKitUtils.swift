@@ -315,10 +315,27 @@ extension SKTexture {
 	}
 }
 
+private let mafiaResourceURLCacheLock = NSLock()
+private var mafiaResourceURLCache: [String: URL] = [:]
+private var missingMafiaResourceURLCache: Set<String> = []
+
 func mafiaResourceURL(directory: String, name: String) -> URL? {
+	let cacheKey = directory.lowercased() + "/" + name.replacingOccurrences(of: "\\", with: "/").lowercased()
+	mafiaResourceURLCacheLock.lock()
+	if let cachedURL = mafiaResourceURLCache[cacheKey] {
+		mafiaResourceURLCacheLock.unlock()
+		return cachedURL
+	}
+	if missingMafiaResourceURLCache.contains(cacheKey) {
+		mafiaResourceURLCacheLock.unlock()
+		return nil
+	}
+	mafiaResourceURLCacheLock.unlock()
+
 	let directoryURL = mainDirectory.appendingPathComponent(directory)
 	let directURL = directoryURL.appendingPathComponent(name)
 	if FileManager.default.fileExists(atPath: directURL.path) {
+		cacheMafiaResourceURL(directURL, for: cacheKey)
 		return directURL
 	}
 
@@ -329,6 +346,7 @@ func mafiaResourceURL(directory: String, name: String) -> URL? {
 		includingPropertiesForKeys: nil,
 		options: [.skipsHiddenFiles]
 	) else {
+		cacheMissingMafiaResourceURL(for: cacheKey)
 		return nil
 	}
 
@@ -339,13 +357,29 @@ func mafiaResourceURL(directory: String, name: String) -> URL? {
 				.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
 				.lowercased()
 			if relativePath == normalizedName {
+				cacheMafiaResourceURL(url, for: cacheKey)
 				return url
 			}
 		} else if url.lastPathComponent.lowercased() == normalizedName {
+			cacheMafiaResourceURL(url, for: cacheKey)
 			return url
 		}
 	}
+	cacheMissingMafiaResourceURL(for: cacheKey)
 	return nil
+}
+
+private func cacheMafiaResourceURL(_ url: URL, for key: String) {
+	mafiaResourceURLCacheLock.lock()
+	mafiaResourceURLCache[key] = url
+	missingMafiaResourceURLCache.remove(key)
+	mafiaResourceURLCacheLock.unlock()
+}
+
+private func cacheMissingMafiaResourceURL(for key: String) {
+	mafiaResourceURLCacheLock.lock()
+	missingMafiaResourceURLCache.insert(key)
+	mafiaResourceURLCacheLock.unlock()
 }
 
 func mafiaMapURL(named name: String) -> URL? {
