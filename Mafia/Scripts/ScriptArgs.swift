@@ -179,6 +179,7 @@ extension Script {
 		case "getenemyaistate":			return getArgs_getenemyaistate(scanner)
 		case "getframefromactor":		return getArgs_getframefromactor(scanner)
 		case "getgametime":				return getArgs_getgametime(scanner)
+		case "get_pm_state":			return getArgs_get_pm_state(scanner)
 		case "get_remote_actor":		return getArgs_get_remote_actor(scanner)
 		case "get_remote_float":		return getArgs_get_remote_float(scanner)
 		case "get_remote_frame":		return getArgs_get_remote_frame(scanner)
@@ -550,6 +551,10 @@ extension Script {
 
 	private func getArgs_getgametime(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_get_pm_state(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_get_remote_actor(_ scanner: Scanner) -> [Argument] {

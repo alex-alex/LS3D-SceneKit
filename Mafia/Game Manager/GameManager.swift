@@ -128,6 +128,8 @@ class GameManager {
 	}
 
 	func loadMission(textId: Int, imageName: String, folder: String) {
+		let title = TextDb.get(textId) ?? "<none>"
+		print("== Loading Mission: folder=\(folder), textId=\(textId), title=\"\(title)\", image=\(imageName)")
 		releaseCurrentGame()
 		view.isPlaying = true
 		view.rendersContinuously = true

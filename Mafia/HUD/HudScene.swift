@@ -673,7 +673,7 @@ final class HudScene: SKScene {
 	func showMissionEndText(_ text: String?) {
 		missionEndLabel.text = text
 		missionEndLabel.alpha = text == nil ? 0 : 1
-		missionEndContainer.isHidden = text == nil
+		missionEndContainer.isHidden = false
 		selectedMissionEndOptionIndex = 0
 		layoutMissionEndMenu()
 	}

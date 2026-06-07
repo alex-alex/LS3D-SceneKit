@@ -155,6 +155,7 @@ enum ScriptCommandName: String {
 	case getenemyaistate
 	case getframefromactor
 	case getgametime
+	case getPmState = "get_pm_state"
 	case getRemoteActor = "get_remote_actor"
 	case getRemoteFloat = "get_remote_float"
 	case getRemoteFrame = "get_remote_frame"
@@ -268,6 +269,7 @@ struct ScriptCommand {
 	let name: ScriptCommandName
 	let rawName: String
 	let args: [Argument]
+	let sourceLine: Int
 
 	var scriptLogDescription: String {
 		guard !args.isEmpty else { return rawName }
@@ -278,6 +280,7 @@ struct ScriptCommand {
 final class Script {
 
 	private static var isCommandLoggingEnabled = false
+	private static let recentCommandHistoryLimit = 20
 
 	@discardableResult
 	static func toggleCommandLogging() -> Bool {
@@ -331,6 +334,7 @@ final class Script {
 	var timerGeneration = 0
 	var waitGeneration = 0
 	var isWaitingForScriptWait = false
+	var recentCommandHistory: [(commandIndex: Int, sourceLine: Int, eventId: String?, description: String)] = []
 
 	var signal = false
 
@@ -371,7 +375,7 @@ final class Script {
 			}
 
 			let args = getArgumentsForCommand(str: commandStr, scanner: scanner, sourceLine: line, lineNumber: sourceLineIndex + 1)
-			parsed.append(ScriptCommand(name: ScriptCommandName(rawValue: commandStr) ?? .unknown, rawName: commandStr, args: args))
+			parsed.append(ScriptCommand(name: ScriptCommandName(rawValue: commandStr) ?? .unknown, rawName: commandStr, args: args, sourceLine: sourceLineIndex + 1))
 			lineNum += 1
 		}
 
@@ -405,6 +409,7 @@ final class Script {
 			self.eventCompletionHandler = nil
 			self.eventIdQueue.removeAll()
 			self.eventIdQueueStartIndex = 0
+			self.recentCommandHistory.removeAll()
 			self.run()
 		}
 	}
@@ -513,6 +518,7 @@ final class Script {
 			self.eventIdQueueStartIndex = 0
 			self.currentEventId = nil
 			self.executingEvent = false
+			self.recentCommandHistory.removeAll()
 			let streams = Array(self.streams.values)
 			let soundPlaybacks = Array(self.soundPlaybacks.values)
 			self.streams.removeAll()
@@ -600,7 +606,24 @@ final class Script {
 			print(">>> [\(node.name ?? "unnamed")] \(command.scriptLogDescription)")
 		}
 
+		noteExecutedCommand(command, line: currentLine)
 		performCommand(command: command)
+	}
+
+	private func noteExecutedCommand(_ command: ScriptCommand, line: Int) {
+		recentCommandHistory.append((commandIndex: line, sourceLine: command.sourceLine, eventId: currentEventId, description: command.scriptLogDescription))
+		if recentCommandHistory.count > Self.recentCommandHistoryLimit {
+			recentCommandHistory.removeFirst(recentCommandHistory.count - Self.recentCommandHistoryLimit)
+		}
+	}
+
+	func recentCommandHistoryDescription(excludingCurrent: Bool, limit: Int) -> String {
+		let history = excludingCurrent ? recentCommandHistory.dropLast() : recentCommandHistory[...]
+		let descriptions = history.suffix(limit).map { entry in
+			let eventDescription = entry.eventId.map { ", event=\($0)" } ?? ""
+			return "line \(entry.sourceLine) (#\(entry.commandIndex)\(eventDescription)): \(entry.description)"
+		}
+		return descriptions.isEmpty ? "<none>" : descriptions.joined(separator: " | ")
 	}
 
 	var hasQueuedEvent: Bool {

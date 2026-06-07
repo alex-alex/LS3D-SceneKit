@@ -104,6 +104,7 @@ extension Script {
 		case .getenemyaistate:			getenemyaistate(command.args)
 		case .getframefromactor:		getframefromactor(command.args)
 		case .getgametime:				getgametime(command.args)
+		case .getPmState:				get_pm_state(command.args)
 		case .getRemoteActor:			get_remote_actor(command.args)
 		case .getRemoteFloat:			get_remote_float(command.args)
 		case .getRemoteFrame:			get_remote_frame(command.args)
@@ -731,7 +732,12 @@ extension Script {
 
 	private func endofmission(_ args: [Argument]) {
 		let returnsToMainMenu = args.first?.getValueOrVarValue(vars: vars) == 1
-		let text = args.count > 1 ? TextDb.get(args[1].getValueOrVarValue(vars: vars)) : nil
+		let reasonTextId = args.count > 1 ? args[1].getValueOrVarValue(vars: vars) : nil
+		let text = reasonTextId.flatMap { TextDb.get($0) }
+		let reasonDescription = text ?? "<none>"
+		let reasonIdDescription = reasonTextId.map(String.init) ?? "<none>"
+		print("== Script endofmission: node=\(node.name ?? "unnamed"), returnsToMainMenu=\(returnsToMainMenu), reasonTextId=\(reasonIdDescription), reason=\"\(reasonDescription)\"")
+		print("== Script endofmission previous commands: \(recentCommandHistoryDescription(excludingCurrent: true, limit: 12))")
 		DispatchQueue.main.async {
 			self.scene.game.endMission(returnsToMainMenu: returnsToMainMenu, message: text)
 		}
@@ -996,6 +1002,14 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let elapsed = Date.timeIntervalSinceReferenceDate - scene.game.scriptStartTime
 		vars[varId] = Float(elapsed * 1000)
+		next()
+	}
+
+	private func get_pm_state(_ args: [Argument]) {
+		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		let _ = args[2].getValueOrVarValue(vars: vars) // offenseType
+		vars[varId] = 0
 		next()
 	}
 
