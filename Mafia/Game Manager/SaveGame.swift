@@ -24,7 +24,7 @@ struct SaveGameSlot {
 		}
 
 		guard let checkpoint = checkpoint else {
-			return String(format: "%03d  Unsupported checkpoint", checkpointCode)
+			return String(format: "%03d", checkpointCode)
 		}
 		return String(format: "%03d  %@", checkpointCode, MissionLoadInfo.title(for: checkpoint.missionFolder))
 	}
@@ -35,7 +35,19 @@ struct SaveGameSlot {
 
 	var detailText: String {
 		guard let summary = checkpoint?.summary else { return "" }
-		return "Health: \(summary.healthPercent)%, Save Time: \(summary.saveDateText), \(summary.saveTimeText), Play Time: \(summary.playTimeText)"
+		let format = TextDb.get(175) ?? "%d%%, %d.%d.%d, %02d:%02d, %d:%02d:%02d"
+		return String(
+			format: format,
+			Int(summary.healthPercent),
+			Int(summary.saveDate.day),
+			Int(summary.saveDate.month),
+			Int(summary.saveDate.year),
+			Int(summary.saveTime.hour),
+			Int(summary.saveTime.minute),
+			Int(summary.playTime.hours),
+			Int(summary.playTime.minutes),
+			Int(summary.playTime.seconds)
+		)
 	}
 
 	var missionFolder: String? {
@@ -44,6 +56,11 @@ struct SaveGameSlot {
 
 	var imageName: String {
 		return MissionLoadInfo.imageName(for: missionFolder)
+	}
+
+	var screenshotURL: URL? {
+		let url = mainDirectory.appendingPathComponent(String(format: "maps/shot%03d.bmp", checkpointCode))
+		return FileManager.default.fileExists(atPath: url.path) ? url : nil
 	}
 
 	var textId: Int {
@@ -99,18 +116,33 @@ struct SaveGameSummary {
 		return String(format: "%d:%02d", parts.2, parts.1)
 	}
 
+	var saveTime: (hour: UInt32, minute: UInt32, second: UInt32) {
+		let parts = packedBytes(saveTimePacked)
+		return (parts.2, parts.1, parts.0)
+	}
+
 	var saveDateText: String {
 		let parts = packedBytes(saveDatePacked)
 		let year = UInt32(parts.2) | (UInt32(parts.3) << 8)
 		return "\(parts.0).\(parts.1).\(year)"
 	}
 
+	var saveDate: (day: UInt32, month: UInt32, year: UInt32) {
+		let parts = packedBytes(saveDatePacked)
+		return (parts.0, parts.1, UInt32(parts.2) | (UInt32(parts.3) << 8))
+	}
+
 	var playTimeText: String {
-		let totalSeconds = missionTimer / 1000
-		let hours = totalSeconds / 3600
-		let minutes = (totalSeconds % 3600) / 60
-		let seconds = totalSeconds % 60
+		let playTime = playTime
+		let hours = playTime.hours
+		let minutes = playTime.minutes
+		let seconds = playTime.seconds
 		return String(format: "%uh%02umin %02us", hours, minutes, seconds)
+	}
+
+	var playTime: (hours: UInt32, minutes: UInt32, seconds: UInt32) {
+		let totalSeconds = missionTimer / 1000
+		return (totalSeconds / 3600, (totalSeconds % 3600) / 60, totalSeconds % 60)
 	}
 
 	private func packedBytes(_ value: UInt32) -> (UInt32, UInt32, UInt32, UInt32) {

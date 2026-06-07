@@ -19,6 +19,7 @@ class MainMenu {
 	private weak var gameManager: GameManager?
 	private let menuDef: MenuDef
 	private let menuControls: [MenuDefControl]
+	private let loadGameControls: [MenuDefControl]
 	private let entries: [MainMenuEntry]
 	private weak var menuScene: MainMenuScene?
 	private var menuChangeSoundSource: SCNAudioSource?
@@ -29,6 +30,7 @@ class MainMenu {
 		let loadedMenuControls = MainMenu.visibleControls(in: loadedMenuDef.controls(for: .mainMenu))
 		menuDef = loadedMenuDef
 		menuControls = loadedMenuControls
+		loadGameControls = loadedMenuDef.controls(for: .loadGame)
 		entries = MainMenu.makeEntries(from: loadedMenuControls)
 
 		scnScene.rootNode.name = "__root__"
@@ -138,7 +140,7 @@ class MainMenu {
 
 	func setup(in view: SCNView) {
 		view.scene = scnScene
-		let menuScene = MainMenuScene(size: view.bounds.size, controls: menuControls, entries: entries)
+		let menuScene = MainMenuScene(size: view.bounds.size, controls: menuControls, entries: entries, loadGameControls: loadGameControls)
 		self.menuScene = menuScene
 		menuScene.onSelectionChanged = { [weak self] index in
 			self?.playMenuChangeSound()
@@ -146,6 +148,10 @@ class MainMenu {
 		}
 		menuScene.onEntryActivated = { [weak self] index in
 			self?.activateEntry(at: index)
+		}
+		menuScene.onSaveGameActivated = { [weak self] saveGame in
+			self?.stopMenuScripts()
+			self?.gameManager?.loadSaveGame(saveGame)
 		}
 		view.overlaySKScene = menuScene
 		view.delegate = nil
@@ -187,8 +193,7 @@ class MainMenu {
 			stopMenuScripts()
 			gameManager?.loadMission(textId: MissionLoadInfo.textId(for: folder), imageName: imageName, folder: folder)
 		case .saveGameSelector:
-			guard let gameManager = gameManager else { return }
-			menuScene?.showSaveGameSelector(saveGames: SaveGame.loadSlots(), gameManager: gameManager)
+			menuScene?.showSaveGameSelector(saveGames: SaveGame.loadSlots())
 		case .missionSelector:
 			stopMenuScripts()
 			gameManager?.loadMissionSelector()
@@ -264,9 +269,11 @@ private final class MainMenuScene: SKScene {
 
 	var onSelectionChanged: ((Int) -> Void)?
 	var onEntryActivated: ((Int) -> Void)?
+	var onSaveGameActivated: ((SaveGameSlot) -> Void)?
 
 	private let controls: [MenuDefControl]
 	private let entries: [MainMenuEntry]
+	private let loadGameControls: [MenuDefControl]
 	private let paperNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir3.tga")))
 	private let headerNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir5a.tga")))
 	private let selectionLine = SKShapeNode()
@@ -282,9 +289,10 @@ private final class MainMenuScene: SKScene {
 	private var didSwipe = false
 	#endif
 
-	init(size: CGSize, controls: [MenuDefControl], entries: [MainMenuEntry]) {
+	init(size: CGSize, controls: [MenuDefControl], entries: [MainMenuEntry], loadGameControls: [MenuDefControl]) {
 		self.controls = controls
 		self.entries = entries
+		self.loadGameControls = loadGameControls
 
 		super.init(size: size)
 
@@ -333,22 +341,44 @@ private final class MainMenuScene: SKScene {
 	override func didChangeSize(_ oldSize: CGSize) {
 		super.didChangeSize(oldSize)
 
-		let scale = menuScale()
-		let titleWindow = controls.first { $0.type == "tniw" }
-		let titleHeight = 50 * scale
-		menuFrame = frame(for: titleWindow)
+		layoutReferenceMainMenu()
+		saveGameDialog?.layout(size: size)
+	}
 
-		headerNode.position = CGPoint(x: menuFrame.midX, y: menuFrame.maxY - titleHeight / 2)
-		headerNode.size = CGSize(width: menuFrame.width, height: titleHeight)
-		titleLabel.fontSize = min(36, titleHeight * 0.68)
-		titleLabel.position = CGPoint(x: menuFrame.midX, y: menuFrame.maxY - titleHeight / 2)
+	func showSaveGameSelector(saveGames: [SaveGameSlot]) {
+		saveGameDialog?.removeFromParent()
+		let dialog = SaveGameDialogNode(saveGames: saveGames, controls: loadGameControls)
+		dialog.onDismiss = { [weak self] in
+			self?.saveGameDialog?.removeFromParent()
+			self?.saveGameDialog = nil
+			self?.didChangeSize(.zero)
+		}
+		dialog.onSaveGameActivated = { [weak self] saveGame in
+			self?.onSaveGameActivated?(saveGame)
+		}
+		dialog.zPosition = 40
+		addChild(dialog)
+		saveGameDialog = dialog
+		layoutReferenceMainMenu()
+		dialog.layout(size: size)
+	}
+
+	private func layoutReferenceMainMenu() -> CGRect {
+		let scale = menuDefScale()
+		let titleWindow = controls.first { $0.type == "tniw" }
+		let frame = frame(for: titleWindow, scale: scale)
+		let titleHeight = min(50 * scale, frame.height * 0.16)
+		headerNode.position = CGPoint(x: frame.midX, y: frame.maxY - titleHeight / 2)
+		headerNode.size = CGSize(width: frame.width, height: titleHeight)
+		titleLabel.fontSize = min(36 * scale, titleHeight * 0.68)
+		titleLabel.position = headerNode.position
 		titleLabel.text = titleWindow.flatMap { TextDb.get(Int($0.textId)) }
 
 		let paperFrame = CGRect(
-			x: menuFrame.minX,
-			y: menuFrame.minY,
-			width: menuFrame.width,
-			height: menuFrame.height - titleHeight
+			x: frame.minX,
+			y: frame.minY,
+			width: frame.width,
+			height: frame.height - titleHeight
 		)
 		paperNode.position = CGPoint(x: paperFrame.midX, y: paperFrame.midY)
 		paperNode.size = paperFrame.size
@@ -357,47 +387,52 @@ private final class MainMenuScene: SKScene {
 			let control = entries[index].control
 			let controlFrame = childFrame(for: control, in: paperFrame, scale: scale)
 			rowHeight = controlFrame.height
-			label.fontSize = min(36, controlFrame.height * 0.94)
+			label.fontSize = min(36 * scale, controlFrame.height * 0.94)
 			label.position = CGPoint(x: controlFrame.midX, y: controlFrame.midY)
 			label.preferredMaxLayoutWidth = controlFrame.width
 		}
 
+		menuFrame = frame
 		refreshSelection()
-		saveGameDialog?.layout(size: size)
+		return frame
 	}
 
-	func showSaveGameSelector(saveGames: [SaveGameSlot], gameManager: GameManager) {
-		saveGameDialog?.removeFromParent()
-		let dialog = SaveGameDialogNode(saveGames: saveGames, gameManager: gameManager)
-		dialog.onDismiss = { [weak self] in
-			self?.saveGameDialog?.removeFromParent()
-			self?.saveGameDialog = nil
-		}
-		dialog.zPosition = 40
-		addChild(dialog)
-		saveGameDialog = dialog
-		dialog.layout(size: size)
+	private func menuDefScale() -> CGFloat {
+		return min(size.width / 800, size.height / 600, 1.6)
 	}
 
-	private func menuScale() -> CGFloat {
-		return min(size.width / 640, size.height / 480, 1.6)
+	private func frame(for control: MenuDefControl?, scale: CGFloat) -> CGRect {
+		return referenceFrame(
+			x: CGFloat(control?.position.x ?? 55),
+			y: CGFloat(control?.position.y ?? 60),
+			width: CGFloat(control?.scaleX ?? 217),
+			height: CGFloat(control?.scaleY ?? 353),
+			scale: scale
+		)
 	}
 
-	private func frame(for control: MenuDefControl?) -> CGRect {
-		let scale = menuScale()
-		let xOffset = 10 * scale
-		let yOffset = 10 * scale
-		let x = xOffset + (control?.position.x ?? 55) * scale
-		let yTop = yOffset + (control?.position.y ?? 60) * scale
-		let width = CGFloat(control?.scaleX ?? 217) * scale
-		let height = CGFloat(control?.scaleY ?? 353) * scale
-		return CGRect(x: x, y: size.height - yTop - height, width: width, height: height)
+	private func childFrame(for control: MenuDefControl, in parentFrame: CGRect, scale: CGFloat) -> CGRect {
+		let width = CGFloat(control.scaleX) * scale
+		let height = CGFloat(control.scaleY) * scale
+		return CGRect(
+			x: parentFrame.minX + control.position.x * scale,
+			y: parentFrame.maxY - control.position.y * scale - height,
+			width: width,
+			height: height
+		)
 	}
 
-	private func childFrame(for control: MenuDefControl, in paperFrame: CGRect, scale: CGFloat) -> CGRect {
-		let x = paperFrame.minX + control.position.x * scale
-		let y = paperFrame.maxY - control.position.y * scale - CGFloat(control.scaleY) * scale
-		return CGRect(x: x, y: y, width: CGFloat(control.scaleX) * scale, height: CGFloat(control.scaleY) * scale)
+	private func referenceFrame(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, scale: CGFloat) -> CGRect {
+		let referenceOrigin = CGPoint(
+			x: (size.width - 800 * scale) / 2,
+			y: (size.height - 600 * scale) / 2
+		)
+		return CGRect(
+			x: referenceOrigin.x + x * scale,
+			y: referenceOrigin.y + 600 * scale - (y + height) * scale,
+			width: width * scale,
+			height: height * scale
+		)
 	}
 
 	private func refreshSelection() {
@@ -548,11 +583,13 @@ private final class MainMenuScene: SKScene {
 private final class SaveGameDialogNode: SKNode {
 
 	var onDismiss: (() -> Void)?
+	var onSaveGameActivated: ((SaveGameSlot) -> Void)?
 
-	private weak var gameManager: GameManager?
 	private let saveGames: [SaveGameSlot]
+	private let controls: [MenuDefControl]
 	private let paperNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir3.tga")))
 	private let headerNode = SKSpriteNode(texture: SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/papir5a.tga")))
+	private let previewNode = SKSpriteNode()
 	private let selectionLine = SKShapeNode()
 	private let scrollbarTrackNode = SKShapeNode()
 	private let scrollbarThumbNode = SKShapeNode()
@@ -561,23 +598,23 @@ private final class SaveGameDialogNode: SKNode {
 	private let titleLabel = SKLabelNode(fontNamed: mafiaMenuTitleFontName)
 	private let countLabel = SKLabelNode(fontNamed: "Arial")
 	private let hintLabel = SKLabelNode(fontNamed: "Arial")
-	private let detailLabel = SKLabelNode(fontNamed: mafiaMenuFontName)
+	private let detailLabel = SKLabelNode(fontNamed: "Arial")
 	private var labels: [SKLabelNode] = []
 	private var selectedIndex = 0
 	private var firstVisibleIndex = 0
 	private var rowHeight: CGFloat = 24
 	private var firstRowY: CGFloat = 0
 	private var listFrame = CGRect.zero
+	private var scrollbarParentFrame = CGRect.zero
 	private var sceneSize = CGSize.zero
-	private let maxVisibleSaveGames = 20
 	#if os(iOS)
 	private var lastSwipePoint: CGPoint?
 	private var didSwipe = false
 	#endif
 
-	init(saveGames: [SaveGameSlot], gameManager: GameManager) {
+	init(saveGames: [SaveGameSlot], controls: [MenuDefControl]) {
 		self.saveGames = saveGames
-		self.gameManager = gameManager
+		self.controls = controls
 
 		super.init()
 
@@ -589,6 +626,10 @@ private final class SaveGameDialogNode: SKNode {
 		headerNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
 		headerNode.zPosition = 1
 		addChild(headerNode)
+
+		previewNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		previewNode.zPosition = -31
+		addChild(previewNode)
 
 		selectionLine.strokeColor = SKColor(red: 0.88, green: 0.05, blue: 0.06, alpha: 1)
 		selectionLine.lineWidth = 3
@@ -618,40 +659,26 @@ private final class SaveGameDialogNode: SKNode {
 		upArrowLabel.text = "▲"
 		downArrowLabel.text = "▼"
 
-		titleLabel.text = "Load Game:"
+		titleLabel.text = text(for: 171)
 		titleLabel.fontColor = .white
 		titleLabel.horizontalAlignmentMode = .left
 		titleLabel.verticalAlignmentMode = .center
 		titleLabel.zPosition = 12
 		addChild(titleLabel)
 
-		countLabel.text = "Total Saved Games:  \(saveGames.count)"
+		countLabel.text = String(format: text(for: 172), saveGames.count)
 		countLabel.fontColor = .white
 		countLabel.horizontalAlignmentMode = .right
 		countLabel.verticalAlignmentMode = .center
 		countLabel.zPosition = 12
 		addChild(countLabel)
 
-		#if os(iOS)
-		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Double-tap to select"
-		#else
-		hintLabel.text = saveGames.isEmpty ? "No savegames found" : "Enter-Select, Esc-Exit"
-		#endif
+		hintLabel.text = text(for: 177)
 		hintLabel.fontColor = .white
 		hintLabel.horizontalAlignmentMode = .center
 		hintLabel.verticalAlignmentMode = .center
 		hintLabel.zPosition = 12
 		addChild(hintLabel)
-
-		for _ in 0 ..< min(maxVisibleSaveGames, saveGames.count) {
-			let label = SKLabelNode(fontNamed: mafiaMenuFontName)
-			label.fontColor = .black
-			label.horizontalAlignmentMode = .left
-			label.verticalAlignmentMode = .center
-			label.zPosition = 12
-			addChild(label)
-			labels.append(label)
-		}
 
 		detailLabel.fontColor = .black
 		detailLabel.horizontalAlignmentMode = .left
@@ -669,12 +696,9 @@ private final class SaveGameDialogNode: SKNode {
 	func layout(size: CGSize) {
 		sceneSize = size
 		let scale = menuScale()
-		let panelWidth = min(size.width * 0.56, 765 * scale)
-		let panelHeight = min(size.height * 0.86, 657 * scale)
-		let panelX = min(size.width - panelWidth - 28 * scale, max(260 * scale, size.width * 0.385))
-		let panelY = max(34 * scale, (size.height - panelHeight) * 0.52)
-		let panelFrame = CGRect(x: panelX, y: panelY, width: panelWidth, height: panelHeight)
-		let titleHeight = 62 * scale
+		let titleWindow = control(type: "tniw", id: 2)
+		let panelFrame = frame(for: titleWindow, scale: scale)
+		let titleHeight = min(50 * scale, panelFrame.height * 0.16)
 
 		headerNode.position = CGPoint(x: panelFrame.midX, y: panelFrame.maxY - titleHeight / 2)
 		headerNode.size = CGSize(width: panelFrame.width, height: titleHeight)
@@ -687,40 +711,96 @@ private final class SaveGameDialogNode: SKNode {
 		)
 		paperNode.position = CGPoint(x: paperFrame.midX, y: paperFrame.midY)
 		paperNode.size = paperFrame.size
+		scrollbarParentFrame = paperFrame
 
-		titleLabel.fontSize = min(34, titleHeight * 0.56)
+		titleLabel.fontSize = min(34 * scale, titleHeight * 0.68)
 		titleLabel.position = CGPoint(x: panelFrame.minX + 28 * scale, y: panelFrame.maxY - titleHeight / 2 + 4 * scale)
 
-		countLabel.fontSize = min(18, titleHeight * 0.32)
-		countLabel.position = CGPoint(x: panelFrame.maxX - 20 * scale, y: panelFrame.maxY - titleHeight / 2 + scale)
+		if let totalControl = control(type: "txtr", id: 10) {
+			let totalFrame = childFrame(for: totalControl, in: paperFrame, scale: scale)
+			countLabel.fontSize = min(18 * scale, max(12 * scale, totalFrame.height * 0.95))
+			countLabel.position = CGPoint(x: totalFrame.maxX, y: totalFrame.midY)
+		}
 
-		hintLabel.fontSize = min(16, 16 * scale)
-		hintLabel.position = CGPoint(x: size.width * 0.205, y: max(18 * scale, panelFrame.minY - 24 * scale))
+		layoutPreview(in: panelFrame, scale: scale)
 
-		listFrame = CGRect(
-			x: paperFrame.minX + 26 * scale,
-			y: paperFrame.minY + 36 * scale,
-			width: paperFrame.width - 96 * scale,
-			height: paperFrame.height - 54 * scale
-		)
+		if let hintControl = control(id: 1401) {
+			let hintFrame = childFrame(for: hintControl, in: panelFrame, scale: scale)
+			hintLabel.fontSize = max(11 * scale, hintFrame.height * 0.95)
+			hintLabel.position = CGPoint(x: hintFrame.midX, y: hintFrame.midY)
+		}
+
+		if let listControl = control(type: "dnws", id: 4) {
+			listFrame = childFrame(for: listControl, in: paperFrame, scale: scale)
+		} else {
+			listFrame = paperFrame.insetBy(dx: 10 * scale, dy: 17 * scale)
+		}
 
 		let visibleCount = max(1, labels.count)
-		rowHeight = min(27 * scale, listFrame.height / CGFloat(visibleCount))
-		firstRowY = listFrame.maxY - rowHeight / 2 - 8 * scale
-		let textX = listFrame.minX + 10 * scale
+		let rowControl = control(type: "iles", id: 100)
+		rowHeight = rowControl.map { CGFloat($0.scaleY) * scale } ?? min(20 * scale, listFrame.height / CGFloat(visibleCount))
+		let visibleSaveGameCount = max(0, min(saveGames.count, Int(floor(listFrame.height / max(1, rowHeight)))))
+		ensureLabelCount(visibleSaveGameCount)
+		firstRowY = listFrame.maxY - rowHeight / 2 - 5 * scale
+		let textX = listFrame.minX + (rowControl?.position.x ?? 10) * scale
 
 		for (index, label) in labels.enumerated() {
-			label.fontSize = min(24, rowHeight * 0.86)
+			label.fontSize = min(18 * scale, rowHeight * 0.74)
 			label.position = CGPoint(x: textX, y: firstRowY - CGFloat(index) * rowHeight)
 			label.preferredMaxLayoutWidth = listFrame.width - 20 * scale
 		}
 
-		detailLabel.fontSize = min(18, 18 * scale)
-		detailLabel.position = CGPoint(x: listFrame.minX, y: paperFrame.minY + 17 * scale)
-		detailLabel.preferredMaxLayoutWidth = listFrame.width + 54 * scale
+		if let detailControl = control(id: 1010) {
+			let detailSize = CGSize(width: CGFloat(detailControl.scaleX) * scale, height: CGFloat(detailControl.scaleY) * scale)
+			let detailFrame = CGRect(
+				x: listFrame.minX,
+				y: paperFrame.minY + 10 * scale,
+				width: min(detailSize.width, paperFrame.maxX - listFrame.minX - 16 * scale),
+				height: detailSize.height
+			)
+			detailLabel.fontSize = min(14 * scale, max(10 * scale, detailFrame.height * 0.95))
+			detailLabel.position = CGPoint(x: detailFrame.minX, y: detailFrame.midY)
+			detailLabel.preferredMaxLayoutWidth = detailFrame.width
+		} else {
+			detailLabel.fontSize = min(18 * scale, 18 * scale)
+			detailLabel.position = CGPoint(x: listFrame.minX, y: paperFrame.minY + 17 * scale)
+			detailLabel.preferredMaxLayoutWidth = listFrame.width + 54 * scale
+		}
 
 		layoutScrollbar(scale: scale)
 		refreshLabels()
+	}
+
+	private func ensureLabelCount(_ count: Int) {
+		while labels.count < count {
+			let label = SKLabelNode(fontNamed: "Arial")
+			label.fontColor = .black
+			label.horizontalAlignmentMode = .left
+			label.verticalAlignmentMode = .center
+			label.zPosition = 12
+			addChild(label)
+			labels.append(label)
+		}
+
+		while labels.count > count {
+			labels.removeLast().removeFromParent()
+		}
+	}
+
+	private func layoutPreview(in panelFrame: CGRect, scale: CGFloat) {
+		guard let imageWindow = control(id: 1001),
+			  let previewControl = control(type: "tcer", id: 1003) ?? control(type: "ftcr", id: 1002) else {
+			previewNode.isHidden = true
+			return
+		}
+
+		let imageWindowFrame = childFrame(for: imageWindow, in: panelFrame, scale: scale)
+		let previewFrame = childFrame(for: previewControl, in: imageWindowFrame, scale: scale)
+		previewNode.isHidden = previewFrame.minY < 0 || previewFrame.height <= 1
+		guard !previewNode.isHidden else { return }
+
+		previewNode.position = CGPoint(x: previewFrame.midX, y: previewFrame.midY)
+		previewNode.size = previewFrame.size
 	}
 
 	#if os(macOS)
@@ -800,8 +880,19 @@ private final class SaveGameDialogNode: SKNode {
 		}
 
 		detailLabel.text = saveGames.indices.contains(selectedIndex) ? saveGames[selectedIndex].detailText : ""
+		updatePreview()
 		updateSelectionLine()
 		layoutScrollbar(scale: menuScale())
+	}
+
+	private func updatePreview() {
+		guard saveGames.indices.contains(selectedIndex),
+			  let screenshotURL = saveGames[selectedIndex].screenshotURL else {
+			previewNode.texture = nil
+			return
+		}
+
+		previewNode.texture = SKTexture(imageUrl: screenshotURL)
 	}
 
 	private func updateSelectionLine() {
@@ -838,7 +929,7 @@ private final class SaveGameDialogNode: SKNode {
 
 		let saveGame = saveGames[selectedIndex]
 		guard saveGame.missionFolder != nil else { return }
-		gameManager?.loadSaveGame(saveGame)
+		onSaveGameActivated?(saveGame)
 	}
 
 	private func rowIndex(at point: CGPoint) -> Int? {
@@ -861,33 +952,97 @@ private final class SaveGameDialogNode: SKNode {
 
 	private func menuScale() -> CGFloat {
 		guard sceneSize != .zero else { return 1 }
-		return min(sceneSize.width / 1360, sceneSize.height / 768, 1.6)
+		return min(sceneSize.width / 800, sceneSize.height / 600, 1.6)
+	}
+
+	private func control(type: String? = nil, id: UInt32? = nil) -> MenuDefControl? {
+		return controls.first { control in
+			if let type = type, control.type != type {
+				return false
+			}
+			if let id = id, control.id != id {
+				return false
+			}
+			return true
+		}
+	}
+
+	private func frame(for control: MenuDefControl?, scale: CGFloat) -> CGRect {
+		return referenceFrame(
+			x: CGFloat(control?.position.x ?? 295),
+			y: CGFloat(control?.position.y ?? 60),
+			width: CGFloat(control?.scaleX ?? 450),
+			height: CGFloat(control?.scaleY ?? 491),
+			scale: scale
+		)
+	}
+
+	private func childFrame(for control: MenuDefControl, in parentFrame: CGRect, scale: CGFloat) -> CGRect {
+		let width = CGFloat(control.scaleX) * scale
+		let height = CGFloat(control.scaleY) * scale
+		return CGRect(
+			x: parentFrame.minX + control.position.x * scale,
+			y: parentFrame.maxY - control.position.y * scale - height,
+			width: width,
+			height: height
+		)
+	}
+
+	private func referenceFrame(x: CGFloat, y: CGFloat, width: CGFloat, height: CGFloat, scale: CGFloat) -> CGRect {
+		let referenceOrigin = CGPoint(
+			x: (sceneSize.width - 800 * scale) / 2,
+			y: (sceneSize.height - 600 * scale) / 2
+		)
+		return CGRect(
+			x: referenceOrigin.x + x * scale,
+			y: referenceOrigin.y + 600 * scale - (y + height) * scale,
+			width: width * scale,
+			height: height * scale
+		)
+	}
+
+	private func text(for textId: Int) -> String {
+		return TextDb.get(textId) ?? ""
 	}
 
 	private func layoutScrollbar(scale: CGFloat) {
 		guard !listFrame.isEmpty else { return }
 
-		let arrowSize = 34 * scale
-		let trackWidth = 36 * scale
+		let upControl = control(type: "birt", id: 11)
+		let downControl = control(type: "birt", id: 12)
+		let upFrame = upControl.map { childFrame(for: $0, in: scrollbarParentFrame, scale: scale) } ?? CGRect(
+			x: listFrame.maxX + 10 * scale,
+			y: listFrame.maxY - 27 * scale,
+			width: 18 * scale,
+			height: 10 * scale
+		)
+		let downFrame = downControl.map { childFrame(for: $0, in: scrollbarParentFrame, scale: scale) } ?? CGRect(
+			x: listFrame.maxX + 10 * scale,
+			y: listFrame.minY,
+			width: 18 * scale,
+			height: 10 * scale
+		)
 		let trackFrame = CGRect(
-			x: listFrame.maxX + 18 * scale,
-			y: listFrame.minY + 8 * scale,
-			width: trackWidth,
-			height: listFrame.height - 16 * scale
+			x: min(upFrame.minX, downFrame.minX),
+			y: downFrame.maxY,
+			width: max(upFrame.width, downFrame.width),
+			height: max(1, upFrame.minY - downFrame.maxY)
 		)
 		scrollbarTrackNode.path = CGPath(rect: trackFrame, transform: nil)
-		upArrowLabel.position = CGPoint(x: trackFrame.midX, y: trackFrame.maxY - arrowSize / 2)
-		downArrowLabel.position = CGPoint(x: trackFrame.midX, y: trackFrame.minY + arrowSize / 2)
+		upArrowLabel.fontSize = max(12 * scale, upFrame.height * 1.8)
+		upArrowLabel.position = CGPoint(x: upFrame.midX, y: upFrame.midY)
+		downArrowLabel.fontSize = max(12 * scale, downFrame.height * 1.8)
+		downArrowLabel.position = CGPoint(x: downFrame.midX, y: downFrame.midY)
 
-		let scrollableHeight = max(1, trackFrame.height - arrowSize * 2)
+		let scrollableHeight = max(1, trackFrame.height)
 		let thumbHeight = saveGames.isEmpty ? scrollableHeight : max(36 * scale, scrollableHeight * CGFloat(labels.count) / CGFloat(saveGames.count))
 		let maxFirstVisibleIndex = max(0, saveGames.count - labels.count)
 		let scrollProgress = maxFirstVisibleIndex == 0 ? 0 : CGFloat(firstVisibleIndex) / CGFloat(maxFirstVisibleIndex)
-		let thumbTop = trackFrame.maxY - arrowSize - scrollProgress * (scrollableHeight - thumbHeight)
+		let thumbTop = trackFrame.maxY - scrollProgress * (scrollableHeight - thumbHeight)
 		let thumbFrame = CGRect(
-			x: trackFrame.minX + 2 * scale,
+			x: trackFrame.minX,
 			y: thumbTop - thumbHeight,
-			width: trackFrame.width - 4 * scale,
+			width: trackFrame.width,
 			height: thumbHeight
 		)
 		scrollbarThumbNode.path = CGPath(rect: thumbFrame, transform: nil)
