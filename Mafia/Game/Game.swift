@@ -266,6 +266,7 @@ final class Game: NSObject {
 			controller.movementAnimationSetProvider = { [weak self] in
 				self?.equippedPlayerMovementAnimationSetId()
 			}
+			controller.setDebugVisualsVisible(areCollisionWireframesVisible)
 			playerController = controller
 		}
 
@@ -1589,7 +1590,8 @@ extension Game: SCNSceneRendererDelegate {
 
 		hud.updateDiagnostics(
 			framesPerSecond: smoothedFramesPerSecond,
-			position: diagnosticsPosition()
+			position: diagnosticsPosition(),
+			details: diagnosticsDetails()
 		)
 	}
 
@@ -1602,6 +1604,39 @@ extension Game: SCNSceneRendererDelegate {
 		case .freeCamera:
 			return cameraNode.presentation.worldPosition
 		}
+	}
+
+	private func diagnosticsDetails() -> String? {
+		guard mode == .walk,
+			  let debugInfo = playerController?.debugInfo else { return nil }
+
+		let groundY = debugInfo.probedGroundY ?? debugInfo.standingY
+		let controllerGroundDelta = debugInfo.controllerY - groundY
+		let visualGroundDelta = debugInfo.visualMinY.map { $0 - groundY }
+		let visualHeight = debugInfo.visualMinY.flatMap { minY in
+			debugInfo.visualMaxY.map { $0 - minY }
+		}
+		let animationName = debugInfo.currentAirAnimationName ?? debugInfo.currentWalkingAnimationName ?? "none"
+
+		return String(
+			format: "DBG %@\nG %.2f  C-G %.2f  V-G %@  VH %@\nvy %.2f  off %.2f  %@\nW C %@  V %@  %@",
+			areCollisionWireframesVisible ? "wire" : "solid",
+			Double(groundY),
+			Double(controllerGroundDelta),
+			formatDebugValue(visualGroundDelta),
+			formatDebugValue(visualHeight),
+			Double(debugInfo.verticalVelocity),
+			Double(debugInfo.verticalOffset),
+			animationName,
+			formatDebugValue(debugInfo.worstControllerGroundDelta),
+			formatDebugValue(debugInfo.worstVisualGroundDelta),
+			debugInfo.worstAnimationName ?? "none"
+		)
+	}
+
+	private func formatDebugValue(_ value: SCNFloat?) -> String {
+		guard let value = value else { return "--" }
+		return String(format: "%.2f", Double(value))
 	}
 
 }
@@ -1705,6 +1740,7 @@ extension Game {
 			.mafiaChildNode(named: "__collisions__", recursively: false)?
 			.setCollisionWireframesVisible(areCollisionWireframesVisible)
 		vehicle?.setCollisionDebugVisible(areCollisionWireframesVisible)
+		playerController?.setDebugVisualsVisible(areCollisionWireframesVisible)
 		hud?.showConsoleText("Collision wireframes \(areCollisionWireframesVisible ? "on" : "off")")
 	}
 

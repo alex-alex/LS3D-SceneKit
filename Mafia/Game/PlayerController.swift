@@ -8,6 +8,7 @@
 
 import Foundation
 import SceneKit
+import SpriteKit
 
 let playerAnimationTransitionDuration: TimeInterval = 0.14
 
@@ -18,6 +19,7 @@ func playPlayerAnimation(
 	animationKey: String? = nil,
 	transitionDuration: TimeInterval = playerAnimationTransitionDuration,
 	includePositionAnimation: Bool = true,
+	includeTrackPositionAnimation: Bool = true,
 	completionHandler: (() -> Void)? = nil) throws {
 	try playAnimation(
 		named: name,
@@ -26,11 +28,26 @@ func playPlayerAnimation(
 		animationKey: animationKey,
 		transitionDuration: transitionDuration,
 		includePositionAnimation: includePositionAnimation,
+		includeTrackPositionAnimation: includeTrackPositionAnimation,
 		completionHandler: completionHandler
 	)
 }
 
 final class PlayerController {
+	struct DebugInfo {
+		let controllerY: SCNFloat
+		let standingY: SCNFloat
+		let probedGroundY: SCNFloat?
+		let visualMinY: SCNFloat?
+		let visualMaxY: SCNFloat?
+		let verticalVelocity: SCNFloat
+		let verticalOffset: SCNFloat
+		let currentWalkingAnimationName: String?
+		let currentAirAnimationName: String?
+		let worstControllerGroundDelta: SCNFloat?
+		let worstVisualGroundDelta: SCNFloat?
+		let worstAnimationName: String?
+	}
 
 	private static let animationExistenceCacheLock = NSLock()
 	private static var animationExistenceCache: [String: Bool] = [:]
@@ -38,6 +55,12 @@ final class PlayerController {
 	private let node: SCNNode
 	private let scene: SCNScene
 	private let stateLock = NSLock()
+	private let debugVisualRoot = SCNNode()
+	private let debugGroundMarker = PlayerController.debugMarker(color: .green)
+	private let debugStandingMarker = PlayerController.debugMarker(color: .cyan)
+	private let debugControllerMarker = PlayerController.debugMarker(color: .blue)
+	private let debugVisualMinMarker = PlayerController.debugMarker(color: .red)
+	private let debugControllerGroundLine = SCNNode()
 
 	private var movement = SCNVector3Zero
 	private var turn: SCNFloat = 0
@@ -53,6 +76,7 @@ final class PlayerController {
 	private var requestedCrouching = false
 	private var requestedRunning = false
 	private var standingY: SCNFloat
+	private var targetStandingY: SCNFloat
 	private var isCrouching = false
 	private var isWalkingAnimationPlaying = false
 	private var currentWalkingAnimationName: String?
@@ -61,6 +85,11 @@ final class PlayerController {
 	private var wasAirborneLastFrame = false
 	private var hasFallenDuringJump = false
 	private var footstepAudio = FootstepAudio()
+	private let debugWorstHoldDuration: SCNFloat = 4
+	private var debugWorstTimeRemaining: SCNFloat = 0
+	private var debugWorstControllerGroundDelta: SCNFloat?
+	private var debugWorstVisualGroundDelta: SCNFloat?
+	private var debugWorstAnimationName: String?
 	var movementAnimationSetProvider: (() -> Int?)?
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
@@ -70,6 +99,26 @@ final class PlayerController {
 	}
 	var debugVelocity: SCNVector3 {
 		return horizontalVelocity
+	}
+	var debugInfo: DebugInfo {
+		let visualBounds = visualWorldYBounds()
+		return DebugInfo(
+			controllerY: node.presentation.worldPosition.y,
+			standingY: node.parent?.presentation.convertPosition(
+				SCNVector3(x: node.position.x, y: standingY, z: node.position.z),
+				to: nil
+			).y ?? standingY,
+			probedGroundY: probedGroundWorldY(),
+			visualMinY: visualBounds?.min,
+			visualMaxY: visualBounds?.max,
+			verticalVelocity: verticalVelocity,
+			verticalOffset: verticalOffset,
+			currentWalkingAnimationName: currentWalkingAnimationName,
+			currentAirAnimationName: currentAirAnimationName,
+			worstControllerGroundDelta: debugWorstControllerGroundDelta,
+			worstVisualGroundDelta: debugWorstVisualGroundDelta,
+			worstAnimationName: debugWorstAnimationName
+		)
 	}
 	var yaw: SCNFloat {
 		return lookYaw
@@ -93,8 +142,13 @@ final class PlayerController {
 	private let jumpSpeed: SCNFloat = 5.2
 	private let gravity: SCNFloat = 12
 	private let maxStepHeight: SCNFloat = 0.45
+	private let maxWalkableGroundRise: SCNFloat = 1.1
+	private let maxVisualGroundCorrection: SCNFloat = 1.4
 	private let maxGroundSnapDistance: SCNFloat = 2.0
+	private let groundRiseFollowSpeed: SCNFloat = 4.5
+	private let groundDropFollowSpeed: SCNFloat = 7.0
 	private let groundProbeLift: SCNFloat = 0.55
+	private let uphillGroundProbeLift: SCNFloat = 1.4
 	private let groundProbeRadius: SCNFloat = 0.22
 	private let minGroundNormalY: SCNFloat = 0.65
 	private let minLookPitch: SCNFloat = -0.65
@@ -107,7 +161,13 @@ final class PlayerController {
 		self.scene = scene
 		baseHeading = PlayerController.worldYaw(for: node)
 		standingY = node.presentation.position.y
+		targetStandingY = standingY
 		configurePhysics()
+		configureDebugVisuals()
+	}
+
+	deinit {
+		debugVisualRoot.removeFromParentNode()
 	}
 
 	static func preloadAnimations() {
@@ -200,6 +260,7 @@ final class PlayerController {
 		face(worldYaw: yaw)
 		lookPitch = 0
 		standingY = node.position.y
+		targetStandingY = standingY
 		node.physicsBody?.velocity = SCNVector3Zero
 		node.physicsBody?.angularVelocity = SCNVector4Zero
 		verticalOffset = 0
@@ -257,6 +318,9 @@ final class PlayerController {
 		let positionBeforeMove = node.position
 		moveHorizontally(dx: horizontalVelocity.x * dt, dz: horizontalVelocity.z * dt)
 		let actualHorizontalDelta = SCNVector3(x: node.position.x - positionBeforeMove.x, y: 0, z: node.position.z - positionBeforeMove.z)
+		if actualHorizontalDelta.horizontalLength > 0.0001, verticalVelocity <= 0 {
+			updateGroundHeight(maxRise: maxWalkableGroundRise, probeLift: uphillGroundProbeLift)
+		}
 		let grounded = isGrounded
 		footstepAudio.update(
 			on: node,
@@ -273,6 +337,9 @@ final class PlayerController {
 			playJumpStartAnimation()
 		}
 		wantsJump = false
+		if verticalOffset <= 0, verticalVelocity <= 0 {
+			smoothStandingY(deltaTime: dt)
+		}
 		verticalVelocity -= gravity * dt
 		verticalOffset = max(0, verticalOffset + verticalVelocity * dt)
 		node.position.y = standingY + verticalOffset
@@ -284,6 +351,13 @@ final class PlayerController {
 		}
 		updateAirAnimationState()
 		body.velocity = SCNVector3Zero
+		updateDebugWorstSample(deltaTime: dt)
+		updateDebugVisuals()
+	}
+
+	func setDebugVisualsVisible(_ isVisible: Bool) {
+		debugVisualRoot.isHidden = !isVisible
+		updateDebugVisuals()
 	}
 
 	private func updateWalkingAnimation(isMoving: Bool) {
@@ -304,7 +378,8 @@ final class PlayerController {
 				named: animationName,
 				in: node,
 				repeat: true,
-				animationKey: walkingAnimationKey
+				animationKey: walkingAnimationKey,
+				includePositionAnimation: false
 			)
 		}
 		currentWalkingAnimationName = animationName
@@ -756,12 +831,34 @@ final class PlayerController {
 		return node.position.y <= standingY + 0.03 && verticalVelocity <= 0
 	}
 
-	private func updateGroundHeight() {
-		guard let groundY = groundHeight(at: node.position) else { return }
+	private func updateGroundHeight(
+		maxRise: SCNFloat? = nil,
+		maxDrop: SCNFloat? = nil,
+		probeLift: SCNFloat? = nil
+	) {
+		guard let groundY = groundHeight(at: node.position, probeLift: probeLift ?? groundProbeLift) else { return }
 
 		let verticalDelta = groundY - node.position.y
-		if verticalDelta <= maxStepHeight && verticalDelta >= -maxGroundSnapDistance {
-			standingY = groundY
+		let allowedRise = maxRise ?? maxStepHeight
+		let allowedDrop = maxDrop ?? maxGroundSnapDistance
+		if verticalDelta <= allowedRise && verticalDelta >= -allowedDrop {
+			targetStandingY = groundY
+		}
+	}
+
+	private func smoothStandingY(deltaTime: SCNFloat) {
+		let delta = targetStandingY - standingY
+		guard abs(delta) > 0.0001 else {
+			standingY = targetStandingY
+			return
+		}
+
+		let followSpeed = delta > 0 ? groundRiseFollowSpeed : groundDropFollowSpeed
+		let maxStep = followSpeed * deltaTime
+		if abs(delta) <= maxStep {
+			standingY = targetStandingY
+		} else {
+			standingY += delta > 0 ? maxStep : -maxStep
 		}
 	}
 
@@ -780,7 +877,7 @@ final class PlayerController {
 			return false
 		}
 
-		guard let groundY = groundHeight(at: node.position) else {
+		guard let groundY = groundHeight(at: node.position, probeLift: uphillGroundProbeLift) else {
 			node.position.y = start.y
 			return false
 		}
@@ -793,10 +890,11 @@ final class PlayerController {
 
 		node.position.y = groundY
 		standingY = groundY
+		targetStandingY = groundY
 		return true
 	}
 
-	private func groundHeight(at localPosition: SCNVector3) -> SCNFloat? {
+	private func groundHeight(at localPosition: SCNVector3, probeLift: SCNFloat) -> SCNFloat? {
 		let parent = node.parent
 		let probeOffsets = [
 			SCNVector3Zero,
@@ -810,7 +908,7 @@ final class PlayerController {
 		for offset in probeOffsets {
 			let probePosition = localPosition + offset
 			let worldPosition = parent?.presentation.convertPosition(probePosition, to: nil) ?? probePosition
-			let from = SCNVector3(x: worldPosition.x, y: worldPosition.y + groundProbeLift, z: worldPosition.z)
+			let from = SCNVector3(x: worldPosition.x, y: worldPosition.y + probeLift, z: worldPosition.z)
 			let to = SCNVector3(x: worldPosition.x, y: worldPosition.y - maxGroundSnapDistance, z: worldPosition.z)
 			let hits = scene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
 				SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking,
@@ -825,7 +923,73 @@ final class PlayerController {
 			}
 		}
 
+		if let visualGroundY = visualGroundHeight(at: localPosition, probeOffsets: probeOffsets, probeLift: probeLift),
+		   visualGroundY >= (highestGroundY ?? -SCNFloat.greatestFiniteMagnitude),
+		   visualGroundY - localPosition.y <= maxVisualGroundCorrection {
+			return visualGroundY
+		}
+
 		return highestGroundY
+	}
+
+	private func visualGroundHeight(at localPosition: SCNVector3, probeOffsets: [SCNVector3], probeLift: SCNFloat) -> SCNFloat? {
+		let parent = node.parent
+		var highestGroundY: SCNFloat?
+		for offset in probeOffsets {
+			let probePosition = localPosition + offset
+			let worldPosition = parent?.presentation.convertPosition(probePosition, to: nil) ?? probePosition
+			let from = SCNVector3(x: worldPosition.x, y: worldPosition.y + probeLift, z: worldPosition.z)
+			let to = SCNVector3(x: worldPosition.x, y: worldPosition.y - maxGroundSnapDistance, z: worldPosition.z)
+			let hits = scene.rootNode.hitTestWithSegment(
+				from: from,
+				to: to,
+				options: [
+					SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
+					SCNHitTestOption.backFaceCulling.rawValue: false,
+					SCNHitTestOption.searchMode.rawValue: SCNHitTestSearchMode.all.rawValue
+				]
+			)
+
+			for hit in hits where isVisualGroundHit(hit) {
+				let localContact = parent?.presentation.convertPosition(hit.worldCoordinates, from: nil) ?? hit.worldCoordinates
+				if highestGroundY == nil || localContact.y > highestGroundY! {
+					highestGroundY = localContact.y
+				}
+			}
+		}
+		return highestGroundY
+	}
+
+	private func isVisualGroundHit(_ hit: SCNHitTestResult) -> Bool {
+		guard hit.worldNormal.y >= minGroundNormalY else { return false }
+		guard !isNode(hit.node, inside: node),
+			  !isNode(hit.node, inside: debugVisualRoot),
+			  !isCollisionDebugNode(hit.node) else { return false }
+		return true
+	}
+
+	private func isCollisionDebugNode(_ checkedNode: SCNNode) -> Bool {
+		var currentNode: SCNNode? = checkedNode
+		while let current = currentNode {
+			if current.name == "__collisions__" ||
+			   current.name == "__player_debug__" ||
+			   current.name?.hasPrefix("__vehicle_collision_debug__") == true {
+				return true
+			}
+			currentNode = current.parent
+		}
+		return false
+	}
+
+	private func isNode(_ checkedNode: SCNNode, inside rootNode: SCNNode?) -> Bool {
+		guard let rootNode = rootNode else { return false }
+		return checkedNode === rootNode || checkedNode.isDescendantNode(of: rootNode)
+	}
+
+	private func probedGroundWorldY() -> SCNFloat? {
+		guard let localGroundY = groundHeight(at: node.position, probeLift: uphillGroundProbeLift) else { return nil }
+		let parent = node.parent
+		return parent?.presentation.convertPosition(SCNVector3(x: node.position.x, y: localGroundY, z: node.position.z), to: nil).y ?? localGroundY
 	}
 
 	private func isGroundHit(_ hit: SCNHitTestResult) -> Bool {
@@ -867,6 +1031,116 @@ final class PlayerController {
 
 	private func resetAngularVelocity() {
 		node.physicsBody?.angularVelocity = SCNVector4Zero
+	}
+
+	private func configureDebugVisuals() {
+		debugVisualRoot.name = "__player_debug__"
+		debugVisualRoot.isHidden = true
+		debugVisualRoot.addChildNode(debugGroundMarker)
+		debugVisualRoot.addChildNode(debugStandingMarker)
+		debugVisualRoot.addChildNode(debugControllerMarker)
+		debugVisualRoot.addChildNode(debugVisualMinMarker)
+		debugVisualRoot.addChildNode(debugControllerGroundLine)
+		scene.rootNode.addChildNode(debugVisualRoot)
+	}
+
+	private func updateDebugVisuals() {
+		guard !debugVisualRoot.isHidden else { return }
+
+		let debugInfo = self.debugInfo
+		let root = scene.rootNode
+		let worldPosition = node.presentation.worldPosition
+		let groundY = debugInfo.probedGroundY ?? debugInfo.standingY
+		let visualMinY = debugInfo.visualMinY ?? worldPosition.y
+		let x = worldPosition.x
+		let z = worldPosition.z
+
+		let groundPosition = SCNVector3(x: x + 0.18, y: groundY, z: z)
+		let standingPosition = SCNVector3(x: x - 0.18, y: debugInfo.standingY, z: z)
+		let controllerPosition = SCNVector3(x: x, y: debugInfo.controllerY, z: z)
+		let visualMinPosition = SCNVector3(x: x, y: visualMinY, z: z + 0.18)
+
+		debugGroundMarker.position = root.convertPosition(groundPosition, from: nil)
+		debugStandingMarker.position = root.convertPosition(standingPosition, from: nil)
+		debugControllerMarker.position = root.convertPosition(controllerPosition, from: nil)
+		debugVisualMinMarker.position = root.convertPosition(visualMinPosition, from: nil)
+		updateDebugLine(from: groundPosition, to: controllerPosition)
+	}
+
+	private func updateDebugWorstSample(deltaTime: SCNFloat) {
+		debugWorstTimeRemaining = max(0, debugWorstTimeRemaining - deltaTime)
+
+		let debugInfo = self.debugInfo
+		let groundY = debugInfo.probedGroundY ?? debugInfo.standingY
+		let controllerGroundDelta = debugInfo.controllerY - groundY
+		let visualGroundDelta = debugInfo.visualMinY.map { $0 - groundY }
+		let sampleWorstDelta = min(controllerGroundDelta, visualGroundDelta ?? controllerGroundDelta)
+		let storedWorstDelta = min(
+			debugWorstControllerGroundDelta ?? SCNFloat.greatestFiniteMagnitude,
+			debugWorstVisualGroundDelta ?? SCNFloat.greatestFiniteMagnitude
+		)
+
+		if debugWorstTimeRemaining <= 0 || sampleWorstDelta < storedWorstDelta {
+			debugWorstControllerGroundDelta = controllerGroundDelta
+			debugWorstVisualGroundDelta = visualGroundDelta
+			debugWorstAnimationName = debugInfo.currentAirAnimationName ?? debugInfo.currentWalkingAnimationName ?? "none"
+			debugWorstTimeRemaining = debugWorstHoldDuration
+		}
+	}
+
+	private func updateDebugLine(from startWorldPosition: SCNVector3, to endWorldPosition: SCNVector3) {
+		let root = scene.rootNode
+		let start = root.convertPosition(startWorldPosition, from: nil)
+		let end = root.convertPosition(endWorldPosition, from: nil)
+		let source = SCNGeometrySource(vertices: [start, end])
+		let element = SCNGeometryElement(indices: [Int32(0), 1], primitiveType: .line)
+		let geometry = SCNGeometry(sources: [source], elements: [element])
+		geometry.firstMaterial = PlayerController.debugMaterial(color: .yellow)
+		debugControllerGroundLine.geometry = geometry
+	}
+
+	private static func debugMarker(color: SKColor) -> SCNNode {
+		let marker = SCNSphere(radius: 0.055)
+		marker.firstMaterial = debugMaterial(color: color)
+		return SCNNode(geometry: marker)
+	}
+
+	private static func debugMaterial(color: SKColor) -> SCNMaterial {
+		let material = SCNMaterial()
+		material.diffuse.contents = color
+		material.emission.contents = color
+		material.lightingModel = .constant
+		material.fillMode = .lines
+		material.isDoubleSided = true
+		return material
+	}
+
+	private func visualWorldYBounds() -> (min: SCNFloat, max: SCNFloat)? {
+		var bounds: (min: SCNFloat, max: SCNFloat)?
+		collectVisualWorldYBounds(in: node, bounds: &bounds)
+		return bounds
+	}
+
+	private func collectVisualWorldYBounds(in currentNode: SCNNode, bounds: inout (min: SCNFloat, max: SCNFloat)?) {
+		if currentNode.geometry != nil {
+			let localBounds = currentNode.presentation.boundingBox
+			for x in [localBounds.min.x, localBounds.max.x] {
+				for y in [localBounds.min.y, localBounds.max.y] {
+					for z in [localBounds.min.z, localBounds.max.z] {
+						let worldY = currentNode.presentation.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil).y
+						if let existingBounds = bounds {
+							bounds = (min(existingBounds.min, worldY), max(existingBounds.max, worldY))
+						} else {
+							bounds = (worldY, worldY)
+						}
+					}
+				}
+			}
+		}
+
+		for child in currentNode.childNodes {
+			collectVisualWorldYBounds(in: child, bounds: &bounds)
+		}
 	}
 
 }

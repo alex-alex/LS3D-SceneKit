@@ -343,8 +343,9 @@ final class HudScene: SKScene {
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
-		diagnosticsLabel.position = CGPoint(x: 12, y: size.height - 12)
-		diagnosticsLabel.preferredMaxLayoutWidth = max(180, min(320, size.width - 24))
+		let diagnosticsX = compass.position.x + compass.size.width / 2 + 16
+		diagnosticsLabel.position = CGPoint(x: diagnosticsX, y: size.height - 12)
+		diagnosticsLabel.preferredMaxLayoutWidth = max(180, min(360, size.width - diagnosticsX - 12))
 		crosshairNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
 		layoutVehicleStealProgress()
 		layoutPlayerStatusHud()
@@ -442,13 +443,15 @@ final class HudScene: SKScene {
 		}
 	}
 
-	func updateDiagnostics(framesPerSecond: CGFloat, position: SCNVector3) {
+	func updateDiagnostics(framesPerSecond: CGFloat, position: SCNVector3, details: String? = nil) {
+		let detailsText = details.map { "\n" + $0 } ?? ""
 		let diagnosticsText = String(
-			format: "FPS %.0f\nX %.2f  Y %.2f  Z %.2f",
+			format: "FPS %.0f\nX %.2f  Y %.2f  Z %.2f%@",
 			Double(framesPerSecond),
 			Double(position.x),
 			Double(position.y),
-			Double(position.z)
+			Double(position.z),
+			detailsText
 		)
 
 		if lastDiagnosticsText != diagnosticsText {

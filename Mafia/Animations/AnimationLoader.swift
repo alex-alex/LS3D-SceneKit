@@ -285,12 +285,12 @@ class Animation {
 		}
 	}
 
-	func apply(elapsedTime: TimeInterval, to node: SCNNode) {
-		applyPose(samplePose(elapsedTime: elapsedTime), to: node)
+	func apply(elapsedTime: TimeInterval, to node: SCNNode, includePosition: Bool = true) {
+		applyPose(samplePose(elapsedTime: elapsedTime), to: node, includePosition: includePosition)
 	}
 
-	fileprivate func apply(elapsedTime: TimeInterval, to node: SCNNode, sampler: AnimationSampler) {
-		applyPose(sampler.samplePose(elapsedTime: elapsedTime), to: node)
+	fileprivate func apply(elapsedTime: TimeInterval, to node: SCNNode, sampler: AnimationSampler, includePosition: Bool = true) {
+		applyPose(sampler.samplePose(elapsedTime: elapsedTime), to: node, includePosition: includePosition)
 	}
 
 	func samplePose(elapsedTime: TimeInterval) -> Pose {
@@ -302,10 +302,10 @@ class Animation {
 		)
 	}
 
-	func blend(from pose: Pose, elapsedTime: TimeInterval, transitionDuration: TimeInterval, to node: SCNNode) {
+	func blend(from pose: Pose, elapsedTime: TimeInterval, transitionDuration: TimeInterval, to node: SCNNode, includePosition: Bool = true) {
 		let targetPose = samplePose(elapsedTime: elapsedTime)
 		let amount = Animation.smoothstep(CGFloat(elapsedTime / max(transitionDuration, 0.0001)))
-		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node, includePosition: includePosition)
 	}
 
 	fileprivate func blend(
@@ -313,11 +313,12 @@ class Animation {
 		elapsedTime: TimeInterval,
 		transitionDuration: TimeInterval,
 		to node: SCNNode,
-		sampler: AnimationSampler
+		sampler: AnimationSampler,
+		includePosition: Bool = true
 	) {
 		let targetPose = sampler.samplePose(elapsedTime: elapsedTime)
 		let amount = Animation.smoothstep(CGFloat(elapsedTime / max(transitionDuration, 0.0001)))
-		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node, includePosition: includePosition)
 	}
 
 	func blend(
@@ -325,11 +326,12 @@ class Animation {
 		toElapsedTime targetElapsedTime: TimeInterval,
 		transitionElapsedTime: TimeInterval,
 		transitionDuration: TimeInterval,
-		to node: SCNNode
+		to node: SCNNode,
+		includePosition: Bool = true
 	) {
 		let targetPose = samplePose(elapsedTime: targetElapsedTime)
 		let amount = Animation.smoothstep(CGFloat(transitionElapsedTime / max(transitionDuration, 0.0001)))
-		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node, includePosition: includePosition)
 	}
 
 	fileprivate func blend(
@@ -338,11 +340,12 @@ class Animation {
 		transitionElapsedTime: TimeInterval,
 		transitionDuration: TimeInterval,
 		to node: SCNNode,
-		sampler: AnimationSampler
+		sampler: AnimationSampler,
+		includePosition: Bool = true
 	) {
 		let targetPose = sampler.samplePose(elapsedTime: targetElapsedTime)
 		let amount = Animation.smoothstep(CGFloat(transitionElapsedTime / max(transitionDuration, 0.0001)))
-		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node)
+		applyPose(Animation.blendedPose(from: pose, to: targetPose, amount: amount), to: node, includePosition: includePosition)
 	}
 
 	func presentationPose(of node: SCNNode) -> Pose {
@@ -353,8 +356,8 @@ class Animation {
 		)
 	}
 
-	private func applyPose(_ pose: Pose, to node: SCNNode) {
-		if let position = pose.position {
+	private func applyPose(_ pose: Pose, to node: SCNNode, includePosition: Bool = true) {
+		if includePosition, let position = pose.position {
 			node.position = position
 		}
 		if let scale = pose.scale {
@@ -661,6 +664,7 @@ func playAnimation(
 	animationKey: String? = nil,
 	transitionDuration: TimeInterval = 0,
 	includePositionAnimation: Bool = true,
+	includeTrackPositionAnimation: Bool = true,
 	completionHandler: (() -> Void)? = nil) throws {
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
@@ -692,18 +696,20 @@ func playAnimation(
 				   !`repeat`,
 				   elapsedTime < transitionDuration,
 				   startPoses.indices.contains(index) {
-					matchedAnimation.animation.blend(
-						from: startPoses[index],
-						elapsedTime: elapsedTime,
-						transitionDuration: transitionDuration,
-						to: matchedAnimation.node,
-						sampler: matchedAnimation.sampler
-					)
+						matchedAnimation.animation.blend(
+							from: startPoses[index],
+							elapsedTime: elapsedTime,
+							transitionDuration: transitionDuration,
+							to: matchedAnimation.node,
+							sampler: matchedAnimation.sampler,
+							includePosition: includeTrackPositionAnimation
+						)
 				} else {
 					matchedAnimation.animation.apply(
 						elapsedTime: elapsedTime,
 						to: matchedAnimation.node,
-						sampler: matchedAnimation.sampler
+						sampler: matchedAnimation.sampler,
+						includePosition: includeTrackPositionAnimation
 					)
 				}
 			}
@@ -718,7 +724,8 @@ func playAnimation(
 							transitionElapsedTime: TimeInterval(elapsedTime),
 							transitionDuration: transitionDuration,
 							to: matchedAnimation.node,
-							sampler: matchedAnimation.sampler
+							sampler: matchedAnimation.sampler,
+							includePosition: includeTrackPositionAnimation
 						)
 					}
 				}
