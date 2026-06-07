@@ -329,6 +329,8 @@ final class Script {
 	var timerEndTime: TimeInterval?
 	var timerRemainingMilliseconds: Float = 0
 	var timerGeneration = 0
+	var waitGeneration = 0
+	var isWaitingForScriptWait = false
 
 	var signal = false
 
@@ -394,6 +396,8 @@ final class Script {
 			self.commandBlockDepth = 0
 			self.pendingCommandBlockAsyncOperations = 0
 			self.isWaitingForCommandBlockAsyncOperations = false
+			self.waitGeneration += 1
+			self.isWaitingForScriptWait = false
 			self.mainInEvent = false
 			self.currentEventId = nil
 			self.lineBeforeEvent = 0
@@ -447,10 +451,28 @@ final class Script {
 				return
 			}
 			self.eventIdQueue.append(eventId)
-			guard !self.isRunning else { return }
+			guard !self.isRunning else {
+				self.interruptWaitForQueuedEvent()
+				return
+			}
 			self.isRunning = true
 			self.run()
 		}
+	}
+
+	private func interruptWaitForQueuedEvent() {
+		guard !isPaused,
+			  canRunForActorState(),
+			  isWaitingForScriptWait,
+			  commandBlockDepth == 0,
+			  !executingEvent,
+			  commands.indices.contains(currentLine),
+			  commands[currentLine].name == .wait else {
+			return
+		}
+		waitGeneration += 1
+		isWaitingForScriptWait = false
+		next()
 	}
 
 	func setPaused(_ paused: Bool) {

@@ -2097,7 +2097,14 @@ extension Script {
 			queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: finishCommandBlockAsyncOperation)
 			next()
 		} else {
-			queue.asyncAfter(deadline: .now() + .milliseconds(delay), execute: next)
+			waitGeneration += 1
+			let generation = waitGeneration
+			isWaitingForScriptWait = true
+			queue.asyncAfter(deadline: .now() + .milliseconds(delay)) {
+				guard self.waitGeneration == generation else { return }
+				self.isWaitingForScriptWait = false
+				self.next()
+			}
 		}
 	}
 
