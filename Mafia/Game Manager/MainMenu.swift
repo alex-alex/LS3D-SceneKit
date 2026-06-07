@@ -347,6 +347,7 @@ private final class MainMenuScene: SKScene {
 
 	func showSaveGameSelector(saveGames: [SaveGameSlot]) {
 		saveGameDialog?.removeFromParent()
+		saveGameDialog = nil
 		let dialog = SaveGameDialogNode(saveGames: saveGames, controls: loadGameControls)
 		dialog.onDismiss = { [weak self] in
 			self?.saveGameDialog?.removeFromParent()
@@ -357,10 +358,10 @@ private final class MainMenuScene: SKScene {
 			self?.onSaveGameActivated?(saveGame)
 		}
 		dialog.zPosition = 40
-		addChild(dialog)
-		saveGameDialog = dialog
 		layoutReferenceMainMenu()
 		dialog.layout(size: size)
+		addChild(dialog)
+		saveGameDialog = dialog
 	}
 
 	private func layoutReferenceMainMenu() -> CGRect {
