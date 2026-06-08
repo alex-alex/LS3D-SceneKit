@@ -381,18 +381,18 @@ final class Vehicle {
 	}
 
 	func liftForCollisionDebug() {
-		let currentPosition = node.presentation.position
+		let velocity = node.physicsBody?.velocity
+		let angularVelocity = node.physicsBody?.angularVelocity
+		var liftedWorldTransform = node.presentation.worldTransform
+		liftedWorldTransform.m42 += resetHeight
 
-		node.physicsBody?.clearAllForces()
-		node.physicsBody?.velocity = SCNVector3Zero
-		node.physicsBody?.angularVelocity = SCNVector4Zero
-		node.position = SCNVector3(
-			x: currentPosition.x,
-			y: currentPosition.y + resetHeight,
-			z: currentPosition.z
-		)
-		updateControls(throttle: 0, brake: false, steering: 0)
-		applyForces()
+		node.transform = node.parent?.convertTransform(liftedWorldTransform, from: nil) ?? liftedWorldTransform
+		if let velocity = velocity {
+			node.physicsBody?.velocity = velocity
+		}
+		if let angularVelocity = angularVelocity {
+			node.physicsBody?.angularVelocity = angularVelocity
+		}
 	}
 
 	func setCollisionDebugVisible(_ isVisible: Bool) {
