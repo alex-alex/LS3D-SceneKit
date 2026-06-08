@@ -10,7 +10,7 @@ import Foundation
 import SceneKit
 import SpriteKit
 
-final class AnimationsGallery {
+final class AnimationsGallery: @unchecked Sendable {
 
 	private let scnScene = SCNScene()
 	private let cameraNode = SCNNode()
@@ -33,7 +33,7 @@ final class AnimationsGallery {
 		setupLights()
 	}
 
-	func setup(in view: SCNView) {
+	@MainActor func setup(in view: SCNView) {
 		view.scene = scnScene
 		view.delegate = nil
 		view.pointOfView = cameraNode
@@ -43,7 +43,9 @@ final class AnimationsGallery {
 			animations: animations,
 			gameManager: gameManager
 		) { [weak self] entry in
-			self?.playGalleryAnimation(entry)
+			Task { @MainActor in
+				self?.playGalleryAnimation(entry)
+			}
 		}
 
 		if let firstAnimation = animations.first {
@@ -224,7 +226,7 @@ private final class AnimationsGalleryScene: SKScene {
 
 	private weak var gameManager: GameManager?
 	private let animations: [AnimationGalleryEntry]
-	private let onAnimationSelected: (AnimationGalleryEntry) -> Void
+	private let onAnimationSelected: @Sendable (AnimationGalleryEntry) -> Void
 	private var filteredAnimations: [AnimationGalleryEntry]
 	private var labels: [SKLabelNode] = []
 	private var selectedIndex = 0
@@ -246,7 +248,7 @@ private final class AnimationsGalleryScene: SKScene {
 		size: CGSize,
 		animations: [AnimationGalleryEntry],
 		gameManager: GameManager?,
-		onAnimationSelected: @escaping (AnimationGalleryEntry) -> Void
+		onAnimationSelected: @escaping @Sendable (AnimationGalleryEntry) -> Void
 	) {
 		self.animations = animations
 		filteredAnimations = animations
@@ -297,9 +299,13 @@ private final class AnimationsGalleryScene: SKScene {
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	override func didChangeSize(_ oldSize: CGSize) {
-		super.didChangeSize(oldSize)
+	nonisolated override func didChangeSize(_ oldSize: CGSize) {
+		Task { @MainActor [weak self] in
+			self?.layoutScene()
+		}
+	}
 
+	private func layoutScene() {
 		let panelWidth = min(max(280, size.width * 0.34), 420)
 		let x = max(24, size.width - panelWidth - 24)
 		titleLabel.fontSize = 34

@@ -10,6 +10,10 @@ import Foundation
 import SceneKit
 import SpriteKit
 
+extension SCNNode: @retroactive @unchecked Sendable {}
+extension SCNAudioPlayer: @retroactive @unchecked Sendable {}
+extension SCNAudioSource: @retroactive @unchecked Sendable {}
+
 #if os(macOS)
 	typealias SCNFloat = CGFloat
 #elseif os(iOS)
@@ -315,22 +319,44 @@ extension SKTexture {
 	}
 }
 
-private let mafiaResourceURLCacheLock = NSLock()
-private var mafiaResourceURLCache: [String: URL] = [:]
-private var missingMafiaResourceURLCache: Set<String> = []
+private final class MafiaResourceURLCache: @unchecked Sendable {
+	private let lock = NSLock()
+	private var urlsByKey: [String: URL] = [:]
+	private var missingKeys: Set<String> = []
+
+	func cachedURL(for key: String) -> URL?? {
+		lock.lock()
+		defer { lock.unlock() }
+		if let url = urlsByKey[key] {
+			return .some(url)
+		}
+		if missingKeys.contains(key) {
+			return .some(nil)
+		}
+		return nil
+	}
+
+	func cacheURL(_ url: URL, for key: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		urlsByKey[key] = url
+		missingKeys.remove(key)
+	}
+
+	func cacheMissingURL(for key: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		missingKeys.insert(key)
+	}
+}
+
+private let mafiaResourceURLs = MafiaResourceURLCache()
 
 func mafiaResourceURL(directory: String, name: String) -> URL? {
 	let cacheKey = directory.lowercased() + "/" + name.replacingOccurrences(of: "\\", with: "/").lowercased()
-	mafiaResourceURLCacheLock.lock()
-	if let cachedURL = mafiaResourceURLCache[cacheKey] {
-		mafiaResourceURLCacheLock.unlock()
+	if let cachedURL = mafiaResourceURLs.cachedURL(for: cacheKey) {
 		return cachedURL
 	}
-	if missingMafiaResourceURLCache.contains(cacheKey) {
-		mafiaResourceURLCacheLock.unlock()
-		return nil
-	}
-	mafiaResourceURLCacheLock.unlock()
 
 	let directoryURL = mainDirectory.appendingPathComponent(directory)
 	let directURL = directoryURL.appendingPathComponent(name)
@@ -370,31 +396,42 @@ func mafiaResourceURL(directory: String, name: String) -> URL? {
 }
 
 private func cacheMafiaResourceURL(_ url: URL, for key: String) {
-	mafiaResourceURLCacheLock.lock()
-	mafiaResourceURLCache[key] = url
-	missingMafiaResourceURLCache.remove(key)
-	mafiaResourceURLCacheLock.unlock()
+	mafiaResourceURLs.cacheURL(url, for: key)
 }
 
 private func cacheMissingMafiaResourceURL(for key: String) {
-	mafiaResourceURLCacheLock.lock()
-	missingMafiaResourceURLCache.insert(key)
-	mafiaResourceURLCacheLock.unlock()
+	mafiaResourceURLs.cacheMissingURL(for: key)
 }
 
 func mafiaMapURL(named name: String) -> URL? {
 	return mafiaResourceURL(directory: "maps", name: name)
 }
 
-private var nodeTypeKey: UInt8 = 0
-private var followsCameraKey: UInt8 = 0
-private var doorDataKey: UInt8 = 0
-private var actorStateKey: UInt8 = 0
-private var actionsEnabledKey: UInt8 = 0
-private var humanEnergyKey: UInt8 = 0
-private var vehicleModelNameKey: UInt8 = 0
-private var recordSourcePositionKey: UInt8 = 0
-private var recordSourceOrientationVectorKey: UInt8 = 0
+private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
+	let nodeType = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let followsCamera = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let doorData = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let actorState = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let actionsEnabled = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let humanEnergy = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let vehicleModelName = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let recordSourcePosition = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let recordSourceOrientationVector = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+
+	init() {
+		nodeType.initialize(to: 0)
+		followsCamera.initialize(to: 0)
+		doorData.initialize(to: 0)
+		actorState.initialize(to: 0)
+		actionsEnabled.initialize(to: 0)
+		humanEnergy.initialize(to: 0)
+		vehicleModelName.initialize(to: 0)
+		recordSourcePosition.initialize(to: 0)
+		recordSourceOrientationVector.initialize(to: 0)
+	}
+}
+
+private let scnNodeAssociatedObjectKeys = SCNNodeAssociatedObjectKeys()
 
 enum ActorState: String {
 	case active
@@ -406,7 +443,7 @@ enum ActorState: String {
 	}
 }
 
-final class DoorData {
+final class DoorData: @unchecked Sendable {
 	let open1: UInt8
 	let open2: UInt8
 	let moveAngle: SCNFloat
@@ -459,98 +496,98 @@ final class DoorData {
 extension SCNNode {
 	var vehicleModelName: String? {
 		get {
-			let value: NSString = associatedObject(self, key: &vehicleModelNameKey) {
+			let value: NSString = associatedObject(self, key: scnNodeAssociatedObjectKeys.vehicleModelName) {
 				return NSString(string: "")
 			}
 			return value.length > 0 ? value as String : nil
 		}
 		set {
-			associateObject(self, key: &vehicleModelNameKey, value: NSString(string: newValue ?? ""))
+			associateObject(self, key: scnNodeAssociatedObjectKeys.vehicleModelName, value: NSString(string: newValue ?? ""))
 		}
 	}
 
 	var recordSourcePosition: SCNVector3? {
 		get {
-			return (objc_getAssociatedObject(self, &recordSourcePositionKey) as? NSValue)?.scnVector3Value
+			return (objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.recordSourcePosition) as? NSValue)?.scnVector3Value
 		}
 		set {
 			if let newValue = newValue {
 				objc_setAssociatedObject(
 					self,
-					&recordSourcePositionKey,
+					scnNodeAssociatedObjectKeys.recordSourcePosition,
 					NSValue(scnVector3: newValue),
 					.OBJC_ASSOCIATION_RETAIN
 				)
 			} else {
-				objc_setAssociatedObject(self, &recordSourcePositionKey, nil, .OBJC_ASSOCIATION_RETAIN)
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.recordSourcePosition, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
 	}
 
 	var recordSourceOrientationVector: SCNVector3? {
 		get {
-			return (objc_getAssociatedObject(self, &recordSourceOrientationVectorKey) as? NSValue)?.scnVector3Value
+			return (objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.recordSourceOrientationVector) as? NSValue)?.scnVector3Value
 		}
 		set {
 			if let newValue = newValue {
 				objc_setAssociatedObject(
 					self,
-					&recordSourceOrientationVectorKey,
+					scnNodeAssociatedObjectKeys.recordSourceOrientationVector,
 					NSValue(scnVector3: newValue),
 					.OBJC_ASSOCIATION_RETAIN
 				)
 			} else {
-				objc_setAssociatedObject(self, &recordSourceOrientationVectorKey, nil, .OBJC_ASSOCIATION_RETAIN)
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.recordSourceOrientationVector, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
 	}
 
 	var type: ObjectDefinitionType {
 		get {
-			let rawValue: NSNumber = associatedObject(self, key: &nodeTypeKey) {
+			let rawValue: NSNumber = associatedObject(self, key: scnNodeAssociatedObjectKeys.nodeType) {
 				return NSNumber(value: ObjectDefinitionType.empty.rawValue)
 			}
 			return ObjectDefinitionType(rawValue: rawValue.uint32Value) ?? .empty
 		}
 		set {
-			associateObject(self, key: &nodeTypeKey, value: NSNumber(value: newValue.rawValue))
+			associateObject(self, key: scnNodeAssociatedObjectKeys.nodeType, value: NSNumber(value: newValue.rawValue))
 		}
 	}
 
 	var followsCamera: Bool {
 		get {
-			let value: NSNumber = associatedObject(self, key: &followsCameraKey) {
+			let value: NSNumber = associatedObject(self, key: scnNodeAssociatedObjectKeys.followsCamera) {
 				return NSNumber(value: false)
 			}
 			return value.boolValue
 		}
 		set {
-			associateObject(self, key: &followsCameraKey, value: NSNumber(value: newValue))
+			associateObject(self, key: scnNodeAssociatedObjectKeys.followsCamera, value: NSNumber(value: newValue))
 		}
 	}
 
 	var doorData: DoorData? {
 		get {
-			return objc_getAssociatedObject(self, &doorDataKey) as? DoorData
+			return objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.doorData) as? DoorData
 		}
 		set {
 			if let newValue = newValue {
-				objc_setAssociatedObject(self, &doorDataKey, newValue, .OBJC_ASSOCIATION_RETAIN)
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.doorData, newValue, .OBJC_ASSOCIATION_RETAIN)
 			} else {
-				objc_setAssociatedObject(self, &doorDataKey, nil, .OBJC_ASSOCIATION_RETAIN)
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.doorData, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
 	}
 
 	var actionsEnabled: Bool {
 		get {
-			let value: NSNumber = associatedObject(self, key: &actionsEnabledKey) {
+			let value: NSNumber = associatedObject(self, key: scnNodeAssociatedObjectKeys.actionsEnabled) {
 				return NSNumber(value: true)
 			}
 			return value.boolValue
 		}
 		set {
-			associateObject(self, key: &actionsEnabledKey, value: NSNumber(value: newValue))
+			associateObject(self, key: scnNodeAssociatedObjectKeys.actionsEnabled, value: NSNumber(value: newValue))
 		}
 	}
 
@@ -567,26 +604,26 @@ extension SCNNode {
 
 	var actorState: ActorState {
 		get {
-			let rawValue: NSString = associatedObject(self, key: &actorStateKey) {
+			let rawValue: NSString = associatedObject(self, key: scnNodeAssociatedObjectKeys.actorState) {
 				return ActorState.active.rawValue as NSString
 			}
 			return ActorState(rawValue: rawValue as String) ?? .active
 		}
 		set {
-			associateObject(self, key: &actorStateKey, value: newValue.rawValue as NSString)
+			associateObject(self, key: scnNodeAssociatedObjectKeys.actorState, value: newValue.rawValue as NSString)
 			actionsEnabled = newValue.canRunScript
 		}
 	}
 
 	var humanEnergy: Float? {
 		get {
-			return (objc_getAssociatedObject(self, &humanEnergyKey) as? NSNumber)?.floatValue
+			return (objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.humanEnergy) as? NSNumber)?.floatValue
 		}
 		set {
 			if let newValue = newValue {
-				objc_setAssociatedObject(self, &humanEnergyKey, NSNumber(value: newValue), .OBJC_ASSOCIATION_RETAIN)
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.humanEnergy, NSNumber(value: newValue), .OBJC_ASSOCIATION_RETAIN)
 			} else {
-				objc_setAssociatedObject(self, &humanEnergyKey, nil, .OBJC_ASSOCIATION_RETAIN)
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.humanEnergy, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
 	}

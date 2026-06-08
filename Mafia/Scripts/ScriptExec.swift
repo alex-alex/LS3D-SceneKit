@@ -10,11 +10,11 @@ import Foundation
 import AVFoundation
 import SceneKit
 
-private let scriptNullActorNode: SCNNode = {
+private func makeScriptNullActorNode() -> SCNNode {
 	let node = SCNNode()
 	node.name = "NULL"
 	return node
-}()
+}
 
 private extension Argument {
 	var isNullLabel: Bool {
@@ -811,10 +811,10 @@ extension Script {
 	private func findactor(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
-			let name = args[1].getString()
-			if name.lowercased() == "null" {
-				actors[actorId] = scriptNullActorNode
-			} else if let node = findNode(named: name) {
+				let name = args[1].getString()
+				if name.lowercased() == "null" {
+					actors[actorId] = makeScriptNullActorNode()
+				} else if let node = findNode(named: name) {
 				actors[actorId] = node
 			}
 			if name.lowercased() == "tommy" {
@@ -1244,7 +1244,7 @@ extension Script {
 	private func human_getowner(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		guard let actor = node(forScriptId: actorId),
+		guard node(forScriptId: actorId) != nil,
 			  let owner = ownerNode(forActorId: actorId) else {
 			actors[varId] = nil
 			frames[varId] = nil
@@ -1543,8 +1543,8 @@ extension Script {
 	private func model_playanim(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let animName = args[1].getString()
-		if let actor = node(forScriptId: actorId) {
-			DispatchQueue.main.async {
+		DispatchQueue.main.async {
+			if let actor = self.node(forScriptId: actorId) {
 				try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: actor)
 			}
 		}
@@ -1561,14 +1561,15 @@ extension Script {
 
 	private func person_playanim(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
-		guard args.count > 1,
-			  let actor = node(forScriptId: actorId) else {
+		guard args.count > 1 else {
 			next()
 			return
 		}
 		let animName = args[1].getString()
 		DispatchQueue.main.async {
-			try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: actor)
+			if let actor = self.node(forScriptId: actorId) {
+				try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: actor)
+			}
 		}
 		next()
 	}
@@ -1615,11 +1616,12 @@ extension Script {
 		nextSoundPlaybackId += 1
 		let playback = ScriptSoundPlayback(node: targetNode, player: player)
 		soundPlaybacks[playbackId] = playback
+		let scriptQueue = queue
 		player.didFinishPlayback = { [weak self, weak playback] in
 			guard let playback = playback else { return }
-			DispatchQueue.main.async {
+			DispatchQueue.main.async { [weak self] in
 				playback.node.removeAudioPlayer(playback.player)
-				self?.queue.async {
+				scriptQueue.async { [weak self] in
 					self?.soundPlaybacks[playbackId] = nil
 				}
 			}
@@ -1705,7 +1707,11 @@ extension Script {
 		}
 	}
 
-	private func waitForCutscene(secondsRemaining: TimeInterval, lastTick: TimeInterval, completion: @escaping () -> Void) {
+	private func waitForCutscene(
+		secondsRemaining: TimeInterval,
+		lastTick: TimeInterval,
+		completion: @escaping @Sendable () -> Void
+	) {
 		let interval: TimeInterval = 0.1
 		queue.asyncAfter(deadline: .now() + interval) { [weak self] in
 			guard let self = self else { return }
@@ -2198,7 +2204,11 @@ extension Script {
 		return scene.scripts[name] ?? scene.initScripts[name]
 	}
 
-	private func readRemoteScript<T>(_ remoteScript: Script, read: @escaping () -> T, completion: @escaping (T) -> Void) {
+	private func readRemoteScript<T: Sendable>(
+		_ remoteScript: Script,
+		read: @escaping @Sendable () -> T,
+		completion: @escaping @Sendable (T) -> Void
+	) {
 		if remoteScript === self {
 			completion(read())
 			return
@@ -2249,7 +2259,7 @@ extension Script {
 	}
 
 	private func humanOwnerMatches(actorId: Int, carId: Int) -> Bool {
-		guard let actor = node(forScriptId: actorId),
+		guard node(forScriptId: actorId) != nil,
 			  let car = node(forScriptId: carId) else {
 			return false
 		}
@@ -2512,7 +2522,7 @@ extension Script {
 
 }
 
-final class ScriptMusicStream {
+final class ScriptMusicStream: @unchecked Sendable {
 
 	private let playback: ScriptMusicStreamPlayback
 
@@ -2576,7 +2586,7 @@ private protocol ScriptMusicStreamPlayback: AnyObject {
 	func fadeVolume(from startVolume: Float, to endVolume: Float, duration: TimeInterval)
 }
 
-private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback {
+private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback, @unchecked Sendable {
 
 	private enum PlaybackState {
 		case stopped
@@ -2826,7 +2836,7 @@ private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback
 		DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(16), execute: workItem)
 	}
 
-	private func runOnMain(_ block: @escaping () -> Void) {
+	private func runOnMain(_ block: @escaping @Sendable () -> Void) {
 		if Thread.isMainThread {
 			block()
 		} else {
@@ -2853,7 +2863,7 @@ private final class ScriptBufferedMusicStreamPlayback: ScriptMusicStreamPlayback
 
 }
 
-private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
+private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback, @unchecked Sendable {
 
 	private enum PlaybackState {
 		case stopped
@@ -3158,7 +3168,7 @@ private final class ScriptOggMusicStreamPlayback: ScriptMusicStreamPlayback {
 		}
 	}
 
-	private func runOnMain(_ block: @escaping () -> Void) {
+	private func runOnMain(_ block: @escaping @Sendable () -> Void) {
 		if Thread.isMainThread {
 			block()
 		} else {

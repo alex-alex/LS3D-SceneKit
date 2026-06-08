@@ -12,11 +12,12 @@ import SceneKit
 import SpriteKit
 import CoreMotion
 
+@MainActor
 class GameViewController: UIViewController {
 
 	var gameView: SCNView!
 
-	var gameManager: GameManager!
+	var gameManager: GameManager?
 
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
@@ -31,8 +32,12 @@ class GameViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-		gameView = view as? SCNView
-		gameManager = GameManager(view: gameView)
+		guard let scnView = view as? SCNView else {
+			assertionFailure("GameViewController root view must be an SCNView")
+			return
+		}
+		gameView = scnView
+		gameManager = GameManager(view: scnView)
 
 		// ------
 
@@ -70,9 +75,9 @@ class GameViewController: UIViewController {
 		if motionManager.isAccelerometerAvailable {
 			//gameView.preferredFramesPerSecond
 			motionManager.accelerometerUpdateInterval = 1/60
-			motionManager.startAccelerometerUpdates(to: .main) { data, _ in
-				guard self.gameManager.game?.mode == .car,
-					  let vehicle = self.gameManager.game?.vehicle,
+				motionManager.startAccelerometerUpdates(to: .main) { data, _ in
+					guard self.gameManager?.game?.mode == .car,
+						  let vehicle = self.gameManager?.game?.vehicle,
 					  let data = data,
 					  !self.isTouchDriving else { return }
 
@@ -107,17 +112,17 @@ extension GameViewController {
 		let translation = gesture.translation(in: view)
 		let vAngle = acos(Float(translation.y) / 200) - (.pi / 2)
 
-		if gameManager.game?.mode == .walk {
-			if gameManager.game.scene.playerNode != nil {
-				gameManager.game.look(
+		if let game = gameManager?.game, game.mode == .walk {
+			if game.scene.playerNode != nil {
+				game.look(
 					deltaX: -Float(translation.x) * 0.008,
 					deltaY: Float(translation.y) * 0.004
 				)
 			} else {
 				let hAngle = acos(Float(translation.x) / 200) - (.pi / 2)
-				gameManager.game.elevation = max((-.pi/2.5), min(0, gameManager.game.elevation - vAngle))
-				gameManager.game.cameraContainer.eulerAngles.x = gameManager.game.elevation
-				gameManager.game.cameraContainer.eulerAngles.y += hAngle
+				game.elevation = max((-.pi/2.5), min(0, game.elevation - vAngle))
+				game.cameraContainer.eulerAngles.x = game.elevation
+				game.cameraContainer.eulerAngles.y += hAngle
 			}
 		}
 
@@ -127,10 +132,9 @@ extension GameViewController {
 	@objc func walkGestureRecognized(gesture: UIPanGestureRecognizer) {
 		if gesture.state == .ended || gesture.state == .cancelled {
 			gesture.setTranslation(.zero, in: view)
-			gameManager.game?.playerController?.setMovement(x: 0, z: 0)
-			if gameManager.game?.mode == .car {
-				gameManager.game?.vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
-				gameManager.game?.vehicle?.applyForces()
+			gameManager?.game?.playerController?.setMovement(x: 0, z: 0)
+			if let vehicle = gameManager?.game?.vehicle, gameManager?.game?.mode == .car {
+				vehicle.updateControls(throttle: 0, brake: false, steering: 0)
 			}
 			isTouchDriving = false
 			return
@@ -144,11 +148,11 @@ extension GameViewController {
 //			try! playAnimation(named: "anims/walk1.5ds", in: scene.playerNode!, repeat: true, animationKey: "__walking__")
 		}*/
 
-		if gameManager.game?.mode == .walk {
+		if gameManager?.game?.mode == .walk {
 			let inputX = max(-1, min(1, Float(translation.x) / 50))
 			let inputZ = max(-1, min(1, Float(-translation.y) / 50))
-			gameManager.game.playerController?.setMovement(x: inputX, z: inputZ)
-		} else if gameManager.game?.mode == .car, let vehicle = gameManager.game?.vehicle {
+			gameManager?.game?.playerController?.setMovement(x: inputX, z: inputZ)
+		} else if gameManager?.game?.mode == .car, let vehicle = gameManager?.game?.vehicle {
 			isTouchDriving = true
 			let steering = max(-1, min(1, CGFloat(translation.x) / 50))
 			let throttleInput = max(-1, min(1, CGFloat(-translation.y) / 50))
@@ -158,13 +162,13 @@ extension GameViewController {
 	}
 
 	@objc func fireGestureRecognized(gesture: UITapGestureRecognizer) {
-		gameManager.game?.playerDidFire()
-		gameManager.game?.releaseControl(.FIRE)
+		gameManager?.game?.playerDidFire()
+		gameManager?.game?.releaseControl(.FIRE)
 	}
 
 	@objc func siderollSwipeRecognized(gesture: UISwipeGestureRecognizer) {
 		let direction = gesture.direction == .left ? -1 : 1
-		gameManager.game?.hud?.registerCrouchSiderollSwipe(direction: direction)
+		gameManager?.game?.hud?.registerCrouchSiderollSwipe(direction: direction)
 	}
 
 }
@@ -174,9 +178,9 @@ extension GameViewController: UIGestureRecognizerDelegate {
 	func gestureRecognizer(
 		_ gestureRecognizer: UIGestureRecognizer,
 		shouldReceive touch: UITouch) -> Bool {
-		guard gameManager.game != nil else { return false }
+		guard gameManager?.game != nil else { return false }
 
-		if let hud = gameManager.game?.hud,
+		if let hud = gameManager?.game?.hud,
 		   hud.handlesTouchControl(at: touch.location(in: hud)) {
 			return false
 		}

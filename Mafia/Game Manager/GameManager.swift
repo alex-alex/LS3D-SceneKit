@@ -21,7 +21,8 @@ import CoreText
 let mafiaMenuFontName = "AuroraBT-BoldCondensed"
 let mafiaMenuTitleFontName = "Freehand-Regular"
 
-class GameManager {
+@MainActor
+class GameManager: @unchecked Sendable {
 
 	let view: SCNView
 
@@ -97,13 +98,13 @@ class GameManager {
 		DispatchQueue.global().async {
 			do {
 				let gallery = try AnimationsGallery(gameManager: self)
-				DispatchQueue.main.async {
+				Task { @MainActor in
 					self.animationsGallery = gallery
 					gallery.setup(in: self.view)
 				}
 			} catch {
 				print("Failed to load animations gallery:", error)
-				DispatchQueue.main.async {
+				Task { @MainActor in
 					self.loadMenu()
 				}
 			}
@@ -119,10 +120,11 @@ class GameManager {
 		view.overlaySKScene = loadingScene
 		DispatchQueue.global().async {
 			// swiftlint:disable:next force_try
-			self.mainMenu = try! MainMenu(gameManager: self)
-			DispatchQueue.main.async {
+			let menu = try! MainMenu(gameManager: self)
+			Task { @MainActor in
 				loadingScene.setProgress(1)
-				self.mainMenu?.setup(in: self.view)
+				self.mainMenu = menu
+				menu.setup(in: self.view)
 			}
 		}
 	}
@@ -139,26 +141,32 @@ class GameManager {
 		DispatchQueue.global().async {
 			do {
 				let game = try Game(missionName: folder) { progress in
-					DispatchQueue.main.async {
+					Task { @MainActor in
 						loadingScene.setProgress(progress)
 					}
 				}
 				game.onMissionEnded = { [weak self] in
-					self?.loadMenu()
+					Task { @MainActor in
+						self?.loadMenu()
+					}
 				}
 				game.onMissionRestarted = { [weak self] in
-					self?.loadMission(textId: textId, imageName: imageName, folder: folder)
+					Task { @MainActor in
+						self?.loadMission(textId: textId, imageName: imageName, folder: folder)
+					}
 				}
 				game.onLoadGameRequested = { [weak self] in
-					self?.loadSaveGameSelector()
+					Task { @MainActor in
+						self?.loadSaveGameSelector()
+					}
 				}
-				DispatchQueue.main.async {
+				Task { @MainActor in
 					self.game = game
 					game.setup(in: self.view)
 				}
 			} catch {
 				print("Failed to load mission '\(folder)':", error)
-				DispatchQueue.main.async {
+				Task { @MainActor in
 					self.loadMissionSelector()
 				}
 			}
@@ -289,9 +297,13 @@ private final class SaveGameSelectorScene: SKScene {
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	override func didChangeSize(_ oldSize: CGSize) {
-		super.didChangeSize(oldSize)
+	nonisolated override func didChangeSize(_ oldSize: CGSize) {
+		Task { @MainActor [weak self] in
+			self?.layoutScene()
+		}
+	}
 
+	private func layoutScene() {
 		titleLabel.fontSize = 34
 		titleLabel.position = CGPoint(x: size.width / 2, y: size.height - 64)
 
@@ -492,9 +504,13 @@ private final class MissionSelectorScene: SKScene {
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	override func didChangeSize(_ oldSize: CGSize) {
-		super.didChangeSize(oldSize)
+	nonisolated override func didChangeSize(_ oldSize: CGSize) {
+		Task { @MainActor [weak self] in
+			self?.layoutScene()
+		}
+	}
 
+	private func layoutScene() {
 		titleLabel.fontSize = 34
 		titleLabel.position = CGPoint(x: size.width / 2, y: size.height - 64)
 

@@ -10,7 +10,7 @@ import Foundation
 import SceneKit
 import SpriteKit
 
-final class Game: NSObject {
+final class Game: NSObject, @unchecked Sendable {
 
 	enum SiderollDirection {
 		case left
@@ -22,9 +22,9 @@ final class Game: NSObject {
 	}
 
 	var hud: HudScene!
-	var onMissionEnded: (() -> Void)?
-	var onMissionRestarted: (() -> Void)?
-	var onLoadGameRequested: (() -> Void)?
+	var onMissionEnded: (@Sendable () -> Void)?
+	var onMissionRestarted: (@Sendable () -> Void)?
+	var onLoadGameRequested: (@Sendable () -> Void)?
 
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
@@ -224,8 +224,7 @@ final class Game: NSObject {
 		}
 		progressHandler?(0.85)
 
-		if let loadedMissionEffects = try? MissionEffects(name: "missions/"+missionName),
-		   let missionEffects = loadedMissionEffects {
+			if let missionEffects = try? MissionEffects(name: "missions/"+missionName) {
 			missionEffects.node.name = "__effects__"
 			scnScene.rootNode.addChildNode(missionEffects.node)
 			print("== Loaded Mission Effects")
@@ -748,7 +747,7 @@ final class Game: NSObject {
 		isPlayerVehicleTransitionActive = true
 		playerVehicleTransitionControlsWereLocked = arePlayerControlsLocked
 		arePlayerControlsLocked = true
-		let finish: () -> Void = { [weak self] in
+		let finish: @Sendable () -> Void = { [weak self] in
 			guard let self = self else { return }
 			self.isPlayerVehicleTransitionActive = false
 			self.arePlayerControlsLocked = self.playerVehicleTransitionControlsWereLocked
@@ -796,7 +795,7 @@ final class Game: NSObject {
 		named animationName: String,
 		in playerNode: SCNNode,
 		repeat shouldRepeat: Bool,
-		completionHandler: (() -> Void)? = nil
+		completionHandler: (@Sendable () -> Void)? = nil
 	) {
 		do {
 			try playPlayerAnimation(
@@ -921,7 +920,9 @@ final class Game: NSObject {
 		guard isActionButtonVisible != isVisible else { return }
 
 		isActionButtonVisible = isVisible
-		hud.setActionButtonVisible(isVisible)
+		updateHud { hud in
+			hud.setActionButtonVisible(isVisible)
+		}
 	}
 
 	private func beginVehicleSteal(_ vehicle: Vehicle) {
@@ -930,24 +931,32 @@ final class Game: NSObject {
 			  vehicleStealId(for: vehicle) != nil else { return }
 
 		activeSteal = (vehicle, Date.timeIntervalSinceReferenceDate)
-		hud?.showConsoleText("Stealing car...")
+		updateHud { hud in
+			hud.showConsoleText("Stealing car...")
+		}
 	}
 
 	private func updateVehicleStealing() {
 		guard let steal = activeSteal else {
-			hud?.updateVehicleStealProgress(0, isVisible: false)
+			updateHud { hud in
+				hud.updateVehicleStealProgress(0, isVisible: false)
+			}
 			return
 		}
 
 		let elapsed = Date.timeIntervalSinceReferenceDate - steal.startedAt
-		hud?.updateVehicleStealProgress(CGFloat(elapsed / vehicleStealDuration), isVisible: true)
+		updateHud { hud in
+			hud.updateVehicleStealProgress(CGFloat(elapsed / self.vehicleStealDuration), isVisible: true)
+		}
 
 		guard isControlPressed(.ACTION),
 			  mode == .walk,
 			  let playerNode = scene.playerNode,
 			  steal.vehicle.node.actionSquaredDistance(to: playerNode.presentation.worldPosition) < actionDistanceSquared else {
 			activeSteal = nil
-			hud?.updateVehicleStealProgress(0, isVisible: false)
+			updateHud { hud in
+				hud.updateVehicleStealProgress(0, isVisible: false)
+			}
 			return
 		}
 
@@ -956,9 +965,13 @@ final class Game: NSObject {
 
 		stolenVehicleIds.insert(carId)
 		activeSteal = nil
-		hud?.updateVehicleStealProgress(1, isVisible: false)
+		updateHud { hud in
+			hud.updateVehicleStealProgress(1, isVisible: false)
+		}
 		vehicle = steal.vehicle
-		hud?.showConsoleText("Car stolen")
+		updateHud { hud in
+			hud.showConsoleText("Car stolen")
+		}
 	}
 
 	private func vehicleStealId(for vehicle: Vehicle) -> Int? {
@@ -1019,7 +1032,7 @@ final class Game: NSObject {
 		mode = .car
 	}
 
-	func setup(in view: SCNView) {
+	@MainActor func setup(in view: SCNView) {
 		renderView = view
 		setRenderLoopActive(true)
 		hud = HudScene(size: view.bounds.size, game: self)
@@ -1036,7 +1049,7 @@ final class Game: NSObject {
 		scene.startScripts()
 	}
 
-	func tearDown(from view: SCNView) {
+	@MainActor func tearDown(from view: SCNView) {
 		onMissionEnded = nil
 		onMissionRestarted = nil
 		onLoadGameRequested = nil
@@ -1084,62 +1097,37 @@ final class Game: NSObject {
 		}
 	}
 
-	func setCutsceneOverlayVisible(_ isVisible: Bool) {
-		let update = {
-			self.hud?.setCutsceneOverlayVisible(isVisible)
-			if !isVisible {
-				self.hud?.setActionButtonVisible(self.isActionButtonVisible)
-			}
+	private func updateHud(_ update: @escaping @MainActor @Sendable (HudScene) -> Void) {
+		guard let hud = hud else { return }
+		Task { @MainActor in
+			update(hud)
 		}
+	}
 
-		if Thread.isMainThread {
-			update()
-		} else {
-			DispatchQueue.main.async {
-				update()
+	func setCutsceneOverlayVisible(_ isVisible: Bool) {
+		updateHud { hud in
+			hud.setCutsceneOverlayVisible(isVisible)
+			if !isVisible {
+				hud.setActionButtonVisible(self.isActionButtonVisible)
 			}
 		}
 	}
 
 	func setLoadBlackoutVisible(_ isVisible: Bool) {
-		let update = {
-			self.hud?.setLoadBlackoutVisible(isVisible)
-		}
-
-		if Thread.isMainThread {
-			update()
-		} else {
-			DispatchQueue.main.sync {
-				update()
-			}
+		updateHud { hud in
+			hud.setLoadBlackoutVisible(isVisible)
 		}
 	}
 
 	func setScriptBlackoutVisible(_ isVisible: Bool, immediate: Bool) {
-		let update = {
-			self.hud?.setScriptBlackoutVisible(isVisible, immediate: immediate)
-		}
-
-		if Thread.isMainThread {
-			update()
-		} else {
-			DispatchQueue.main.async {
-				update()
-			}
+		updateHud { hud in
+			hud.setScriptBlackoutVisible(isVisible, immediate: immediate)
 		}
 	}
 
 	func showSubtitleText(_ text: String) {
-		let update = {
-			self.hud?.showSubtitleText(text)
-		}
-
-		if Thread.isMainThread {
-			update()
-		} else {
-			DispatchQueue.main.async {
-				update()
-			}
+		updateHud { hud in
+			hud.showSubtitleText(text)
 		}
 	}
 
@@ -1161,7 +1149,9 @@ final class Game: NSObject {
 			lastUpdateTime = nil
 		}
 
-		hud?.setPauseScreenVisible(isPaused && showsPauseScreen)
+		updateHud { hud in
+			hud.setPauseScreenVisible(isPaused && showsPauseScreen)
+		}
 		requestRender()
 
 		if pauseStateChanged {
@@ -1174,30 +1164,38 @@ final class Game: NSObject {
 	}
 
 	func requestRender() {
-		#if os(macOS)
-		renderView?.needsDisplay = true
-		#elseif os(iOS)
-		renderView?.setNeedsDisplay()
-		#endif
+		Task { @MainActor [weak self] in
+			#if os(macOS)
+			self?.renderView?.needsDisplay = true
+			#elseif os(iOS)
+			self?.renderView?.setNeedsDisplay()
+			#endif
+		}
 	}
 
 	private func setRenderLoopActive(_ isActive: Bool) {
-		renderView?.isPlaying = isActive
-		renderView?.rendersContinuously = isActive
+		Task { @MainActor [weak self] in
+			self?.renderView?.isPlaying = isActive
+			self?.renderView?.rendersContinuously = isActive
+		}
 	}
 
 	func endMission(returnsToMainMenu: Bool, message: String?) {
 		guard !didEndMission else { return }
 		didEndMission = true
 
-		hud?.showMissionEndText(message)
-		hud?.setScriptBlackoutVisible(true, immediate: false)
+		updateHud { hud in
+			hud.showMissionEndText(message)
+			hud.setScriptBlackoutVisible(true, immediate: false)
+		}
 		isGamePaused = true
 		scnScene.isPaused = true
 		scene.setAudioPaused(true)
 		scene.setScriptsPaused(true)
 		lastUpdateTime = nil
-		hud?.setPauseScreenVisible(false)
+		updateHud { hud in
+			hud.setPauseScreenVisible(false)
+		}
 		playerController?.stop()
 		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 		if returnsToMainMenu {
@@ -1616,13 +1614,19 @@ extension Game: SCNSceneRendererDelegate {
 			vehicleVelocity.y * vehicleVelocity.y +
 			vehicleVelocity.z * vehicleVelocity.z
 		)
-		hud.updateVehicleSpeed(
-			CGFloat(vehicleSpeed),
-			vehicleSpeed: vehicle?.speed ?? 0,
-			force: vehicle?.force ?? 0,
-			isVisible: mode == .car && vehicle != nil,
-			isSpeedLimiterEnabled: vehicle?.isSpeedLimiterEnabled == true
-		)
+		let displayedVehicleSpeed = vehicle?.speed ?? 0
+		let displayedVehicleForce = vehicle?.force ?? 0
+		let isVehicleSpeedVisible = mode == .car && vehicle != nil
+		let isSpeedLimiterEnabled = vehicle?.isSpeedLimiterEnabled == true
+		updateHud { hud in
+			hud.updateVehicleSpeed(
+				CGFloat(vehicleSpeed),
+				vehicleSpeed: displayedVehicleSpeed,
+				force: displayedVehicleForce,
+				isVisible: isVehicleSpeedVisible,
+				isSpeedLimiterEnabled: isSpeedLimiterEnabled
+			)
+		}
 		refreshPlayerStatusHud()
 		updateNPCHealthLabels()
 		updateVehicleStealing()
@@ -1633,7 +1637,6 @@ extension Game: SCNSceneRendererDelegate {
 		   let playerNode = scene.playerNode {
 			let p1 = node.presentation.worldPosition
 			let p2 = playerNode.presentation.worldPosition
-			hud.setCompassVisible(true)
 			let target = SCNVector3(x: p1.x - p2.x, y: 0, z: p1.z - p2.z)
 			let referenceNode = mode == .car ? vehicle?.node : playerNode
 			let referenceTransform = referenceNode?.presentation.worldTransform ?? playerNode.presentation.worldTransform
@@ -1643,9 +1646,15 @@ extension Game: SCNSceneRendererDelegate {
 			)
 			let targetAngle = atan2(target.z, target.x)
 			let forwardAngle = atan2(referenceForward.z, referenceForward.x)
-			hud.compassNeedle.zRotation = CGFloat(targetAngle - forwardAngle + .pi / 2)
+			let compassRotation = CGFloat(targetAngle - forwardAngle + .pi / 2)
+			updateHud { hud in
+				hud.setCompassVisible(true)
+				hud.compassNeedle.zRotation = compassRotation
+			}
 		} else {
-			hud.setCompassVisible(false)
+			updateHud { hud in
+				hud.setCompassVisible(false)
+			}
 		}
 
 		updateActionButtonVisibility(at: time)
@@ -1665,11 +1674,16 @@ extension Game: SCNSceneRendererDelegate {
 			}
 		}
 
-		hud.updateDiagnostics(
-			framesPerSecond: smoothedFramesPerSecond,
-			position: diagnosticsPosition(),
-			details: diagnosticsDetails()
-		)
+		let framesPerSecond = smoothedFramesPerSecond
+		let position = diagnosticsPosition()
+		let details = diagnosticsDetails()
+		updateHud { hud in
+			hud.updateDiagnostics(
+				framesPerSecond: framesPerSecond,
+				position: position,
+				details: details
+			)
+		}
 	}
 
 	private func diagnosticsPosition() -> SCNVector3 {
@@ -1725,7 +1739,7 @@ extension Game {
 	func performAction(_ action: Action) {
 		switch action {
 		case .action(let script, _):
-			let index = scene.actions.index(where: { action in
+			let index = scene.actions.firstIndex(where: { action in
 				if case .action(let _script, _) = action {
 					return script.uuid == _script.uuid
 				} else {
@@ -1739,7 +1753,7 @@ extension Game {
 		case .weapon(let node, let weapon):
 			node.isHidden = true
 
-			let index = scene.actions.index(where: { action in
+			let index = scene.actions.firstIndex(where: { action in
 				if case .weapon(_, let _weapon) = action {
 					return weapon.uuid == _weapon.uuid
 				} else {
@@ -1803,12 +1817,18 @@ extension Game {
 		guard let vehicle = vehicle else { return }
 
 		vehicle.isSpeedLimiterEnabled.toggle()
-		hud?.showConsoleText(vehicle.isSpeedLimiterEnabled ? "Speed limiter on" : "Speed limiter off")
+		let message = vehicle.isSpeedLimiterEnabled ? "Speed limiter on" : "Speed limiter off"
+		updateHud { hud in
+			hud.showConsoleText(message)
+		}
 	}
 
 	func showObjectives() {
 		pressControl(.OBJECTIVES)
-		hud?.showCurrentObjectives(scene.objectives)
+		let objectives = scene.objectives
+		updateHud { hud in
+			hud.showCurrentObjectives(objectives)
+		}
 	}
 
 	func toggleCollisionWireframes() {
@@ -1818,7 +1838,10 @@ extension Game {
 			.setCollisionWireframesVisible(areCollisionWireframesVisible)
 		vehicle?.setCollisionDebugVisible(areCollisionWireframesVisible)
 		playerController?.setDebugVisualsVisible(areCollisionWireframesVisible)
-		hud?.showConsoleText("Collision wireframes \(areCollisionWireframesVisible ? "on" : "off")")
+		let message = "Collision wireframes \(areCollisionWireframesVisible ? "on" : "off")"
+		updateHud { hud in
+			hud.showConsoleText(message)
+		}
 	}
 
 	func setVehicleStealEnabled(carId: Int, node: SCNNode?, enabled: Bool) {
@@ -1943,7 +1966,10 @@ extension Game {
 		weapon.position = .inventory
 		scene.rootNode.addChildNode(dropNode)
 		scene.actions.append(.weapon(dropNode, weapon))
-		hud?.showConsoleText("Dropped \(weapon.name)")
+		let message = "Dropped \(weapon.name)"
+		updateHud { hud in
+			hud.showConsoleText(message)
+		}
 		refreshPlayerStatusHud()
 	}
 
@@ -2029,10 +2055,15 @@ extension Game {
 		}
 
 		if addedCount > 0 || addedMagazineCount > 0 {
-			hud?.showConsoleText("Added \(addedCount) inventory items, \(addedMagazineCount) magazines")
+			let message = "Added \(addedCount) inventory items, \(addedMagazineCount) magazines"
+			updateHud { hud in
+				hud.showConsoleText(message)
+			}
 			refreshPlayerStatusHud()
 		} else {
-			hud?.showConsoleText("Inventory already has all items")
+			updateHud { hud in
+				hud.showConsoleText("Inventory already has all items")
+			}
 		}
 		return addedCount
 	}
@@ -2054,9 +2085,14 @@ extension Game {
 			playWeaponToggleAnimation()
 		}
 		if let selectedWeapon = selectedWeapon {
-			hud?.showConsoleText("Equipped \(selectedWeapon.name)")
+			let message = "Equipped \(selectedWeapon.name)"
+			updateHud { hud in
+				hud.showConsoleText(message)
+			}
 		} else {
-			hud?.showConsoleText("Empty hands")
+			updateHud { hud in
+				hud.showConsoleText("Empty hands")
+			}
 		}
 		refreshPlayerStatusHud()
 	}
@@ -2180,9 +2216,11 @@ extension Game {
 			  activeBatChargeStartedAt == nil,
 			  equippedPlayerWeapon()?.isBaseballBat == true else { return }
 
-		activeBatChargeStartedAt = Date.timeIntervalSinceReferenceDate
-		hud?.updateVehicleStealProgress(0, isVisible: true, label: "Swing force")
-		playBaseballBatWindupAnimation()
+	activeBatChargeStartedAt = Date.timeIntervalSinceReferenceDate
+	updateHud { hud in
+		hud.updateVehicleStealProgress(0, isVisible: true, label: "Swing force")
+	}
+	playBaseballBatWindupAnimation()
 	}
 
 	private func updateBatCharge() {
@@ -2194,15 +2232,19 @@ extension Game {
 			return
 		}
 
-		let elapsed = Date.timeIntervalSinceReferenceDate - startedAt
-		hud?.updateVehicleStealProgress(CGFloat(elapsed / batChargeDuration), isVisible: true, label: "Swing force")
+	let elapsed = Date.timeIntervalSinceReferenceDate - startedAt
+	updateHud { hud in
+		hud.updateVehicleStealProgress(CGFloat(elapsed / self.batChargeDuration), isVisible: true, label: "Swing force")
+	}
 	}
 
 	private func releaseBatCharge() {
 		guard let startedAt = activeBatChargeStartedAt else { return }
 
-		activeBatChargeStartedAt = nil
-		hud?.updateVehicleStealProgress(0, isVisible: false)
+	activeBatChargeStartedAt = nil
+	updateHud { hud in
+		hud.updateVehicleStealProgress(0, isVisible: false)
+	}
 		guard mode == .walk,
 			  equippedPlayerWeapon()?.isBaseballBat == true else { return }
 
@@ -2215,7 +2257,9 @@ extension Game {
 
 	private func cancelBatCharge() {
 		activeBatChargeStartedAt = nil
-		hud?.updateVehicleStealProgress(0, isVisible: false)
+		updateHud { hud in
+			hud.updateVehicleStealProgress(0, isVisible: false)
+		}
 	}
 
 	private func updateNPCHealthLabels() {
@@ -2540,7 +2584,10 @@ extension Game {
 	func refreshPlayerStatusHud() {
 		let weapon = equippedPlayerWeapon()
 		syncHeldPlayerWeapon(weapon)
-		hud?.updatePlayerStatus(health: playerHealth, weapon: weapon)
+		let health = playerHealth
+		updateHud { hud in
+			hud.updatePlayerStatus(health: health, weapon: weapon)
+		}
 	}
 
 	private func syncHeldPlayerWeapon(_ weapon: Weapon?) {
@@ -3167,7 +3214,9 @@ extension Game {
 	}
 
 	func openInventory() {
-		hud?.toggleInventory()
+		updateHud { hud in
+			hud.toggleInventory()
+		}
 	}
 
 }

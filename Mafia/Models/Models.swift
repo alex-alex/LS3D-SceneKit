@@ -72,7 +72,24 @@ struct MaterialFlags: OptionSet {
 #if os(macOS)
 //var imageCache: NSCache<NSString, UIImage> = NSCache()
 #elseif os(iOS)
-var imageCache: [String: UIImage] = [:]
+private final class ModelImageCache: @unchecked Sendable {
+	private let lock = NSLock()
+	private var imagesByName: [String: UIImage?] = [:]
+
+	func image(named name: String) -> UIImage? {
+		lock.lock()
+		defer { lock.unlock() }
+		return imagesByName[name] ?? nil
+	}
+
+	func setImage(_ image: UIImage?, named name: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		imagesByName[name] = image
+	}
+}
+
+private let imageCache = ModelImageCache()
 #endif
 
 final class ModelLoader {
@@ -388,7 +405,7 @@ func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
 						material.diffuse.contents = NSImage(data: data)
 					}
 					#elseif os(iOS)
-					if let image = imageCache[textureName] {
+					if let image = imageCache.image(named: textureName) {
 						material.diffuse.contents = image
 					} else {
 						if flags.contains(.colorKey), data.count > 56 {
@@ -397,11 +414,11 @@ func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
 							let r = CGFloat(data[56])/255
 							let color = UIColor(red: r, green: g, blue: b, alpha: 1)
 							let image = UIImage(data: data)?.removeColor(color)
-							imageCache[textureName] = image
+							imageCache.setImage(image, named: textureName)
 							material.diffuse.contents = image
 						} else {
 							let image = UIImage(data: data)
-							imageCache[textureName] = image
+							imageCache.setImage(image, named: textureName)
 							material.diffuse.contents = image
 						}
 					}

@@ -20,7 +20,7 @@ func playPlayerAnimation(
 	transitionDuration: TimeInterval = playerAnimationTransitionDuration,
 	includePositionAnimation: Bool = true,
 	includeTrackPositionAnimation: Bool = true,
-	completionHandler: (() -> Void)? = nil) throws {
+	completionHandler: (@Sendable () -> Void)? = nil) throws {
 	try playAnimation(
 		named: name,
 		in: node,
@@ -33,7 +33,7 @@ func playPlayerAnimation(
 	)
 }
 
-final class PlayerController {
+final class PlayerController: @unchecked Sendable {
 	struct DebugInfo {
 		let controllerY: SCNFloat
 		let standingY: SCNFloat
@@ -49,8 +49,7 @@ final class PlayerController {
 		let worstAnimationName: String?
 	}
 
-	private static let animationExistenceCacheLock = NSLock()
-	private static var animationExistenceCache: [String: Bool] = [:]
+	private static let animationExistenceCache = AnimationExistenceCache()
 
 	private let node: SCNNode
 	private let scene: SCNScene
@@ -599,7 +598,7 @@ final class PlayerController {
 		playActionAnimation(named: animationName, animationKey: "__landing__")
 	}
 
-	private func playAirAnimation(named animationName: String?, repeat shouldRepeat: Bool, completionHandler: (() -> Void)? = nil) {
+	private func playAirAnimation(named animationName: String?, repeat shouldRepeat: Bool, completionHandler: (@Sendable () -> Void)? = nil) {
 		stopCurrentAirAnimation()
 		guard let animationName = animationName, animationExists(named: animationName) else {
 			completionHandler?()
@@ -671,19 +670,14 @@ final class PlayerController {
 
 	private static func animationExists(named animationName: String) -> Bool {
 		let key = animationName.lowercased()
-		animationExistenceCacheLock.lock()
-		if let cachedValue = animationExistenceCache[key] {
-			animationExistenceCacheLock.unlock()
+		if let cachedValue = animationExistenceCache.exists(for: key) {
 			return cachedValue
 		}
-		animationExistenceCacheLock.unlock()
 
 		let url = mainDirectory.appendingPathComponent(key)
 		let exists = FileManager.default.fileExists(atPath: url.path)
 
-		animationExistenceCacheLock.lock()
-		animationExistenceCache[key] = exists
-		animationExistenceCacheLock.unlock()
+		animationExistenceCache.setExists(exists, for: key)
 		return exists
 	}
 
@@ -1143,6 +1137,23 @@ final class PlayerController {
 		}
 	}
 
+}
+
+private final class AnimationExistenceCache: @unchecked Sendable {
+	private let lock = NSLock()
+	private var valuesByName: [String: Bool] = [:]
+
+	func exists(for name: String) -> Bool? {
+		lock.lock()
+		defer { lock.unlock() }
+		return valuesByName[name]
+	}
+
+	func setExists(_ exists: Bool, for name: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		valuesByName[name] = exists
+	}
 }
 
 private final class FootstepAudio {

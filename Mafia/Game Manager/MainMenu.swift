@@ -46,8 +46,7 @@ class MainMenu {
 		scene.playerNode?.removeFromParentNode()
 		scene.playerNode = nil
 
-		if let loadedMissionEffects = try? MissionEffects(name: "missions/00menu"),
-		   let missionEffects = loadedMissionEffects {
+		if let missionEffects = try? MissionEffects(name: "missions/00menu") {
 			missionEffects.node.name = "__effects__"
 			scnScene.rootNode.addChildNode(missionEffects.node)
 		}
@@ -138,7 +137,7 @@ class MainMenu {
 		}
 	}
 
-	func setup(in view: SCNView) {
+	@MainActor func setup(in view: SCNView) {
 		view.scene = scnScene
 		let menuScene = MainMenuScene(size: view.bounds.size, controls: menuControls, entries: entries, loadGameControls: loadGameControls)
 		self.menuScene = menuScene
@@ -185,7 +184,7 @@ class MainMenu {
 		scene.destroyScriptMusicStreams()
 	}
 
-	private func activateEntry(at index: Int) {
+	@MainActor private func activateEntry(at index: Int) {
 		guard entries.indices.contains(index) else { return }
 
 		switch entries[index].action {
@@ -229,7 +228,7 @@ class MainMenu {
 		})
 	}
 
-	private static func interpolate(from: SCNVector3, to: SCNVector3, progress: SCNFloat) -> SCNVector3 {
+	private nonisolated static func interpolate(from: SCNVector3, to: SCNVector3, progress: SCNFloat) -> SCNVector3 {
 		return SCNVector3(
 			x: from.x + (to.x - from.x) * progress,
 			y: from.y + (to.y - from.y) * progress,
@@ -237,7 +236,7 @@ class MainMenu {
 		)
 	}
 
-	private static func smoothStep(_ value: SCNFloat) -> SCNFloat {
+	private nonisolated static func smoothStep(_ value: SCNFloat) -> SCNFloat {
 		let progress = max(0, min(1, value))
 		return progress * progress * (3 - 2 * progress)
 	}
@@ -338,11 +337,13 @@ private final class MainMenuScene: SKScene {
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	override func didChangeSize(_ oldSize: CGSize) {
-		super.didChangeSize(oldSize)
-
-		layoutReferenceMainMenu()
-		saveGameDialog?.layout(size: size)
+	nonisolated override func didChangeSize(_ oldSize: CGSize) {
+		Task { @MainActor [weak self] in
+			_ = self?.layoutReferenceMainMenu()
+			if let self = self {
+				self.saveGameDialog?.layout(size: self.size)
+			}
+		}
 	}
 
 	func showSaveGameSelector(saveGames: [SaveGameSlot]) {
@@ -358,7 +359,7 @@ private final class MainMenuScene: SKScene {
 			self?.onSaveGameActivated?(saveGame)
 		}
 		dialog.zPosition = 40
-		layoutReferenceMainMenu()
+		_ = layoutReferenceMainMenu()
 		dialog.layout(size: size)
 		addChild(dialog)
 		saveGameDialog = dialog

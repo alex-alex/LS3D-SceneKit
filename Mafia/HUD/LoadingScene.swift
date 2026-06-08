@@ -76,9 +76,13 @@ final class LoadingScene: SKScene {
 		fatalError("init(coder:) has not been implemented")
 	}
 
-	override func didChangeSize(_ oldSize: CGSize) {
-		super.didChangeSize(oldSize)
+	nonisolated override func didChangeSize(_ oldSize: CGSize) {
+		Task { @MainActor [weak self] in
+			self?.layoutScene()
+		}
+	}
 
+	private func layoutScene() {
 		guard loaded else { return }
 
 		let w = size.width

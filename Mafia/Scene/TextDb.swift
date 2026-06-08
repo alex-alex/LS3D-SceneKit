@@ -8,13 +8,42 @@
 
 import Foundation
 
+private final class TextDbStorage: @unchecked Sendable {
+	private let lock = NSLock()
+	private var table: [UInt32: String] = [:]
+
+	var data: [UInt32: String] {
+		get {
+			lock.lock()
+			defer { lock.unlock() }
+			return table
+		}
+		set {
+			lock.lock()
+			defer { lock.unlock() }
+			table = newValue
+		}
+	}
+
+	func text(for id: UInt32) -> String? {
+		lock.lock()
+		defer { lock.unlock() }
+		return table[id]
+	}
+}
+
 final class TextDb {
 
 	enum Error: Swift.Error {
 		case file
 	}
 
-	static var data: [UInt32: String] = [:]
+	private static let storage = TextDbStorage()
+
+	static var data: [UInt32: String] {
+		get { storage.data }
+		set { storage.data = newValue }
+	}
 
 	static func load(lang: String = "cz") throws {
 		let url = mainDirectory.appendingPathComponent("/tables/textdb_\(lang).def")
@@ -51,7 +80,7 @@ final class TextDb {
 
 	static func get(_ val: Int) -> String? {
 		guard val >= 0 else { return nil }
-		return data[UInt32(val)]
+		return storage.text(for: UInt32(val))
 	}
 
 }

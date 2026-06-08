@@ -416,11 +416,41 @@ private final class RecordAnimationLookup {
 
 private struct PendingRecordLoad {
 	let full: Bool
-	let completion: (Result<Record, Swift.Error>) -> Void
+	let completion: @Sendable (Result<Record, Swift.Error>) -> Void
 }
 
 private struct PendingDifferenceLoad {
-	let completion: (Result<DifferenceFile, Swift.Error>) -> Void
+	let completion: @Sendable (Result<DifferenceFile, Swift.Error>) -> Void
+}
+
+private final class PendingDifferenceWaitState: @unchecked Sendable {
+	private let lock = NSLock()
+	private var remainingLoads: Int
+	private var firstError: Swift.Error?
+	private let completion: @Sendable (Result<Void, Swift.Error>) -> Void
+
+	init(remainingLoads: Int, completion: @escaping @Sendable (Result<Void, Swift.Error>) -> Void) {
+		self.remainingLoads = remainingLoads
+		self.completion = completion
+	}
+
+	func finishOne(_ result: Result<DifferenceFile, Swift.Error>) {
+		lock.lock()
+		if case .failure(let error) = result, firstError == nil {
+			firstError = error
+		}
+		remainingLoads -= 1
+		let shouldFinish = remainingLoads == 0
+		let error = firstError
+		lock.unlock()
+
+		guard shouldFinish else { return }
+		if let error = error {
+			completion(.failure(error))
+		} else {
+			completion(.success(()))
+		}
+	}
 }
 
 private let recordCameraNearPlane: Double = 0.01
@@ -442,7 +472,7 @@ struct TrafficSettings {
 	let cars: [TrafficCarDefinition]
 }
 
-final class Scene {
+final class Scene: @unchecked Sendable {
 
 	weak var game: Game!
 	let rootNode = SCNNode()
@@ -539,8 +569,9 @@ final class Scene {
 
 	var objectives: [Int] = [] {
 		didSet {
+			let objectives = objectives
 			DispatchQueue.main.async {
-				self.game?.hud?.updateObjectives(self.objectives)
+				self.game?.hud?.updateObjectives(objectives)
 			}
 		}
 	}
@@ -1220,7 +1251,7 @@ final class Scene {
 
 	func loadDifferenceFileAsync(
 		named name: String,
-		completion: @escaping (Result<DifferenceFile, Swift.Error>) -> Void
+		completion: @escaping @Sendable (Result<DifferenceFile, Swift.Error>) -> Void
 	) {
 		DispatchQueue.main.async { [weak self] in
 			guard let self = self else { return }
@@ -1357,7 +1388,7 @@ final class Scene {
 	func loadRecordAsync(
 		named name: String,
 		full: Bool = false,
-		completion: @escaping (Result<Record, Swift.Error>) -> Void
+		completion: @escaping @Sendable (Result<Record, Swift.Error>) -> Void
 	) {
 		DispatchQueue.main.async { [weak self] in
 			guard let self = self else { return }
@@ -1432,7 +1463,7 @@ final class Scene {
 		}
 	}
 
-	private func waitForPendingDifferenceLoads(completion: @escaping (Result<Void, Swift.Error>) -> Void) {
+	private func waitForPendingDifferenceLoads(completion: @escaping @Sendable (Result<Void, Swift.Error>) -> Void) {
 		guard Thread.isMainThread else {
 			DispatchQueue.main.async { [weak self] in
 				self?.waitForPendingDifferenceLoads(completion: completion)
@@ -1446,23 +1477,10 @@ final class Scene {
 			return
 		}
 
-		var remainingLoads = pendingKeys.count
-		var firstError: Swift.Error?
-		let finishOne: (Result<DifferenceFile, Swift.Error>) -> Void = { result in
-			if case .failure(let error) = result, firstError == nil {
-				firstError = error
-			}
-			remainingLoads -= 1
-			guard remainingLoads == 0 else { return }
-			if let firstError = firstError {
-				completion(.failure(firstError))
-			} else {
-				completion(.success(()))
-			}
-		}
+		let waitState = PendingDifferenceWaitState(remainingLoads: pendingKeys.count, completion: completion)
 
 		for key in pendingKeys {
-			pendingDifferenceLoads[key]?.append(PendingDifferenceLoad(completion: finishOne))
+			pendingDifferenceLoads[key]?.append(PendingDifferenceLoad(completion: waitState.finishOne))
 		}
 	}
 
@@ -3062,16 +3080,16 @@ final class Scene {
 		}
 	}
 
-	func playAudio(_ source: SCNAudioSource, on node: SCNNode, completion: (() -> Void)? = nil) {
+	func playAudio(_ source: SCNAudioSource, on node: SCNNode, completion: (@Sendable () -> Void)? = nil) {
 		playAudio(source, on: node, fallbackDuration: nil, completion: completion)
 	}
 
-	func playAudio(_ source: SCNAudioSource, url: URL, on node: SCNNode, completion: (() -> Void)? = nil) {
+	func playAudio(_ source: SCNAudioSource, url: URL, on node: SCNNode, completion: (@Sendable () -> Void)? = nil) {
 		let fallbackDuration = completion == nil ? nil : audioDuration(url: url)
 		playAudio(source, on: node, fallbackDuration: fallbackDuration, completion: completion)
 	}
 
-	private func playAudio(_ source: SCNAudioSource, on node: SCNNode, fallbackDuration: TimeInterval?, completion: (() -> Void)?) {
+	private func playAudio(_ source: SCNAudioSource, on node: SCNNode, fallbackDuration: TimeInterval?, completion: (@Sendable () -> Void)?) {
 		guard Thread.isMainThread else {
 			DispatchQueue.main.async {
 				self.playAudio(source, on: node, fallbackDuration: fallbackDuration, completion: completion)

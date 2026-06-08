@@ -113,8 +113,24 @@ private struct LoadedPositionAnimation {
 	let animation: PositionAnimation
 }
 
-private let loadedPositionAnimationsLock = NSLock()
-private var loadedPositionAnimationsByName: [String: LoadedPositionAnimation] = [:]
+private final class LoadedPositionAnimationCache: @unchecked Sendable {
+	private let lock = NSLock()
+	private var animationsByName: [String: LoadedPositionAnimation] = [:]
+
+	func animation(named name: String) -> PositionAnimation? {
+		lock.lock()
+		defer { lock.unlock() }
+		return animationsByName[name]?.animation
+	}
+
+	func setAnimation(_ animation: PositionAnimation, named name: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		animationsByName[name] = LoadedPositionAnimation(animation: animation)
+	}
+}
+
+private let loadedPositionAnimations = LoadedPositionAnimationCache()
 
 private func positionAnimationResourceURL(named name: String) -> URL? {
 	let normalizedName = name.replacingOccurrences(of: "\\", with: "/")
@@ -129,12 +145,9 @@ private func positionAnimationResourceURL(named name: String) -> URL? {
 
 func loadPositionAnimation(named name: String) throws -> PositionAnimation {
 	let key = name.lowercased()
-	loadedPositionAnimationsLock.lock()
-	if let cachedAnimation = loadedPositionAnimationsByName[key] {
-		loadedPositionAnimationsLock.unlock()
-		return cachedAnimation.animation
+	if let cachedAnimation = loadedPositionAnimations.animation(named: key) {
+		return cachedAnimation
 	}
-	loadedPositionAnimationsLock.unlock()
 
 	guard let url = positionAnimationResourceURL(named: name),
 		  let stream = InputStream(url: url) else { throw AnimationError.file }
@@ -169,9 +182,7 @@ func loadPositionAnimation(named name: String) throws -> PositionAnimation {
 		positions: positions
 	)
 
-	loadedPositionAnimationsLock.lock()
-	loadedPositionAnimationsByName[key] = LoadedPositionAnimation(animation: animation)
-	loadedPositionAnimationsLock.unlock()
+	loadedPositionAnimations.setAnimation(animation, named: key)
 	return animation
 }
 
@@ -188,7 +199,7 @@ func playPositionAnimation(
 	in node: SCNNode,
 	repeat shouldRepeat: Bool = false,
 	animationKey: String? = nil,
-	completionHandler: (() -> Void)? = nil
+	completionHandler: (@Sendable () -> Void)? = nil
 ) throws {
 	let animation = try loadPositionAnimation(named: name)
 	let duration = animation.duration > 0 ? animation.duration : animation.frameDuration * TimeInterval(animation.positions.count)

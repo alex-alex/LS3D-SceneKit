@@ -33,7 +33,7 @@ fileprivate struct AnimationKeyframe<Value> {
 	let value: Value
 }
 
-fileprivate final class AnimationSampler {
+fileprivate final class AnimationSampler: @unchecked Sendable {
 	private let animation: Animation
 	private var lastTick: CGFloat = -.greatestFiniteMagnitude
 	private var rotationCursor = KeyframeCursor<SCNQuaternion>()
@@ -225,7 +225,7 @@ fileprivate func readPositions(stream: InputStream) throws -> [AnimationKeyframe
 	return normalizedKeyframes(positions)
 }
 
-class Animation {
+class Animation: @unchecked Sendable {
 	fileprivate static let frameDuration: TimeInterval = 1.0 / 25.0
 	struct Pose {
 		let position: SCNVector3?
@@ -535,10 +535,51 @@ private struct LoadedAnimation {
 	let duration: TimeInterval
 }
 
-private let loadedAnimationsLock = NSLock()
-private var loadedAnimationsByName: [String: LoadedAnimation] = [:]
-private let animationTargetCacheLock = NSLock()
-private var animationTargetCache: [ObjectIdentifier: [String: WeakNode]] = [:]
+private final class AnimationCache: @unchecked Sendable {
+	private let lock = NSLock()
+	private var loadedAnimationsByName: [String: LoadedAnimation] = [:]
+	private var targetsByRootIdentifier: [ObjectIdentifier: [String: WeakNode]] = [:]
+
+	func loadedAnimation(named name: String) -> LoadedAnimation? {
+		lock.lock()
+		defer { lock.unlock() }
+		return loadedAnimationsByName[name]
+	}
+
+	func setLoadedAnimation(_ animation: LoadedAnimation, named name: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		loadedAnimationsByName[name] = animation
+	}
+
+	func targetNode(named name: String, rootIdentifier: ObjectIdentifier) -> SCNNode? {
+		lock.lock()
+		defer { lock.unlock() }
+		return targetsByRootIdentifier[rootIdentifier]?[name]?.node
+	}
+
+	func setTargetNode(_ node: SCNNode, named name: String, rootIdentifier: ObjectIdentifier) {
+		lock.lock()
+		defer { lock.unlock() }
+		var rootCache = targetsByRootIdentifier[rootIdentifier] ?? [:]
+		rootCache[name] = WeakNode(node)
+		targetsByRootIdentifier[rootIdentifier] = rootCache
+	}
+
+	func clearTargets(for rootNode: SCNNode) {
+		lock.lock()
+		defer { lock.unlock() }
+		targetsByRootIdentifier.removeValue(forKey: ObjectIdentifier(rootNode))
+	}
+
+	func clearTargets() {
+		lock.lock()
+		defer { lock.unlock() }
+		targetsByRootIdentifier.removeAll()
+	}
+}
+
+private let animationCache = AnimationCache()
 private let defaultAnimationActionKeyPrefix = "__animation:"
 
 private func animationResourceURL(named name: String) -> URL? {
@@ -592,12 +633,9 @@ func readAnimation(stream: InputStream, timerMax: Int, nameOffset: UInt32, animO
 
 func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	let key = name.lowercased()
-	loadedAnimationsLock.lock()
-	if let cachedAnimation = loadedAnimationsByName[key] {
-		loadedAnimationsLock.unlock()
+	if let cachedAnimation = animationCache.loadedAnimation(named: key) {
 		return (cachedAnimation.animations, cachedAnimation.duration)
 	}
-	loadedAnimationsLock.unlock()
 
 	guard let url = animationResourceURL(named: name),
 		  let stream = InputStream(url: url) else { throw AnimationError.file }
@@ -631,9 +669,7 @@ func loadAnimation(named name: String) throws -> ([Animation], TimeInterval) {
 	}
 
 	let duration = Double(timerMax) / 25
-	loadedAnimationsLock.lock()
-	loadedAnimationsByName[key] = LoadedAnimation(animations: animations, duration: duration)
-	loadedAnimationsLock.unlock()
+	animationCache.setLoadedAnimation(LoadedAnimation(animations: animations, duration: duration), named: key)
 	return (animations, duration)
 }
 
@@ -665,7 +701,7 @@ func playAnimation(
 	transitionDuration: TimeInterval = 0,
 	includePositionAnimation: Bool = true,
 	includeTrackPositionAnimation: Bool = true,
-	completionHandler: (() -> Void)? = nil) throws {
+	completionHandler: (@Sendable () -> Void)? = nil) throws {
 //	if name == "anims/walk1.5ds" { print("===============") }
 //	if name == "anims/walk1.5ds" { print("playAnimation") }
 	let (animations, duration) = try loadAnimation(named: name)
@@ -814,14 +850,10 @@ private func animationTargetNode(named name: String, in rootNode: SCNNode) -> SC
 	let key = name.lowercased()
 	let rootIdentifier = ObjectIdentifier(rootNode)
 
-	animationTargetCacheLock.lock()
-	if let cachedNode = animationTargetCache[rootIdentifier]?[key]?.node {
-		animationTargetCacheLock.unlock()
+	if let cachedNode = animationCache.targetNode(named: key, rootIdentifier: rootIdentifier) {
 		if animationTargetNode(cachedNode, isInHierarchyOf: rootNode) {
 			return cachedNode
 		}
-	} else {
-		animationTargetCacheLock.unlock()
 	}
 
 	let targetNode: SCNNode?
@@ -832,11 +864,7 @@ private func animationTargetNode(named name: String, in rootNode: SCNNode) -> SC
 	}
 
 	if let targetNode = targetNode {
-		animationTargetCacheLock.lock()
-		var rootCache = animationTargetCache[rootIdentifier] ?? [:]
-		rootCache[key] = WeakNode(targetNode)
-		animationTargetCache[rootIdentifier] = rootCache
-		animationTargetCacheLock.unlock()
+		animationCache.setTargetNode(targetNode, named: key, rootIdentifier: rootIdentifier)
 	}
 
 	return targetNode
@@ -854,13 +882,9 @@ private func animationTargetNode(_ node: SCNNode, isInHierarchyOf rootNode: SCNN
 }
 
 func clearAnimationTargetCache(for rootNode: SCNNode) {
-	animationTargetCacheLock.lock()
-	animationTargetCache.removeValue(forKey: ObjectIdentifier(rootNode))
-	animationTargetCacheLock.unlock()
+	animationCache.clearTargets(for: rootNode)
 }
 
 func clearAnimationTargetCache() {
-	animationTargetCacheLock.lock()
-	animationTargetCache.removeAll()
-	animationTargetCacheLock.unlock()
+	animationCache.clearTargets()
 }

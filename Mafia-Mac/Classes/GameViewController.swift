@@ -9,21 +9,25 @@
 import AppKit
 import SceneKit
 
+@MainActor
 class GameViewController: NSViewController {
 
     @IBOutlet weak var gameView: GameSceneView!
 
-	var gameManager: GameManager!
+	var gameManager: GameManager?
 	private var cursorCaptureTimer: Timer?
 	private var mouseEventMonitor: Any?
 	private var isCursorHidden = false
 	private var isCursorCaptureActive = false
 	private var shouldDropNextMouseDelta = false
 
-    override func awakeFromNib() {
+    nonisolated override func awakeFromNib() {
         super.awakeFromNib()
 
-		gameManager = GameManager(view: gameView)
+		Task { @MainActor [weak self] in
+			guard let self = self else { return }
+			self.gameManager = GameManager(view: self.gameView)
+		}
     }
 
 	override func viewDidAppear() {
@@ -36,17 +40,17 @@ class GameViewController: NSViewController {
 		}
 		gameView.mouseDownHandler = { [weak self] event in
 			guard let self = self else { return }
-			if let hud = self.gameManager.game?.hud {
+				if let hud = self.gameManager?.game?.hud {
 				let point = self.gameView.convert(event.locationInWindow, from: nil)
 				if hud.handleInventorySelection(at: point) {
 					return
 				}
 			}
-			self.gameManager.game?.playerDidFire()
-		}
-		gameView.mouseUpHandler = { [weak self] _ in
-			self?.gameManager.game?.releaseControl(.FIRE)
-		}
+				self.gameManager?.game?.playerDidFire()
+			}
+			gameView.mouseUpHandler = { [weak self] _ in
+				self?.gameManager?.game?.releaseControl(.FIRE)
+			}
 		startMouseEventMonitor()
 		startCursorCaptureTimer()
 		updateCursorCapture()
@@ -58,7 +62,7 @@ class GameViewController: NSViewController {
 		setCursorCaptureActive(false)
 	}
 
-	deinit {
+	@MainActor deinit {
 		cursorCaptureTimer?.invalidate()
 		if let mouseEventMonitor = mouseEventMonitor {
 			NSEvent.removeMonitor(mouseEventMonitor)
@@ -95,7 +99,9 @@ class GameViewController: NSViewController {
 		guard cursorCaptureTimer == nil else { return }
 
 		cursorCaptureTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in
-			self?.updateCursorCapture()
+			Task { @MainActor in
+				self?.updateCursorCapture()
+			}
 		}
 	}
 
@@ -111,7 +117,7 @@ class GameViewController: NSViewController {
 	}
 
 	private func queueMouseDelta(x deltaX: SCNFloat, y deltaY: SCNFloat) {
-		guard let game = gameManager.game,
+		guard let game = gameManager?.game,
 			  !game.isGamePaused else {
 			return
 		}
@@ -125,11 +131,11 @@ class GameViewController: NSViewController {
 	private func updateCursorCapture() {
 		view.window?.acceptsMouseMovedEvents = true
 
-		guard let game = gameManager.game,
+		guard let game = gameManager?.game,
 			  view.window?.isKeyWindow == true,
 			  !game.isGamePaused,
 			  game.hud?.isInventoryVisible != true,
-			  isMouseLookMode(game.mode) else {
+			  isMouseLookMode(for: game) else {
 			setCursorCaptureActive(false)
 			return
 		}
@@ -144,13 +150,13 @@ class GameViewController: NSViewController {
 
 		if isActive {
 			shouldDropNextMouseDelta = true
-			gameManager.game?.clearPendingLook()
+			gameManager?.game?.clearPendingLook()
 			setCursorHidden(true)
 			centerCursorInGameView()
 			_ = CGAssociateMouseAndMouseCursorPosition(0)
 		} else {
 			shouldDropNextMouseDelta = false
-			gameManager.game?.clearPendingLook()
+			gameManager?.game?.clearPendingLook()
 			_ = CGAssociateMouseAndMouseCursorPosition(1)
 			setCursorHidden(false)
 		}
@@ -181,10 +187,10 @@ class GameViewController: NSViewController {
 		CGWarpMouseCursorPosition(quartzPoint)
 	}
 
-	private func isMouseLookMode(_ mode: Game.Mode) -> Bool {
-		switch mode {
+	private func isMouseLookMode(for game: Game) -> Bool {
+		switch game.mode {
 		case .walk:
-			return gameManager.game?.scene.playerNode != nil
+			return game.scene.playerNode != nil
 		case .car:
 			return true
 		case .freeCamera:

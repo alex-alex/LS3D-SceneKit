@@ -10,7 +10,7 @@ import Foundation
 
 struct RawRepresentableError: Error, CustomStringConvertible {
 	let typeName: String
-	let rawValue: Any
+	let rawValue: String
 
 	var description: String {
 		return "Invalid \(typeName) raw value: \(rawValue)"
@@ -20,7 +20,7 @@ struct RawRepresentableError: Error, CustomStringConvertible {
 public extension RawRepresentable {
 	init(forcedRawValue rawValue: RawValue) throws {
 		guard let x = Self(rawValue: rawValue) else {
-			let error = RawRepresentableError(typeName: String(describing: Self.self), rawValue: rawValue)
+			let error = RawRepresentableError(typeName: String(describing: Self.self), rawValue: String(describing: rawValue))
 			print(error)
 			throw error
 		}

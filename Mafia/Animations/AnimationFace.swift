@@ -86,17 +86,30 @@ private func interpolatedFaceWeights(from startWeights: [CGFloat], to endWeights
 	}
 }
 
-private let loadedFaceAnimationsLock = NSLock()
-private var loadedFaceAnimationsByName: [String: FaceAnimation] = [:]
+private final class FaceAnimationCache: @unchecked Sendable {
+	private let lock = NSLock()
+	private var animationsByName: [String: FaceAnimation] = [:]
+
+	func animation(named name: String) -> FaceAnimation? {
+		lock.lock()
+		defer { lock.unlock() }
+		return animationsByName[name]
+	}
+
+	func setAnimation(_ animation: FaceAnimation, named name: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		animationsByName[name] = animation
+	}
+}
+
+private let loadedFaceAnimations = FaceAnimationCache()
 
 func loadFaceAnimation(named name: String) throws -> FaceAnimation {
 	let key = name.lowercased()
-	loadedFaceAnimationsLock.lock()
-	if let cachedAnimation = loadedFaceAnimationsByName[key] {
-		loadedFaceAnimationsLock.unlock()
+	if let cachedAnimation = loadedFaceAnimations.animation(named: key) {
 		return cachedAnimation
 	}
-	loadedFaceAnimationsLock.unlock()
 
 	guard let url = faceAnimationURL(named: name),
 		  let stream = InputStream(url: url) else {
@@ -129,9 +142,7 @@ func loadFaceAnimation(named name: String) throws -> FaceAnimation {
 	}
 
 	let animation = FaceAnimation(frames: frames)
-	loadedFaceAnimationsLock.lock()
-	loadedFaceAnimationsByName[key] = animation
-	loadedFaceAnimationsLock.unlock()
+	loadedFaceAnimations.setAnimation(animation, named: key)
 	return animation
 }
 

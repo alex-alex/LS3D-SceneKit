@@ -9,7 +9,7 @@
 import Foundation
 import SceneKit
 
-final class Weapon {
+final class Weapon: @unchecked Sendable {
 
 	enum Position {
 		case hand

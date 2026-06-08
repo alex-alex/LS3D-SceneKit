@@ -250,12 +250,12 @@ enum ScriptCommandName: String {
 	case unknown
 }
 
-final class ScriptEnemyTalkOperation {
+final class ScriptEnemyTalkOperation: @unchecked Sendable {
 	var isComplete = false
 	var waiters: [() -> Void] = []
 }
 
-final class ScriptSoundPlayback {
+final class ScriptSoundPlayback: @unchecked Sendable {
 	let node: SCNNode
 	let player: SCNAudioPlayer
 
@@ -277,15 +277,14 @@ struct ScriptCommand {
 	}
 }
 
-final class Script {
+final class Script: @unchecked Sendable {
 
-	private static var isCommandLoggingEnabled = false
+	private static let commandLoggingState = CommandLoggingState()
 	private static let recentCommandHistoryLimit = 20
 
 	@discardableResult
 	static func toggleCommandLogging() -> Bool {
-		isCommandLoggingEnabled.toggle()
-		return isCommandLoggingEnabled
+		return commandLoggingState.toggle()
 	}
 
 	let uuid = NSUUID()
@@ -587,7 +586,7 @@ final class Script {
 			}
 			isRunning = false
 			completionHandler?()
-			if Self.isCommandLoggingEnabled {
+			if Self.commandLoggingState.isEnabled {
 				print("END")
 			}
 			return
@@ -602,7 +601,7 @@ final class Script {
 			return next()
 		}
 
-		if Self.isCommandLoggingEnabled {
+		if Self.commandLoggingState.isEnabled {
 			print(">>> [\(node.name ?? "unnamed")] \(command.scriptLogDescription)")
 		}
 
@@ -656,4 +655,22 @@ final class Script {
 		return eventId
 	}
 
+}
+
+private final class CommandLoggingState: @unchecked Sendable {
+	private let lock = NSLock()
+	private var enabled = false
+
+	var isEnabled: Bool {
+		lock.lock()
+		defer { lock.unlock() }
+		return enabled
+	}
+
+	func toggle() -> Bool {
+		lock.lock()
+		defer { lock.unlock() }
+		enabled.toggle()
+		return enabled
+	}
 }

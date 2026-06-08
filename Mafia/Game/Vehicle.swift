@@ -563,12 +563,10 @@ private struct VehicleSoundProfile {
 
 }
 
-private final class VehicleAudio {
+private final class VehicleAudio: @unchecked Sendable {
 
 	private let profile: VehicleSoundProfile
-	private static var audioSourceCache: [String: SCNAudioSource] = [:]
-	private static var soundURLCache: [String: URL] = [:]
-	private static var missingSoundURLCache = Set<String>()
+	private static let cache = VehicleAudioCache()
 	private var isRunning = false
 	private var currentLoopName: String?
 	private var currentLoopPlayer: SCNAudioPlayer?
@@ -741,7 +739,7 @@ private final class VehicleAudio {
 	private func audioSource(named soundName: String?, loops: Bool) -> SCNAudioSource? {
 		guard let soundName = soundName else { return nil }
 		let cacheKey = "\(loops ? "loop" : "oneShot"):\(soundName.lowercased())"
-		if let cachedSource = VehicleAudio.audioSourceCache[cacheKey] {
+		if let cachedSource = VehicleAudio.cache.audioSource(for: cacheKey) {
 			return cachedSource
 		}
 
@@ -760,34 +758,78 @@ private final class VehicleAudio {
 		source.isPositional = true
 		source.shouldStream = false
 		source.volume = loops ? 0.55 : 0.8
-		VehicleAudio.audioSourceCache[cacheKey] = source
+		VehicleAudio.cache.setAudioSource(source, for: cacheKey)
 		return source
 	}
 
 	private func soundURL(named soundName: String) -> URL? {
 		let cacheKey = soundName.lowercased()
-		if let cachedURL = VehicleAudio.soundURLCache[cacheKey] {
+		if let cachedURL = VehicleAudio.cache.soundURL(for: cacheKey) {
 			return cachedURL
 		}
-		if VehicleAudio.missingSoundURLCache.contains(cacheKey) {
+		if VehicleAudio.cache.isMissingSoundURL(cacheKey) {
 			return nil
 		}
 
 		if let url = VehicleSoundFiles.url(named: soundName) {
-			VehicleAudio.soundURLCache[cacheKey] = url
+			VehicleAudio.cache.setSoundURL(url, for: cacheKey)
 			return url
 		}
 		if soundName.lowercased().contains("pahant"),
 		   let url = VehicleSoundFiles.url(named: soundName.replacingOccurrences(of: "pahant", with: "phant")) {
 			VehicleSoundLog.log("Using corrected vehicle sound filename '\(url.lastPathComponent)' for table entry '\(soundName)'")
-			VehicleAudio.soundURLCache[cacheKey] = url
+			VehicleAudio.cache.setSoundURL(url, for: cacheKey)
 			return url
 		}
 
-		VehicleAudio.missingSoundURLCache.insert(cacheKey)
+		VehicleAudio.cache.setMissingSoundURL(for: cacheKey)
 		return nil
 	}
 
+}
+
+private final class VehicleAudioCache: @unchecked Sendable {
+	private let lock = NSLock()
+	private var audioSources: [String: SCNAudioSource] = [:]
+	private var soundURLs: [String: URL] = [:]
+	private var missingSoundURLs = Set<String>()
+
+	func audioSource(for key: String) -> SCNAudioSource? {
+		lock.lock()
+		defer { lock.unlock() }
+		return audioSources[key]
+	}
+
+	func setAudioSource(_ source: SCNAudioSource, for key: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		audioSources[key] = source
+	}
+
+	func soundURL(for key: String) -> URL? {
+		lock.lock()
+		defer { lock.unlock() }
+		return soundURLs[key]
+	}
+
+	func setSoundURL(_ url: URL, for key: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		soundURLs[key] = url
+		missingSoundURLs.remove(key)
+	}
+
+	func isMissingSoundURL(_ key: String) -> Bool {
+		lock.lock()
+		defer { lock.unlock() }
+		return missingSoundURLs.contains(key)
+	}
+
+	func setMissingSoundURL(for key: String) {
+		lock.lock()
+		defer { lock.unlock() }
+		missingSoundURLs.insert(key)
+	}
 }
 
 private enum VehicleSoundFiles {

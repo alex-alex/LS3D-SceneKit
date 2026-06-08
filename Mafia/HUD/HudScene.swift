@@ -289,10 +289,10 @@ final class HudScene: SKScene {
 		fatalError()
 	}
 
-	override func didChangeSize(_ oldSize: CGSize) {
-		super.didChangeSize(oldSize)
-
-		layoutHud()
+	nonisolated override func didChangeSize(_ oldSize: CGSize) {
+		Task { @MainActor [weak self] in
+			self?.layoutHud()
+		}
 	}
 
 	private func layoutHud() {

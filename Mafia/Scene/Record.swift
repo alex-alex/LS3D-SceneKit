@@ -121,7 +121,7 @@ struct RecordTargetLink {
 	let name: String
 }
 
-final class Record {
+final class Record: @unchecked Sendable {
 
 	enum Error: Swift.Error {
 		case file
