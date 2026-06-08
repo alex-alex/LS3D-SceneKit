@@ -171,6 +171,7 @@ final class Game: NSObject, @unchecked Sendable {
 	private let vehicleStealDuration: TimeInterval = 1.6
 	private var playerPhysicsBodyBeforeVehicle: SCNPhysicsBody?
 	private var trafficManager: TrafficManager?
+	private var roadDebugNode: SCNNode?
 	private var environmentSectorNodes: [String: SCNNode] = [:]
 	private var missingEnvironmentSectorNames = Set<String>()
 	private let isMenuMission: Bool
@@ -233,6 +234,12 @@ final class Game: NSObject, @unchecked Sendable {
 		}
 
 		let road: Road? = (try? Road(name: "missions/"+missionName)) ?? nil
+		if let road = road {
+			let debugNode = Game.roadDebugNode(for: road)
+			debugNode.isHidden = true
+			scnScene.rootNode.addChildNode(debugNode)
+			roadDebugNode = debugNode
+		}
 		trafficManager = TrafficManager(road: road, trafficSettings: scene.trafficSettings, scene: scnScene)
 		trafficManager?.isEnabled = !isCutsceneCameraActive
 		if road != nil {
@@ -1842,12 +1849,126 @@ extension Game {
 		scnScene.rootNode
 			.mafiaChildNode(named: "__collisions__", recursively: false)?
 			.setCollisionWireframesVisible(areCollisionWireframesVisible)
+		roadDebugNode?.isHidden = !areCollisionWireframesVisible
 		vehicle?.setCollisionDebugVisible(areCollisionWireframesVisible)
 		playerController?.setDebugVisualsVisible(areCollisionWireframesVisible)
 		let message = "Collision wireframes \(areCollisionWireframesVisible ? "on" : "off")"
 		updateHud { hud in
 			hud.showConsoleText(message)
 		}
+	}
+
+	private static func roadDebugNode(for road: Road) -> SCNNode {
+		let root = SCNNode()
+		root.name = "__road_waypoint_debug__"
+
+		if let routeNode = roadRouteDebugNode(for: road) {
+			root.addChildNode(routeNode)
+		}
+
+		let waypointMaterial = debugMaterial(color: .magenta, fillMode: .fill)
+		for (index, waypoint) in road.waypoints.enumerated() {
+			let marker = SCNSphere(radius: 0.18)
+			marker.firstMaterial = waypointMaterial
+			let node = SCNNode(geometry: marker)
+			node.name = "__road_waypoint_\(index)__"
+			node.position = raisedRoadDebugPosition(waypoint.position)
+			root.addChildNode(node)
+		}
+
+		return root
+	}
+
+	private static func roadRouteDebugNode(for road: Road) -> SCNNode? {
+		let samplesPerSegment = 8
+		var vertices: [SCNVector3] = []
+		var indices: [Int32] = []
+		vertices.reserveCapacity(road.waypoints.count * samplesPerSegment * 2)
+		indices.reserveCapacity(road.waypoints.count * samplesPerSegment * 2)
+
+		for (index, waypoint) in road.waypoints.enumerated() {
+			guard let nextIndex = road.nextWaypointIndex(after: index, routeSeed: index),
+				  road.waypoints.indices.contains(nextIndex),
+				  nextIndex != index else { continue }
+
+			let previousIndex = road.previousWaypointIndex(before: index) ?? index
+			let futureIndex = road.nextWaypointIndex(after: nextIndex, routeSeed: index) ?? nextIndex
+			var previousSample = raisedRoadDebugPosition(waypoint.position)
+
+			for sampleIndex in 1...samplesPerSegment {
+				let progress = Float(sampleIndex) / Float(samplesPerSegment)
+				let sample = raisedRoadDebugPosition(catmullRom(
+					previous: road.waypoints[previousIndex].position,
+					start: waypoint.position,
+					end: road.waypoints[nextIndex].position,
+					future: road.waypoints[futureIndex].position,
+					progress: progress
+				))
+				let startVertexIndex = Int32(vertices.count)
+				vertices.append(previousSample)
+				vertices.append(sample)
+				indices.append(startVertexIndex)
+				indices.append(startVertexIndex + 1)
+				previousSample = sample
+			}
+		}
+
+		guard !vertices.isEmpty else { return nil }
+
+		let source = SCNGeometrySource(vertices: vertices)
+		let element = SCNGeometryElement(indices: indices, primitiveType: .line)
+		let geometry = SCNGeometry(sources: [source], elements: [element])
+		geometry.firstMaterial = debugMaterial(color: .cyan)
+
+		let node = SCNNode(geometry: geometry)
+		node.name = "__road_waypoint_routes__"
+		return node
+	}
+
+	private static func raisedRoadDebugPosition(_ position: SCNVector3) -> SCNVector3 {
+		return SCNVector3(x: position.x, y: position.y + 0.35, z: position.z)
+	}
+
+	private static func catmullRom(
+		previous: SCNVector3,
+		start: SCNVector3,
+		end: SCNVector3,
+		future: SCNVector3,
+		progress: Float
+	) -> SCNVector3 {
+		let t = SCNFloat(max(0, min(1, progress)))
+		let t2 = t * t
+		let t3 = t2 * t
+		return SCNVector3(
+			x: 0.5 * (
+				2 * start.x +
+				(-previous.x + end.x) * t +
+				(2 * previous.x - 5 * start.x + 4 * end.x - future.x) * t2 +
+				(-previous.x + 3 * start.x - 3 * end.x + future.x) * t3
+			),
+			y: 0.5 * (
+				2 * start.y +
+				(-previous.y + end.y) * t +
+				(2 * previous.y - 5 * start.y + 4 * end.y - future.y) * t2 +
+				(-previous.y + 3 * start.y - 3 * end.y + future.y) * t3
+			),
+			z: 0.5 * (
+				2 * start.z +
+				(-previous.z + end.z) * t +
+				(2 * previous.z - 5 * start.z + 4 * end.z - future.z) * t2 +
+				(-previous.z + 3 * start.z - 3 * end.z + future.z) * t3
+			)
+		)
+	}
+
+	private static func debugMaterial(color: SKColor, fillMode: SCNFillMode = .lines) -> SCNMaterial {
+		let material = SCNMaterial()
+		material.diffuse.contents = color
+		material.emission.contents = color
+		material.lightingModel = .constant
+		material.fillMode = fillMode
+		material.isDoubleSided = true
+		return material
 	}
 
 	func setVehicleStealEnabled(carId: Int, node: SCNNode?, enabled: Bool) {

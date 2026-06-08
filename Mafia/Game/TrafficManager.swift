@@ -13,6 +13,8 @@ final class TrafficManager {
 	private final class RoamingVehicle {
 		let id: Int
 		let node: SCNNode
+		let definition: TrafficCarDefinition
+		var previousWaypointIndex: Int
 		var currentWaypointIndex: Int
 		var nextWaypointIndex: Int
 		var progress: Float
@@ -23,6 +25,8 @@ final class TrafficManager {
 		init(
 			id: Int,
 			node: SCNNode,
+			definition: TrafficCarDefinition,
+			previousWaypointIndex: Int,
 			currentWaypointIndex: Int,
 			nextWaypointIndex: Int,
 			progress: Float,
@@ -31,6 +35,8 @@ final class TrafficManager {
 		) {
 			self.id = id
 			self.node = node
+			self.definition = definition
+			self.previousWaypointIndex = previousWaypointIndex
 			self.currentWaypointIndex = currentWaypointIndex
 			self.nextWaypointIndex = nextWaypointIndex
 			self.progress = progress
@@ -48,7 +54,6 @@ final class TrafficManager {
 	private let defaultLaneOffset: Float = 2.4
 	private let minimumCameraTrafficRadius: Float = 420
 	private let cameraRebalanceDistance: Float = 80
-	private let maxGeneratedCars = 16
 	private var placementSeed = 0
 	private var lastPlacementCenter: SCNVector3?
 	var isEnabled = true {
@@ -110,18 +115,19 @@ final class TrafficManager {
 	}
 
 	private func spawnVehicles() {
-		let count = min(max(trafficSettings.generatedCarCount, 0), maxGeneratedCars, road.waypoints.count)
+		let count = min(max(trafficSettings.generatedCarCount, 0), road.waypoints.count)
 		guard count > 0 else { return }
 
 		for index in 0..<count {
 			let waypointIndex = evenlySpacedWaypointIndex(for: index, count: count)
 			guard let nextIndex = road.nextWaypointIndex(after: waypointIndex, routeSeed: index),
 				  nextIndex != waypointIndex,
-				  let modelName = modelNameForGeneratedCar(index: index),
-				  let modelPath = resolvedModelPath(for: modelName, variantSeed: index),
+				  let definition = trafficCarDefinitionForGeneratedCar(index: index),
+				  let modelPath = resolvedModelPath(for: definition.modelName, variantSeed: index),
 				  let node = try? loadModel(named: modelPath) else { continue }
 
-			node.name = "__traffic_\(modelName)_\(index)__"
+			node.name = "traffic_element"
+			node.trafficCarDefinition = definition
 			node.position = road.waypoints[waypointIndex].position
 			node.isHidden = true
 			rootNode.addChildNode(node)
@@ -129,6 +135,8 @@ final class TrafficManager {
 			let vehicle = RoamingVehicle(
 				id: index,
 				node: node,
+				definition: definition,
+				previousWaypointIndex: road.previousWaypointIndex(before: waypointIndex) ?? waypointIndex,
 				currentWaypointIndex: waypointIndex,
 				nextWaypointIndex: nextIndex,
 				progress: Float(index % 4) * 0.2,
@@ -162,6 +170,7 @@ final class TrafficManager {
 			  nextIndex != waypointIndex else { return }
 
 		placementSeed += 1
+		vehicle.previousWaypointIndex = road.previousWaypointIndex(before: waypointIndex) ?? waypointIndex
 		vehicle.currentWaypointIndex = waypointIndex
 		vehicle.nextWaypointIndex = nextIndex
 		vehicle.progress = 0
@@ -171,14 +180,16 @@ final class TrafficManager {
 	}
 
 	private func waypointIndexNear(_ position: SCNVector3, offset: Int) -> Int? {
-		let radius = max(
+		let outerRadius = max(
 			trafficSettings.outerRadiusForGeneration,
 			trafficSettings.innerRadiusForGeneration,
-			trafficSettings.outerRadiusToHide,
 			minimumCameraTrafficRadius
 		)
-		let radiusSquared = radius * radius
-		var candidates: [Int] = []
+		let innerRadius = min(max(0, trafficSettings.innerRadiusForGeneration), outerRadius)
+		let outerRadiusSquared = outerRadius * outerRadius
+		let innerRadiusSquared = innerRadius * innerRadius
+		var generationCandidates: [Int] = []
+		var outerCandidates: [Int] = []
 		var nearestIndex: Int?
 		var nearestDistance = Float.greatestFiniteMagnitude
 
@@ -189,13 +200,19 @@ final class TrafficManager {
 				nearestDistance = distance
 				nearestIndex = index
 			}
-			if distance <= radiusSquared {
-				candidates.append(index)
+			if distance <= outerRadiusSquared {
+				outerCandidates.append(index)
+				if distance >= innerRadiusSquared {
+					generationCandidates.append(index)
+				}
 			}
 		}
 
-		if !candidates.isEmpty {
-			return spreadCandidate(from: candidates, around: position, offset: offset)
+		if !generationCandidates.isEmpty {
+			return spreadCandidate(from: generationCandidates, around: position, offset: offset)
+		}
+		if !outerCandidates.isEmpty {
+			return spreadCandidate(from: outerCandidates, around: position, offset: offset)
 		}
 		return nearestIndex
 	}
@@ -221,7 +238,8 @@ final class TrafficManager {
 	}
 
 	private func update(vehicle: RoamingVehicle, deltaTime: Float) {
-		guard road.waypoints.indices.contains(vehicle.currentWaypointIndex),
+		guard road.waypoints.indices.contains(vehicle.previousWaypointIndex),
+			  road.waypoints.indices.contains(vehicle.currentWaypointIndex),
 			  road.waypoints.indices.contains(vehicle.nextWaypointIndex) else { return }
 
 		let current = road.waypoints[vehicle.currentWaypointIndex]
@@ -234,6 +252,7 @@ final class TrafficManager {
 
 		while vehicle.progress >= 1 {
 			vehicle.progress -= 1
+			vehicle.previousWaypointIndex = vehicle.currentWaypointIndex
 			vehicle.currentWaypointIndex = vehicle.nextWaypointIndex
 			vehicle.nextWaypointIndex =
 				road.nextWaypointIndex(
@@ -242,22 +261,14 @@ final class TrafficManager {
 				) ?? vehicle.currentWaypointIndex
 		}
 
-		let start = road.waypoints[vehicle.currentWaypointIndex].position
-		let end = road.waypoints[vehicle.nextWaypointIndex].position
-		vehicle.node.position = displayPosition(
-			basePosition: interpolate(start: start, end: end, progress: vehicle.progress),
-			start: start,
-			end: end,
-			laneOffset: vehicle.laneOffset
-		)
+		vehicle.node.position = displayPosition(for: vehicle)
 		orient(vehicle: vehicle)
 	}
 
 	private func orient(vehicle: RoamingVehicle) {
-		let start = road.waypoints[vehicle.currentWaypointIndex].position
-		let end = road.waypoints[vehicle.nextWaypointIndex].position
-		let dx = end.x - start.x
-		let dz = end.z - start.z
+		let tangent = routeTangent(for: vehicle)
+		let dx = tangent.x
+		let dz = tangent.z
 		guard abs(dx) > 0.001 || abs(dz) > 0.001 else { return }
 		vehicle.node.eulerAngles.y = atan2(dx, dz)
 	}
@@ -279,20 +290,25 @@ final class TrafficManager {
 		return min(road.waypoints.count - 1, index * road.waypoints.count / count)
 	}
 
-	private func modelNameForGeneratedCar(index: Int) -> String? {
+	private func trafficCarDefinitionForGeneratedCar(index: Int) -> TrafficCarDefinition? {
 		let totalDensity = trafficSettings.cars.reduce(Float(0)) { $0 + max(0, $1.density) }
 		if totalDensity <= 0 {
-			return trafficSettings.cars[index % trafficSettings.cars.count].modelName
+			return trafficSettings.cars[index % trafficSettings.cars.count]
 		}
 
-		var pick = Float(index % 1000) / 1000 * totalDensity
+		var pick = deterministicUnitValue(for: index) * totalDensity
 		for car in trafficSettings.cars {
 			pick -= max(0, car.density)
 			if pick <= 0 {
-				return car.modelName
+				return car
 			}
 		}
-		return trafficSettings.cars.last?.modelName
+		return trafficSettings.cars.last
+	}
+
+	private func deterministicUnitValue(for index: Int) -> Float {
+		let value = UInt32(truncatingIfNeeded: index) &* 1_664_525 &+ 1_013_904_223
+		return Float(value % 10_000) / 10_000
 	}
 
 	private func resolvedModelPath(for modelName: String, variantSeed: Int) -> String? {
@@ -329,29 +345,21 @@ final class TrafficManager {
 		return FileManager.default.fileExists(atPath: mainDirectory.appendingPathComponent(normalizedPath).path)
 	}
 
-	private func interpolate(start: SCNVector3, end: SCNVector3, progress: Float) -> SCNVector3 {
-		let t = SCNFloat(progress)
-		return SCNVector3(
-			x: start.x + (end.x - start.x) * t,
-			y: start.y + (end.y - start.y) * t,
-			z: start.z + (end.z - start.z) * t
-		)
-	}
-
 	private func displayPosition(for vehicle: RoamingVehicle) -> SCNVector3 {
-		let start = road.waypoints[vehicle.currentWaypointIndex].position
-		let end = road.waypoints[vehicle.nextWaypointIndex].position
-		return displayPosition(basePosition: start, start: start, end: end, laneOffset: vehicle.laneOffset)
+		return displayPosition(
+			basePosition: routePosition(for: vehicle),
+			tangent: routeTangent(for: vehicle),
+			laneOffset: vehicle.laneOffset
+		)
 	}
 
 	private func displayPosition(
 		basePosition: SCNVector3,
-		start: SCNVector3,
-		end: SCNVector3,
+		tangent: SCNVector3,
 		laneOffset: Float
 	) -> SCNVector3 {
-		let dx = Float(end.x - start.x)
-		let dz = Float(end.z - start.z)
+		let dx = Float(tangent.x)
+		let dz = Float(tangent.z)
 		let length = max(minimumSegmentLength, sqrt(dx * dx + dz * dz))
 		let rightX = dz / length
 		let rightZ = -dx / length
@@ -360,6 +368,106 @@ final class TrafficManager {
 			x: basePosition.x + SCNFloat(rightX * laneOffset),
 			y: basePosition.y,
 			z: basePosition.z + SCNFloat(rightZ * laneOffset)
+		)
+	}
+
+	private func routePosition(for vehicle: RoamingVehicle) -> SCNVector3 {
+		let points = routeControlPoints(for: vehicle)
+		return Self.catmullRom(
+			previous: points.previous,
+			start: points.current,
+			end: points.next,
+			future: points.future,
+			progress: vehicle.progress
+		)
+	}
+
+	private func routeTangent(for vehicle: RoamingVehicle) -> SCNVector3 {
+		let points = routeControlPoints(for: vehicle)
+		return Self.catmullRomTangent(
+			previous: points.previous,
+			start: points.current,
+			end: points.next,
+			future: points.future,
+			progress: vehicle.progress
+		)
+	}
+
+	private func routeControlPoints(for vehicle: RoamingVehicle) -> (
+		previous: SCNVector3,
+		current: SCNVector3,
+		next: SCNVector3,
+		future: SCNVector3
+	) {
+		let routeSeed = vehicle.id + placementSeed
+		let futureWaypointIndex =
+			road.nextWaypointIndex(after: vehicle.nextWaypointIndex, routeSeed: routeSeed) ??
+			vehicle.nextWaypointIndex
+		return (
+			road.waypoints[vehicle.previousWaypointIndex].position,
+			road.waypoints[vehicle.currentWaypointIndex].position,
+			road.waypoints[vehicle.nextWaypointIndex].position,
+			road.waypoints[futureWaypointIndex].position
+		)
+	}
+
+	private static func catmullRom(
+		previous: SCNVector3,
+		start: SCNVector3,
+		end: SCNVector3,
+		future: SCNVector3,
+		progress: Float
+	) -> SCNVector3 {
+		let t = SCNFloat(max(0, min(1, progress)))
+		let t2 = t * t
+		let t3 = t2 * t
+		return SCNVector3(
+			x: 0.5 * (
+				2 * start.x +
+				(-previous.x + end.x) * t +
+				(2 * previous.x - 5 * start.x + 4 * end.x - future.x) * t2 +
+				(-previous.x + 3 * start.x - 3 * end.x + future.x) * t3
+			),
+			y: 0.5 * (
+				2 * start.y +
+				(-previous.y + end.y) * t +
+				(2 * previous.y - 5 * start.y + 4 * end.y - future.y) * t2 +
+				(-previous.y + 3 * start.y - 3 * end.y + future.y) * t3
+			),
+			z: 0.5 * (
+				2 * start.z +
+				(-previous.z + end.z) * t +
+				(2 * previous.z - 5 * start.z + 4 * end.z - future.z) * t2 +
+				(-previous.z + 3 * start.z - 3 * end.z + future.z) * t3
+			)
+		)
+	}
+
+	private static func catmullRomTangent(
+		previous: SCNVector3,
+		start: SCNVector3,
+		end: SCNVector3,
+		future: SCNVector3,
+		progress: Float
+	) -> SCNVector3 {
+		let t = SCNFloat(max(0, min(1, progress)))
+		let t2 = t * t
+		return SCNVector3(
+			x: 0.5 * (
+				(-previous.x + end.x) +
+				2 * (2 * previous.x - 5 * start.x + 4 * end.x - future.x) * t +
+				3 * (-previous.x + 3 * start.x - 3 * end.x + future.x) * t2
+			),
+			y: 0.5 * (
+				(-previous.y + end.y) +
+				2 * (2 * previous.y - 5 * start.y + 4 * end.y - future.y) * t +
+				3 * (-previous.y + 3 * start.y - 3 * end.y + future.y) * t2
+			),
+			z: 0.5 * (
+				(-previous.z + end.z) +
+				2 * (2 * previous.z - 5 * start.z + 4 * end.z - future.z) * t +
+				3 * (-previous.z + 3 * start.z - 3 * end.z + future.z) * t2
+			)
 		)
 	}
 

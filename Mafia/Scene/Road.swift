@@ -60,6 +60,7 @@ final class Road {
 	let version: UInt32
 	let crossroads: [RoadCrossroad]
 	let waypoints: [RoadWaypoint]
+	private let outgoingWaypointIndicesByPoint: [Int: [Int]]
 
 	init?(name: String) throws {
 		let url = mainDirectory.appendingPathComponent(name + "/road.bin")
@@ -91,6 +92,7 @@ final class Road {
 		self.version = version
 		self.crossroads = crossroads
 		self.waypoints = waypoints
+		self.outgoingWaypointIndicesByPoint = Road.makeOutgoingWaypointIndicesByPoint(waypoints)
 	}
 
 	func nextWaypointIndex(after index: Int, routeSeed: Int = 0) -> Int? {
@@ -106,6 +108,18 @@ final class Road {
 		return bestOutgoingWaypointIndex(from: index, candidates: outgoing, routeSeed: routeSeed)
 	}
 
+	func previousWaypointIndex(before index: Int) -> Int? {
+		guard waypoints.indices.contains(index) else { return nil }
+
+		let waypoint = waypoints[index]
+		if let previousIndex = waypointIndex(point: waypoint.previousPoint, type: waypoint.previousPointType) {
+			return previousIndex
+		}
+
+		let incoming = incomingWaypointIndices(toPoint: waypoint.previousPoint, type: waypoint.previousPointType)
+		return incoming.first
+	}
+
 	private func waypointIndex(point: UInt8, type: UInt8) -> Int? {
 		guard type >= 128 else { return nil }
 		let index = Int(point) + Int(type - 128) * 256
@@ -113,8 +127,12 @@ final class Road {
 	}
 
 	private func outgoingWaypointIndices(fromPoint point: UInt8, type: UInt8) -> [Int] {
+		return outgoingWaypointIndicesByPoint[Road.pointKey(point: point, type: type)] ?? []
+	}
+
+	private func incomingWaypointIndices(toPoint point: UInt8, type: UInt8) -> [Int] {
 		return waypoints.enumerated().compactMap { index, waypoint in
-			if waypoint.previousPoint == point, waypoint.previousPointType == type {
+			if waypoint.nextPoint == point, waypoint.nextPointType == type {
 				return index
 			}
 			return nil
@@ -186,7 +204,7 @@ final class Road {
 
 		var directionLinks: [RoadDirectionLink] = []
 		for _ in 0..<4 {
-			directionLinks.append(try readDirectionLink(stream: stream))
+			directionLinks.append(cleanedDirectionLink(try readDirectionLink(stream: stream)))
 		}
 
 		return RoadCrossroad(
@@ -242,5 +260,35 @@ final class Road {
 			farNextCrosspoint: try stream.read(),
 			unknown2: try stream.read()
 		)
+	}
+
+	private static func cleanedDirectionLink(_ link: RoadDirectionLink) -> RoadDirectionLink {
+		guard link.farActiveCrossPoint != 0xffff,
+			  link.lanes.allSatisfy({ $0.type == 0 }) else {
+			return link
+		}
+
+		return RoadDirectionLink(
+			farActiveCrossPoint: 0xffff,
+			unknown1: link.unknown1,
+			farCrosspointDistance: link.farCrosspointDistance,
+			angle: link.angle,
+			unknown3: link.unknown3,
+			priority: link.priority,
+			unknown5: link.unknown5,
+			lanes: link.lanes
+		)
+	}
+
+	private static func makeOutgoingWaypointIndicesByPoint(_ waypoints: [RoadWaypoint]) -> [Int: [Int]] {
+		var indicesByPoint: [Int: [Int]] = [:]
+		for (index, waypoint) in waypoints.enumerated() {
+			indicesByPoint[pointKey(point: waypoint.previousPoint, type: waypoint.previousPointType), default: []].append(index)
+		}
+		return indicesByPoint
+	}
+
+	private static func pointKey(point: UInt8, type: UInt8) -> Int {
+		return Int(point) | (Int(type) << 8)
 	}
 }
