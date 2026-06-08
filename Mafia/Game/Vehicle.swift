@@ -12,11 +12,11 @@ import SceneKit
 import SpriteKit
 
 final class Vehicle {
-
 	let scriptNode: SCNNode
 	let node: SCNNode
 	let physicsVehicle: SCNPhysicsVehicle
 
+	private weak var scene: SCNScene?
 	private let debugNode = SCNNode()
 	private let maximumSteering: CGFloat = 0.32
 	private let engineForce: CGFloat = 6500
@@ -63,6 +63,43 @@ final class Vehicle {
 	var velocity: SCNVector3 {
 		return node.physicsBody?.velocity ?? SCNVector3Zero
 	}
+	var debugGroundRayNames: [String] {
+		guard let scene = scene else { return [] }
+
+		let probeNodes = [node] + ["WHL0", "WHR0", "WHL1", "WHR1"].compactMap {
+			node.mafiaChildNode(named: $0, recursively: true)
+		}
+		var names: [String] = []
+		for probeNode in probeNodes {
+			let position = probeNode.presentation.worldPosition
+			let from = SCNVector3(x: position.x, y: position.y + 0.5, z: position.z)
+			let to = SCNVector3(x: position.x, y: position.y - 2.0, z: position.z)
+			let hits = scene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
+				SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.world | PhysicsCategory.vehicleRaycastGround,
+				SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
+			])
+			let unculledHits = scene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
+				SCNPhysicsWorld.TestOption.backfaceCulling: false,
+				SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.world | PhysicsCategory.vehicleRaycastGround,
+				SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
+			])
+
+			let hit = hits.first(where: { $0.node !== node })
+			let unculledHit = unculledHits.first(where: { $0.node !== node })
+			guard hit != nil || unculledHit != nil else { continue }
+			let defaultName = hit.map {
+				"\($0.node.debugNodePath) n\(String(format: "%.2f", Double($0.worldNormal.y)))"
+			} ?? "--"
+			let unculledName = unculledHit.map {
+				"\($0.node.debugNodePath) n\(String(format: "%.2f", Double($0.worldNormal.y)))"
+			} ?? "--"
+			let name = "D \(defaultName) U \(unculledName)"
+			if !names.contains(name) {
+				names.append(name)
+			}
+		}
+		return names
+	}
 	var vehicleSteering: CGFloat = 0 {
 		didSet {
 			if vehicleSteering < -maximumSteering {
@@ -90,6 +127,7 @@ final class Vehicle {
 
 		scriptNode = node
 		self.node = taxiNode
+		self.scene = scene
 
 		Vehicle.attachChassisVisuals(from: node, to: taxiNode)
 		Vehicle.detachChassisForPhysics(

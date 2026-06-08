@@ -43,35 +43,51 @@ struct Triangle {
 	}
 
 	func getVertices(treeKlz: Collisions) -> (UInt32, [SCNVector3])? {
-		var newVertices: [SCNVector3] = []
+		var localVertices: [(node: SCNNode, position: SCNVector3)] = []
 		for vertex in vertices {
-			guard let vertexNode = treeKlz.getNode(linkId: UInt32(vertex.linkIndex)),
-				let nodeGeometry = vertexNode.geometry,
-				let vertexSource = nodeGeometry.sources(for: .vertex).first,
-				vertex.vertexBufferIndex < vertexSource.vectorCount else { continue }
-
-			let nsData = vertexSource.data as NSData
-			let vertexOffset = vertexSource.dataOffset + Int(vertex.vertexBufferIndex) * vertexSource.dataStride
-
-			var x: Float = 0
-			var y: Float = 0
-			var z: Float = 0
-
-			nsData.getBytes(&x, range: NSRange(location: vertexOffset, length: 4))
-			nsData.getBytes(&y, range: NSRange(location: vertexOffset+4, length: 4))
-			nsData.getBytes(&z, range: NSRange(location: vertexOffset+8, length: 4))
-
-			newVertices.append(SCNVector3(x, y, z))
+			guard let localVertex = localVertex(for: vertex, treeKlz: treeKlz) else { continue }
+			localVertices.append(localVertex)
 		}
 
-		if newVertices.count == 3 {
-			if dot(triangleNormal(for: newVertices), plane.n) < 0 {
-				newVertices.swapAt(1, 2)
-			}
-			return (UInt32(vertices[0].linkIndex), newVertices)
+		guard localVertices.count == 3 else { return nil }
+
+		let worldVertices = localVertices.map { $0.node.convertPosition($0.position, to: nil) }
+		let worldPlaneNormal = localVertices[0].node.convertVector(plane.n, to: nil).normalized
+		if dot(triangleNormal(for: worldVertices).normalized, worldPlaneNormal) < 0 {
+			localVertices.swapAt(1, 2)
 		}
 
-		return nil
+		return (UInt32(vertices[0].linkIndex), localVertices.map { $0.position })
+	}
+
+	func getWorldVertices(treeKlz: Collisions) -> [SCNVector3]? {
+		var worldVertices: [SCNVector3] = []
+		for vertex in vertices {
+			guard let localVertex = localVertex(for: vertex, treeKlz: treeKlz) else { continue }
+			worldVertices.append(localVertex.node.convertPosition(localVertex.position, to: nil))
+		}
+
+		return worldVertices.count == 3 ? worldVertices : nil
+	}
+
+	private func localVertex(for vertex: VertexLink, treeKlz: Collisions) -> (node: SCNNode, position: SCNVector3)? {
+		guard let vertexNode = treeKlz.getNode(linkId: UInt32(vertex.linkIndex)),
+			let nodeGeometry = vertexNode.geometry,
+			let vertexSource = nodeGeometry.sources(for: .vertex).first,
+			vertex.vertexBufferIndex < vertexSource.vectorCount else { return nil }
+
+		let nsData = vertexSource.data as NSData
+		let vertexOffset = vertexSource.dataOffset + Int(vertex.vertexBufferIndex) * vertexSource.dataStride
+
+		var x: Float = 0
+		var y: Float = 0
+		var z: Float = 0
+
+		nsData.getBytes(&x, range: NSRange(location: vertexOffset, length: 4))
+		nsData.getBytes(&y, range: NSRange(location: vertexOffset+4, length: 4))
+		nsData.getBytes(&z, range: NSRange(location: vertexOffset+8, length: 4))
+
+		return (vertexNode, SCNVector3(x, y, z))
 	}
 
 	private func triangleNormal(for vertices: [SCNVector3]) -> SCNVector3 {

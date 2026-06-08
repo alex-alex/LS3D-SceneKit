@@ -25,6 +25,7 @@ enum PhysicsCategory {
 	static let player = 1 << 1
 	static let dynamicObject = 1 << 2
 	static let vehicle = 1 << 3
+	static let vehicleRaycastGround = 1 << 4
 	static let all = world | player | dynamicObject | vehicle
 	static let playerBlocking = world | dynamicObject | vehicle
 }
@@ -44,8 +45,14 @@ extension SCNPhysicsBody {
 
 	func configureAsVehicleCollider() {
 		categoryBitMask = PhysicsCategory.vehicle
-		collisionBitMask = PhysicsCategory.all
+		collisionBitMask = PhysicsCategory.all | PhysicsCategory.vehicleRaycastGround
 		contactTestBitMask = PhysicsCategory.player
+	}
+
+	func configureAsVehicleRaycastGroundCollider() {
+		categoryBitMask = PhysicsCategory.vehicleRaycastGround
+		collisionBitMask = PhysicsCategory.vehicle
+		contactTestBitMask = 0
 	}
 }
 
@@ -74,6 +81,19 @@ extension SCNNode {
 			node = currentNode.parent
 		}
 		return false
+	}
+
+	var debugNodePath: String {
+		var components: [String] = []
+		var currentNode: SCNNode? = self
+		while let node = currentNode {
+			if let name = node.name, !name.isEmpty {
+				components.append(name)
+			}
+			currentNode = node.parent
+		}
+
+		return components.isEmpty ? "<unnamed>" : components.reversed().joined(separator: "/")
 	}
 
 	func collisionLinkRoot(for linkType: Int) -> SCNNode? {
@@ -243,6 +263,14 @@ func + (lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
 
 func - (lhs: SCNVector3, rhs: SCNVector3) -> SCNVector3 {
 	return SCNVector3(x: lhs.x - rhs.x, y: lhs.y - rhs.y, z: lhs.z - rhs.z)
+}
+
+func * (lhs: SCNVector3, rhs: SCNFloat) -> SCNVector3 {
+	return SCNVector3(x: lhs.x * rhs, y: lhs.y * rhs, z: lhs.z * rhs)
+}
+
+func * (lhs: SCNFloat, rhs: SCNVector3) -> SCNVector3 {
+	return rhs * lhs
 }
 
 func += (lhs: inout SCNVector3, rhs: SCNVector3) {

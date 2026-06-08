@@ -47,6 +47,7 @@ final class PlayerController: @unchecked Sendable {
 		let worstControllerGroundDelta: SCNFloat?
 		let worstVisualGroundDelta: SCNFloat?
 		let worstAnimationName: String?
+		let horizontalBlockerName: String?
 	}
 
 	private static let animationExistenceCache = AnimationExistenceCache()
@@ -89,6 +90,7 @@ final class PlayerController: @unchecked Sendable {
 	private var debugWorstControllerGroundDelta: SCNFloat?
 	private var debugWorstVisualGroundDelta: SCNFloat?
 	private var debugWorstAnimationName: String?
+	private var horizontalBlockerName: String?
 	var movementAnimationSetProvider: (() -> Int?)?
 	private(set) var lastAppliedLook: SCNFloat = 0
 	private(set) var lastMovement = SCNVector3Zero
@@ -116,7 +118,8 @@ final class PlayerController: @unchecked Sendable {
 			currentAirAnimationName: currentAirAnimationName,
 			worstControllerGroundDelta: debugWorstControllerGroundDelta,
 			worstVisualGroundDelta: debugWorstVisualGroundDelta,
-			worstAnimationName: debugWorstAnimationName
+			worstAnimationName: debugWorstAnimationName,
+			horizontalBlockerName: horizontalBlockerName
 		)
 	}
 	var yaw: SCNFloat {
@@ -778,6 +781,7 @@ final class PlayerController: @unchecked Sendable {
 	private func moveHorizontally(dx: SCNFloat, dz: SCNFloat) {
 		guard dx != 0 || dz != 0 else { return }
 
+		horizontalBlockerName = nil
 		let distance = sqrt(dx * dx + dz * dz)
 		let maxSweepStep = playerCollisionRadius * 0.5
 		let steps = max(1, Int(ceil(Double(distance / maxSweepStep))))
@@ -823,9 +827,9 @@ final class PlayerController: @unchecked Sendable {
 		guard let body = node.physicsBody else { return false }
 
 		scene.physicsWorld.updateCollisionPairs()
-		return scene.physicsWorld.contactTest(with: body, options: [
+		let blockingContact = scene.physicsWorld.contactTest(with: body, options: [
 			SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking
-		]).contains { contact in
+		]).first { contact in
 			let otherNode = contact.nodeA === node ? contact.nodeB : contact.nodeA
 			guard otherNode !== node else { return false }
 
@@ -842,6 +846,11 @@ final class PlayerController: @unchecked Sendable {
 
 			return true
 		}
+		horizontalBlockerName = blockingContact.map { contact in
+			let otherNode = contact.nodeA === node ? contact.nodeB : contact.nodeA
+			return otherNode.debugNodePath
+		}
+		return blockingContact != nil
 	}
 
 	private var isGrounded: Bool {

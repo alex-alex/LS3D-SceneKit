@@ -1711,6 +1711,18 @@ extension Game: SCNSceneRendererDelegate {
 	}
 
 	private func diagnosticsDetails() -> String? {
+		if mode == .car, let vehicle = vehicle {
+			let rayNames = vehicle.debugGroundRayNames
+			let rays = rayNames.isEmpty ? "--" : rayNames.prefix(3).joined(separator: " | ")
+			return String(
+				format: "CAR\nbody %.2f  wheel %.2f  force %.0f\nR %@",
+				Double(vehicle.velocity.length),
+				Double(vehicle.speed),
+				Double(vehicle.force),
+				rays
+			)
+		}
+
 		guard mode == .walk,
 			  let debugInfo = playerController?.debugInfo else { return nil }
 
@@ -1723,7 +1735,7 @@ extension Game: SCNSceneRendererDelegate {
 		let animationName = debugInfo.currentAirAnimationName ?? debugInfo.currentWalkingAnimationName ?? "none"
 
 		return String(
-			format: "DBG %@\nG %.2f  C-G %.2f  V-G %@  VH %@\nvy %.2f  off %.2f  %@\nW C %@  V %@  %@",
+			format: "DBG %@\nG %.2f  C-G %.2f  V-G %@  VH %@\nvy %.2f  off %.2f  %@\nB %@\nW C %@  V %@  %@",
 			areCollisionWireframesVisible ? "wire" : "solid",
 			Double(groundY),
 			Double(controllerGroundDelta),
@@ -1732,6 +1744,7 @@ extension Game: SCNSceneRendererDelegate {
 			Double(debugInfo.verticalVelocity),
 			Double(debugInfo.verticalOffset),
 			animationName,
+			debugInfo.horizontalBlockerName ?? "--",
 			formatDebugValue(debugInfo.worstControllerGroundDelta),
 			formatDebugValue(debugInfo.worstVisualGroundDelta),
 			debugInfo.worstAnimationName ?? "none"
