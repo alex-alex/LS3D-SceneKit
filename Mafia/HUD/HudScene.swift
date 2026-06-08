@@ -31,6 +31,7 @@ final class HudScene: SKScene {
 	var objectivesNode: SKNode!
 	var consoleLabel: SKLabelNode!
 	var subtitleLabel: SKLabelNode!
+	private var cutsceneSubtitleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
 	private var diagnosticsLabel: SKLabelNode!
@@ -84,6 +85,7 @@ final class HudScene: SKScene {
 	private var wasSpeedVisible = false
 	private let consoleActionKey = "consoleMessage"
 	private let subtitleActionKey = "subtitleMessage"
+	private let cutsceneSubtitleActionKey = "cutsceneSubtitleMessage"
 	private let objectivesActionKey = "objectivesMessage"
 	private let cutsceneFadeActionKey = "cutsceneFade"
 	private let objectiveLineSpacing: CGFloat = 24
@@ -241,6 +243,18 @@ final class HudScene: SKScene {
 		subtitleLabel.zPosition = 2100
 		addChild(subtitleLabel)
 
+		cutsceneSubtitleLabel = SKLabelNode()
+		cutsceneSubtitleLabel.fontName = "Arial"
+		cutsceneSubtitleLabel.fontSize = 22
+		cutsceneSubtitleLabel.fontColor = SKColor.white
+		cutsceneSubtitleLabel.horizontalAlignmentMode = .center
+		cutsceneSubtitleLabel.verticalAlignmentMode = .center
+		cutsceneSubtitleLabel.numberOfLines = 0
+		cutsceneSubtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
+		cutsceneSubtitleLabel.alpha = 0
+		cutsceneSubtitleLabel.zPosition = 2100
+		addChild(cutsceneSubtitleLabel)
+
 		speedLabel = SKLabelNode()
 		speedLabel.fontName = "Arial"
 		speedLabel.fontSize = 17
@@ -306,6 +320,7 @@ final class HudScene: SKScene {
 				  objectivesNode != nil,
 				  consoleLabel != nil,
 				  subtitleLabel != nil,
+				  cutsceneSubtitleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
 				  diagnosticsLabel != nil,
@@ -338,8 +353,11 @@ final class HudScene: SKScene {
 		objectivesNode.position = CGPoint(x: size.width/2, y: size.height * 2 / 3)
 		consoleLabel.position = CGPoint(x: 24, y: actionButton.position.y + actionButton.size.height / 2 + 36)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
+		let letterboxBarHeight = max(48, size.height * 0.12)
 		subtitleLabel.position = CGPoint(x: size.width / 2, y: size.height / 2)
 		subtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
+		cutsceneSubtitleLabel.position = CGPoint(x: size.width / 2, y: letterboxBarHeight / 2)
+		cutsceneSubtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
@@ -497,16 +515,31 @@ final class HudScene: SKScene {
 		)
 	}
 
-	func showSubtitleText(_ text: String) {
+	func showSubtitleText(_ text: String, duration: TimeInterval = 4) {
 		subtitleLabel.removeAction(forKey: subtitleActionKey)
 		subtitleLabel.text = remappedControlText(text)
 		subtitleLabel.alpha = 1
 		subtitleLabel.run(
 			SKAction.sequence([
-				SKAction.wait(forDuration: 4),
+				SKAction.wait(forDuration: duration),
 				SKAction.fadeOut(withDuration: 0.35)
 			]),
 			withKey: subtitleActionKey
+		)
+	}
+
+	func showCutsceneSubtitleText(_ text: String, duration: TimeInterval = 4) {
+		guard isCutsceneOverlayVisible else { return }
+
+		cutsceneSubtitleLabel.removeAction(forKey: cutsceneSubtitleActionKey)
+		cutsceneSubtitleLabel.text = remappedControlText(text)
+		cutsceneSubtitleLabel.alpha = 1
+		cutsceneSubtitleLabel.run(
+			SKAction.sequence([
+				SKAction.wait(forDuration: duration),
+				SKAction.fadeOut(withDuration: 0.35)
+			]),
+			withKey: cutsceneSubtitleActionKey
 		)
 	}
 
@@ -643,6 +676,8 @@ final class HudScene: SKScene {
 			speedLabel.isHidden = true
 			objectivesNode.isHidden = objectivesNode.children.isEmpty
 			consoleLabel.alpha = consoleLabel.hasActions() ? 1 : 0
+			cutsceneSubtitleLabel.removeAction(forKey: cutsceneSubtitleActionKey)
+			cutsceneSubtitleLabel.alpha = 0
 			layoutTouchButtons()
 		}
 	}
@@ -1657,6 +1692,7 @@ extension HudScene {
 				diagnosticsLabel,
 				consoleLabel,
 				subtitleLabel,
+				cutsceneSubtitleLabel,
 				crosshairNode,
 				vehicleStealProgressBackground,
 				vehicleStealProgressFill,

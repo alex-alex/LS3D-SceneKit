@@ -166,6 +166,7 @@ private final class ScheduledRecordSound {
 	let soundName: String
 	let fileName: String
 	let eventTime: TimeInterval
+	let subtitleText: String?
 	var workItem: DispatchWorkItem?
 	var deadline: TimeInterval?
 	var remaining: TimeInterval
@@ -177,7 +178,8 @@ private final class ScheduledRecordSound {
 		fallbackNode: SCNNode,
 		soundName: String,
 		fileName: String,
-		eventTime: TimeInterval
+		eventTime: TimeInterval,
+		subtitleText: String? = nil
 	) {
 		self.url = url
 		self.node = node
@@ -185,6 +187,7 @@ private final class ScheduledRecordSound {
 		self.soundName = soundName
 		self.fileName = fileName
 		self.eventTime = eventTime
+		self.subtitleText = subtitleText
 		self.remaining = eventTime
 	}
 }
@@ -1786,7 +1789,7 @@ final class Scene: @unchecked Sendable {
 		print("== Record Transforms started: \(startedTransforms)")
 		playRecordCamera(record)
 		playRecordEvents(record)
-		playRecordSpeech(record, animations: resolvedAnimations)
+		playRecordSpeech(record, animations: resolvedAnimations, showsSubtitles: full)
 		playRecordSounds(record)
 		startActiveRecordPlayback(record, duration: recordDuration)
 	}
@@ -2505,7 +2508,11 @@ final class Scene: @unchecked Sendable {
 		print("== Record Sounds scheduled: \(scheduledCount)")
 	}
 
-	private func playRecordSpeech(_ record: Record, animations: [RecordAnimationPlayback]) {
+	private func playRecordSpeech(
+		_ record: Record,
+		animations: [RecordAnimationPlayback],
+		showsSubtitles: Bool
+	) {
 		guard !record.speechEvents.isEmpty else {
 			return
 		}
@@ -2529,7 +2536,8 @@ final class Scene: @unchecked Sendable {
 				fallbackNode: rootNode,
 				soundName: "speech \(event.soundId)",
 				fileName: fileName,
-				eventTime: event.time
+				eventTime: event.time,
+				subtitleText: showsSubtitles ? TextDb.get(event.soundId) : nil
 			)
 			activeRecordSoundSchedules.append(scheduledSound)
 			scheduleRecordSound(scheduledSound, after: event.time)
@@ -2788,6 +2796,12 @@ final class Scene: @unchecked Sendable {
 			}
 			source.isPositional = false
 			source.load()
+			if let subtitleText = scheduledSound.subtitleText {
+				self.game.showCutsceneSubtitleText(
+					subtitleText,
+					duration: self.audioDuration(url: scheduledSound.url) ?? 4
+				)
+			}
 			self.playAudio(
 				source,
 				url: scheduledSound.url,

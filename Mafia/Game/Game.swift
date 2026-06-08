@@ -1125,9 +1125,15 @@ final class Game: NSObject, @unchecked Sendable {
 		}
 	}
 
-	func showSubtitleText(_ text: String) {
+	func showSubtitleText(_ text: String, duration: TimeInterval = 4) {
 		updateHud { hud in
-			hud.showSubtitleText(text)
+			hud.showSubtitleText(text, duration: duration)
+		}
+	}
+
+	func showCutsceneSubtitleText(_ text: String, duration: TimeInterval = 4) {
+		updateHud { hud in
+			hud.showCutsceneSubtitleText(text, duration: duration)
 		}
 	}
 
