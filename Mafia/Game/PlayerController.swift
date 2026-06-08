@@ -149,6 +149,7 @@ final class PlayerController: @unchecked Sendable {
 	private let groundProbeLift: SCNFloat = 0.55
 	private let uphillGroundProbeLift: SCNFloat = 1.4
 	private let groundProbeRadius: SCNFloat = 0.22
+	private let playerCollisionRadius: SCNFloat = 0.28
 	private let minGroundNormalY: SCNFloat = 0.65
 	private let minLookPitch: SCNFloat = -0.65
 	private let maxLookPitch: SCNFloat = 0.45
@@ -777,21 +778,44 @@ final class PlayerController: @unchecked Sendable {
 	private func moveHorizontally(dx: SCNFloat, dz: SCNFloat) {
 		guard dx != 0 || dz != 0 else { return }
 
+		let distance = sqrt(dx * dx + dz * dz)
+		let maxSweepStep = playerCollisionRadius * 0.5
+		let steps = max(1, Int(ceil(Double(distance / maxSweepStep))))
+		let stepDX = dx / SCNFloat(steps)
+		let stepDZ = dz / SCNFloat(steps)
+		var blockedX = false
+		var blockedZ = false
+
+		for _ in 0..<steps {
+			moveHorizontalStep(dx: blockedX ? 0 : stepDX, dz: blockedZ ? 0 : stepDZ, blockedX: &blockedX, blockedZ: &blockedZ)
+			if blockedX && blockedZ {
+				break
+			}
+		}
+	}
+
+	private func moveHorizontalStep(dx: SCNFloat, dz: SCNFloat, blockedX: inout Bool, blockedZ: inout Bool) {
 		let start = node.position
 
-		node.position.x = start.x + dx
-		if isBlockedHorizontally(), !tryStepUp(from: start) {
-			node.position.x = start.x
-			node.position.y = start.y
-			horizontalVelocity.x = 0
+		if dx != 0 {
+			node.position.x = start.x + dx
+			if isBlockedHorizontally(), !tryStepUp(from: start) {
+				node.position.x = start.x
+				node.position.y = start.y
+				horizontalVelocity.x = 0
+				blockedX = true
+			}
 		}
 
 		let afterX = node.position
-		node.position.z = afterX.z + dz
-		if isBlockedHorizontally(), !tryStepUp(from: afterX) {
-			node.position.z = afterX.z
-			node.position.y = afterX.y
-			horizontalVelocity.z = 0
+		if dz != 0 {
+			node.position.z = afterX.z + dz
+			if isBlockedHorizontally(), !tryStepUp(from: afterX) {
+				node.position.z = afterX.z
+				node.position.y = afterX.y
+				horizontalVelocity.z = 0
+				blockedZ = true
+			}
 		}
 	}
 
@@ -992,7 +1016,7 @@ final class PlayerController: @unchecked Sendable {
 	}
 
 	private func configurePhysics() {
-		let radius: CGFloat = 0.28
+		let radius = CGFloat(playerCollisionRadius)
 		let height: CGFloat = isCrouching ? 0.82 : 1.35
 		let centerY: SCNFloat = isCrouching ? 0.55 : 0.95
 
