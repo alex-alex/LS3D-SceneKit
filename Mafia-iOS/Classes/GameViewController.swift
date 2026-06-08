@@ -22,6 +22,7 @@ class GameViewController: UIViewController {
 	var lookGesture: UIPanGestureRecognizer!
 	var walkGesture: UIPanGestureRecognizer!
 	var fireGesture: UITapGestureRecognizer!
+	var cutsceneSkipGesture: UITapGestureRecognizer!
 	var siderollLeftSwipeGesture: UISwipeGestureRecognizer!
 	var siderollRightSwipeGesture: UISwipeGestureRecognizer!
 	private var isTouchDriving = false
@@ -56,6 +57,14 @@ class GameViewController: UIViewController {
 		fireGesture.delegate = self
 		fireGesture.cancelsTouchesInView = false
 		view.addGestureRecognizer(fireGesture)
+
+		// cutscene skip gesture
+		cutsceneSkipGesture = UITapGestureRecognizer(target: self, action: #selector(cutsceneSkipGestureRecognized))
+		cutsceneSkipGesture.numberOfTapsRequired = 2
+		cutsceneSkipGesture.delegate = self
+		cutsceneSkipGesture.cancelsTouchesInView = false
+		view.addGestureRecognizer(cutsceneSkipGesture)
+		fireGesture.require(toFail: cutsceneSkipGesture)
 
 		// crouch sideroll gestures
 		siderollLeftSwipeGesture = UISwipeGestureRecognizer(target: self, action: #selector(siderollSwipeRecognized))
@@ -166,6 +175,11 @@ extension GameViewController {
 		gameManager?.game?.releaseControl(.FIRE)
 	}
 
+	@objc func cutsceneSkipGestureRecognized(gesture: UITapGestureRecognizer) {
+		guard gesture.state == .ended else { return }
+		_ = gameManager?.game?.scene.requestCutsceneSkip()
+	}
+
 	@objc func siderollSwipeRecognized(gesture: UISwipeGestureRecognizer) {
 		let direction = gesture.direction == .left ? -1 : 1
 		gameManager?.game?.hud?.registerCrouchSiderollSwipe(direction: direction)
@@ -185,7 +199,11 @@ extension GameViewController: UIGestureRecognizerDelegate {
 			return false
 		}
 
-		if gestureRecognizer == lookGesture {
+		if gestureRecognizer == cutsceneSkipGesture {
+			return gameManager?.game?.isCutsceneCameraActive == true
+		} else if gestureRecognizer == fireGesture {
+			return gameManager?.game?.isCutsceneCameraActive == false
+		} else if gestureRecognizer == lookGesture {
 			return touch.location(in: view).x > view.frame.size.width / 2
 		} else if gestureRecognizer == walkGesture {
 			return touch.location(in: view).x < view.frame.size.width / 2
