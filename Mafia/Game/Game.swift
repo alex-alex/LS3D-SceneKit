@@ -961,7 +961,7 @@ final class Game: NSObject, @unchecked Sendable {
 
 		if mode == .car {
 			lastActionButtonUpdateTime = time
-			setActionButtonVisible(vehicleExitAction()?.isEnabled == true)
+			setActionButtonVisible(nearestAction()?.isEnabled == true)
 			return
 		}
 
@@ -1069,9 +1069,24 @@ final class Game: NSObject, @unchecked Sendable {
 	private func vehicleExitAction() -> Action? {
 		guard mode == .car,
 			  let vehicle = vehicle,
+			  scriptedVehicleActions(for: vehicle).isEmpty,
 			  vehicle.speed <= vehicleStoppedSpeedThreshold else { return nil }
 
 		return .vehicleExit(vehicle)
+	}
+
+	private func scriptedVehicleActions(for vehicle: Vehicle) -> [Action] {
+		let vehiclePosition = vehicle.node.presentation.worldPosition
+		return scene.actions
+			.filter { action in
+				if case .action = action {
+					return action.isEnabled && action.node.actionSquaredDistance(to: vehiclePosition) < actionDistanceSquared
+				}
+				return false
+			}
+			.sorted { lhs, rhs in
+				lhs.node.actionSquaredDistance(to: vehiclePosition) < rhs.node.actionSquaredDistance(to: vehiclePosition)
+			}
 	}
 
 	private func isVehicle(_ vehicle: Vehicle, matching node: SCNNode) -> Bool {
@@ -1999,8 +2014,13 @@ extension Game {
 	}
 
 	func actionButtonTapped() {
-		guard let action = nearestAction() else { return }
-		performAction(action)
+		let actions = availableActions()
+		guard let action = actions.first else { return }
+		if actions.count > 1 {
+			hud.showActionMenu(actions: actions)
+		} else {
+			performAction(action)
+		}
 	}
 
 	func playerDidFire() {
@@ -3458,12 +3478,21 @@ extension Game {
 	}
 
 	func nearestAction() -> Action? {
+		return availableActions().first
+	}
+
+	func availableActions() -> [Action] {
 		if mode == .car {
-			return vehicleExitAction()
+			guard let vehicle = vehicle else { return [] }
+			let scriptedActions = scriptedVehicleActions(for: vehicle)
+			if !scriptedActions.isEmpty {
+				return scriptedActions
+			}
+			return vehicleExitAction().map { [$0] } ?? []
 		}
 
 		guard mode == .walk,
-			  let playerNode = scene.playerNode else { return nil }
+			  let playerNode = scene.playerNode else { return [] }
 
 		let playerPosition = playerNode.presentation.worldPosition
 		var actions = scene.actions
@@ -3474,7 +3503,7 @@ extension Game {
 		}
 		return actions
 			.filter { $0.isEnabled && $0.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared }
-			.min { $0.node.actionSquaredDistance(to: playerPosition) < $1.node.actionSquaredDistance(to: playerPosition) }
+			.sorted { $0.node.actionSquaredDistance(to: playerPosition) < $1.node.actionSquaredDistance(to: playerPosition) }
 	}
 
 	private func useDoor(_ node: SCNNode) {

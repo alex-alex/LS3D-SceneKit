@@ -64,6 +64,9 @@ final class HudScene: SKScene {
 	private var inventoryOverlay: SKShapeNode!
 	private var inventoryTitleLabel: SKLabelNode!
 	private var inventoryHintLabel: SKLabelNode!
+	private var actionMenuOverlay: SKShapeNode!
+	private var actionMenuTitleLabel: SKLabelNode!
+	private var actionMenuHintLabel: SKLabelNode!
 	private var letterboxTopBar: SKShapeNode!
 	private var letterboxBottomBar: SKShapeNode!
 	private var cutsceneFadeOverlay: SKShapeNode!
@@ -78,9 +81,13 @@ final class HudScene: SKScene {
 	private var missionEndControls: [MenuDefControl] = []
 	private var selectedMissionEndOptionIndex = 0
 	private var inventoryRows: [(node: SKShapeNode, dropButton: SKShapeNode?, weapon: Weapon?)] = []
+	private var actionMenuRows: [(node: SKShapeNode, action: Action)] = []
 	private var selectedInventoryRowIndex = 0
+	private var selectedActionMenuRowIndex = 0
 	private var inventoryRowScrollOffset: CGFloat = 0
+	private var actionMenuRowScrollOffset: CGFloat = 0
 	private var inventoryPausedGame = false
+	private var actionMenuPausedGame = false
 	private var isCutsceneOverlayVisible = false
 	private var lastSpeedText: String?
 	private var lastPlayerStatusText: String?
@@ -112,6 +119,8 @@ final class HudScene: SKScene {
 	private var didSwipeMissionEndOption = false
 	private var lastInventorySwipePoint: CGPoint?
 	private var didSwipeInventory = false
+	private var lastActionMenuSwipePoint: CGPoint?
+	private var didSwipeActionMenu = false
 	#endif
 	private var running = false
 	private var crouching = false
@@ -119,6 +128,9 @@ final class HudScene: SKScene {
 	private var lastCrouchSiderollTapTime: TimeInterval = 0
 	var isInventoryVisible: Bool {
 		return inventoryOverlay?.isHidden == false
+	}
+	var isActionMenuVisible: Bool {
+		return actionMenuOverlay?.isHidden == false
 	}
 
 	#if os(macOS)
@@ -311,6 +323,7 @@ final class HudScene: SKScene {
 		renderPlayerStatusHud()
 		renderPauseScreen()
 		renderInventoryOverlay()
+		renderActionMenuOverlay()
 		renderCinematicOverlays()
 
 		scaleMode = .resizeFill
@@ -362,6 +375,7 @@ final class HudScene: SKScene {
 				  pauseDialogTitleLabel != nil,
 				  pauseSelectionLine != nil,
 				  inventoryOverlay != nil,
+				  actionMenuOverlay != nil,
 				  letterboxTopBar != nil,
 				  letterboxBottomBar != nil,
 				  cutsceneFadeOverlay != nil,
@@ -401,6 +415,7 @@ final class HudScene: SKScene {
 		)
 		layoutPauseDialog()
 		layoutInventoryOverlay()
+		layoutActionMenuOverlay()
 		layoutCinematicOverlays()
 		layoutMissionEndMenu()
 
@@ -1688,6 +1703,195 @@ extension HudScene {
 		return false
 	}
 
+	private func renderActionMenuOverlay() {
+		actionMenuOverlay = SKShapeNode(rectOf: size)
+		actionMenuOverlay.fillColor = SKColor.black.withAlphaComponent(0.72)
+		actionMenuOverlay.strokeColor = SKColor.clear
+		actionMenuOverlay.zPosition = 910
+		actionMenuOverlay.isHidden = true
+		addChild(actionMenuOverlay)
+
+		actionMenuTitleLabel = SKLabelNode()
+		actionMenuTitleLabel.fontName = "Arial-BoldMT"
+		actionMenuTitleLabel.fontSize = 24
+		actionMenuTitleLabel.fontColor = SKColor.white
+		actionMenuTitleLabel.text = "Actions"
+		actionMenuTitleLabel.verticalAlignmentMode = .center
+		actionMenuOverlay.addChild(actionMenuTitleLabel)
+
+		actionMenuHintLabel = SKLabelNode()
+		actionMenuHintLabel.fontName = "Arial"
+		actionMenuHintLabel.fontSize = 14
+		actionMenuHintLabel.fontColor = SKColor.white.withAlphaComponent(0.72)
+		actionMenuHintLabel.text = "Select an action"
+		actionMenuHintLabel.verticalAlignmentMode = .center
+		actionMenuOverlay.addChild(actionMenuHintLabel)
+	}
+
+	private func layoutActionMenuOverlay() {
+		actionMenuOverlay.position = CGPoint(x: size.width/2, y: size.height/2)
+		actionMenuOverlay.path = CGPath(
+			rect: CGRect(x: -size.width/2, y: -size.height/2, width: size.width, height: size.height),
+			transform: nil
+		)
+		actionMenuTitleLabel.position = CGPoint(x: 0, y: min(190, size.height/2 - 70))
+		actionMenuHintLabel.position = CGPoint(x: 0, y: actionMenuTitleLabel.position.y - 32)
+		layoutActionMenuRows()
+	}
+
+	func showActionMenu(actions: [Action]) {
+		guard actions.count > 1,
+			  !game.isGamePaused else { return }
+
+		setMapOverlayVisible(false)
+		setInventoryVisible(false)
+		rebuildActionMenuRows(actions: actions)
+		actionMenuOverlay.isHidden = false
+		actionMenuPausedGame = true
+		game.setPaused(true, showsPauseScreen: false)
+		game.requestRender()
+	}
+
+	private func setActionMenuVisible(_ isVisible: Bool) {
+		guard actionMenuOverlay.isHidden == isVisible else { return }
+
+		if isVisible {
+			showActionMenu(actions: game.availableActions())
+		} else {
+			actionMenuOverlay.isHidden = true
+			game.requestRender()
+			if actionMenuPausedGame {
+				actionMenuPausedGame = false
+				game.setPaused(false)
+			}
+		}
+	}
+
+	private func handleActionMenuSelection(at point: CGPoint) -> Bool {
+		guard actionMenuOverlay.isHidden == false else { return false }
+
+		let overlayPoint = convert(point, to: actionMenuOverlay)
+		for (index, row) in actionMenuRows.enumerated() where row.node.frame.contains(overlayPoint) {
+			if selectedActionMenuRowIndex != index {
+				game.playInGameMenuChangeSound()
+			}
+			selectedActionMenuRowIndex = index
+			refreshActionMenuSelection()
+			activateSelectedActionMenuRow()
+			return true
+		}
+
+		setActionMenuVisible(false)
+		return true
+	}
+
+	private func rebuildActionMenuRows(actions: [Action]) {
+		for row in actionMenuRows {
+			row.node.removeFromParent()
+		}
+		actionMenuRows.removeAll()
+		selectedActionMenuRowIndex = 0
+		actionMenuRowScrollOffset = 0
+
+		for (index, action) in actions.enumerated() {
+			addActionMenuRow(title: action.title, action: action, isSelected: index == selectedActionMenuRowIndex)
+		}
+
+		scrollSelectedActionMenuRowIntoView()
+		refreshActionMenuSelection()
+		layoutActionMenuRows()
+	}
+
+	private func addActionMenuRow(title: String, action: Action, isSelected: Bool) {
+		let row = SKShapeNode(rectOf: CGSize(width: 360, height: 42), cornerRadius: 6)
+		row.fillColor = isSelected ? SKColor.white.withAlphaComponent(0.24) : SKColor.white.withAlphaComponent(0.12)
+		row.strokeColor = isSelected ? SKColor.white : SKColor.white.withAlphaComponent(0.28)
+		row.lineWidth = 1
+		actionMenuOverlay.addChild(row)
+
+		let titleLabel = SKLabelNode()
+		titleLabel.fontName = "Arial"
+		titleLabel.fontSize = 16
+		titleLabel.fontColor = SKColor.white
+		titleLabel.horizontalAlignmentMode = .left
+		titleLabel.verticalAlignmentMode = .center
+		titleLabel.text = title
+		titleLabel.position = CGPoint(x: -166, y: 0)
+		row.addChild(titleLabel)
+
+		actionMenuRows.append((node: row, action: action))
+	}
+
+	private func layoutActionMenuRows() {
+		guard actionMenuRows.isEmpty == false else { return }
+
+		scrollSelectedActionMenuRowIntoView()
+		let rowWidth = min(360, max(240, size.width - 48))
+		let startY = actionMenuHintLabel.position.y - 46
+		for (index, row) in actionMenuRows.enumerated() {
+			row.node.path = CGPath(
+				roundedRect: CGRect(x: -rowWidth/2, y: -21, width: rowWidth, height: 42),
+				cornerWidth: 6,
+				cornerHeight: 6,
+				transform: nil
+			)
+			row.node.position = CGPoint(x: 0, y: startY - CGFloat(index) * 50 + actionMenuRowScrollOffset)
+			for case let label as SKLabelNode in row.node.children {
+				label.position.x = -rowWidth/2 + 14
+				label.preferredMaxLayoutWidth = rowWidth - 28
+			}
+		}
+	}
+
+	private func moveActionMenuSelection(by offset: Int) {
+		guard !actionMenuRows.isEmpty else { return }
+
+		let nextIndex = max(0, min(actionMenuRows.count - 1, selectedActionMenuRowIndex + offset))
+		guard nextIndex != selectedActionMenuRowIndex else { return }
+
+		selectedActionMenuRowIndex = nextIndex
+		game.playInGameMenuChangeSound()
+		scrollSelectedActionMenuRowIntoView()
+		refreshActionMenuSelection()
+		layoutActionMenuRows()
+	}
+
+	private func scrollSelectedActionMenuRowIntoView() {
+		guard !actionMenuRows.isEmpty else { return }
+
+		let rowSpacing: CGFloat = 50
+		let rowHeight: CGFloat = 42
+		let startY = actionMenuHintLabel.position.y - 46
+		let topVisibleY = startY
+		let bottomVisibleY = -size.height / 2 + 64
+		let visibleHeight = max(rowHeight, topVisibleY - bottomVisibleY)
+		let maxScrollOffset = max(0, CGFloat(actionMenuRows.count - 1) * rowSpacing - (visibleHeight - rowHeight))
+
+		let selectedRowY = startY - CGFloat(selectedActionMenuRowIndex) * rowSpacing + actionMenuRowScrollOffset
+		if selectedRowY - rowHeight / 2 < bottomVisibleY {
+			actionMenuRowScrollOffset += bottomVisibleY - (selectedRowY - rowHeight / 2)
+		} else if selectedRowY + rowHeight / 2 > topVisibleY + rowHeight / 2 {
+			actionMenuRowScrollOffset -= (selectedRowY + rowHeight / 2) - (topVisibleY + rowHeight / 2)
+		}
+		actionMenuRowScrollOffset = max(0, min(maxScrollOffset, actionMenuRowScrollOffset))
+	}
+
+	private func refreshActionMenuSelection() {
+		for (index, row) in actionMenuRows.enumerated() {
+			let selected = index == selectedActionMenuRowIndex
+			row.node.fillColor = selected ? SKColor.white.withAlphaComponent(0.24) : SKColor.white.withAlphaComponent(0.12)
+			row.node.strokeColor = selected ? SKColor.white : SKColor.white.withAlphaComponent(0.28)
+		}
+	}
+
+	private func activateSelectedActionMenuRow() {
+		guard actionMenuRows.indices.contains(selectedActionMenuRowIndex) else { return }
+
+		let action = actionMenuRows[selectedActionMenuRowIndex].action
+		setActionMenuVisible(false)
+		game.performAction(action)
+	}
+
 }
 
 // MARK: - Pause Screen
@@ -2158,7 +2362,15 @@ extension HudScene {
 			didSwipeInventory = false
 			return
 		}
+		if isActionMenuVisible {
+			lastActionMenuSwipePoint = location
+			didSwipeActionMenu = false
+			return
+		}
 		if handleInventorySelection(at: location) {
+			return
+		}
+		if handleActionMenuSelection(at: location) {
 			return
 		}
 		if handlePauseSelection(at: location) {
@@ -2221,6 +2433,7 @@ extension HudScene {
 
 		guard isMissionEndVisible,
 			  let point = touches.first?.location(in: self) else {
+			handleActionMenuTouchMoved(touches)
 			handleInventoryTouchMoved(touches)
 			return
 		}
@@ -2255,6 +2468,18 @@ extension HudScene {
 			return
 		}
 
+		if isActionMenuVisible {
+			defer {
+				lastActionMenuSwipePoint = nil
+				didSwipeActionMenu = false
+			}
+			guard didSwipeActionMenu == false,
+				  (touches.first?.tapCount ?? 0) >= 2 else { return }
+
+			activateSelectedActionMenuRow()
+			return
+		}
+
 		releaseActiveTouchControl()
 	}
 
@@ -2269,6 +2494,11 @@ extension HudScene {
 		if isInventoryVisible {
 			lastInventorySwipePoint = nil
 			didSwipeInventory = false
+			return
+		}
+		if isActionMenuVisible {
+			lastActionMenuSwipePoint = nil
+			didSwipeActionMenu = false
 			return
 		}
 
@@ -2303,6 +2533,21 @@ extension HudScene {
 		}
 	}
 
+	private func handleActionMenuTouchMoved(_ touches: Set<UITouch>) {
+		guard isActionMenuVisible,
+			  let point = touches.first?.location(in: self),
+			  let lastPoint = lastActionMenuSwipePoint else { return }
+
+		let deltaY = point.y - lastPoint.y
+		let rowHeight = actionMenuRows.first?.node.frame.height ?? 42
+		let threshold = max(18, rowHeight * 0.75)
+		if abs(deltaY) >= threshold {
+			moveActionMenuSelection(by: deltaY > 0 ? -1 : 1)
+			lastActionMenuSwipePoint = point
+			didSwipeActionMenu = true
+		}
+	}
+
 	private func releaseActiveTouchControl() {
 		if activeTouchButton === sprintButton {
 			setRunning(false)
@@ -2325,6 +2570,9 @@ extension HudScene {
 			return
 		}
 		if handleInventorySelection(at: location) {
+			return
+		}
+		if handleActionMenuSelection(at: location) {
 			return
 		}
 		if handlePauseSelection(at: location) {
@@ -2350,6 +2598,15 @@ extension HudScene {
 					moveInventorySelection(by: 1)
 				case 126: // up
 					moveInventorySelection(by: -1)
+				default:
+					break
+				}
+			} else if actionMenuOverlay.isHidden == false {
+				switch event.keyCode {
+				case 125: // down
+					moveActionMenuSelection(by: 1)
+				case 126: // up
+					moveActionMenuSelection(by: -1)
 				default:
 					break
 				}
@@ -2387,6 +2644,10 @@ extension HudScene {
 				setInventoryVisible(false)
 				return
 			}
+			if actionMenuOverlay.isHidden == false {
+				setActionMenuVisible(false)
+				return
+			}
 			clearVehicleControls()
 			clearWalkingControls()
 			clearFreeCameraControls()
@@ -2418,6 +2679,20 @@ extension HudScene {
 				moveInventorySelection(by: -1)
 			case 36, 76: // return, keypad enter
 				equipSelectedInventoryRow()
+			default:
+				break
+			}
+			return
+		}
+
+		if actionMenuOverlay.isHidden == false {
+			switch event.keyCode {
+			case 125: // down
+				moveActionMenuSelection(by: 1)
+			case 126: // up
+				moveActionMenuSelection(by: -1)
+			case 36, 76: // return, keypad enter
+				activateSelectedActionMenuRow()
 			default:
 				break
 			}
@@ -2526,9 +2801,8 @@ extension HudScene {
 			}
 
 		case 3: // F
-			guard let action = game.nearestAction() else { break }
 			game.pressControl(.ACTION)
-			game.performAction(action)
+			game.actionButtonTapped()
 
 		case 0, 123: // A, left
 			if game.mode == .walk, game.scene.playerNode != nil {
