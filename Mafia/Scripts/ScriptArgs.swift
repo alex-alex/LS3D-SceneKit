@@ -509,7 +509,8 @@ extension Script {
 	}
 
 	private func getArgs_enemy_usecar(_ scanner: Scanner) -> [Argument] {
-		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+		guard let carId = scanVarOrValueOptional(scanner) else { return [] }
+		return [carId, scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_enemy_talk(_ scanner: Scanner) -> [Argument] {

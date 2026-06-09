@@ -833,6 +833,8 @@ extension Script {
 
 	private func enemy_move_to_car(_ args: [Argument]) {
 		let carId = args[0].getValueOrVarValue(vars: vars)
+		let seatId = args[1].getValueOrVarValue(vars: vars)
+		pendingEnemyUseCarTarget = (carId: carId, seatId: seatId)
 		if let car = node(forScriptId: carId) {
 			face(node, toward: carBodyNode(for: car).presentation.worldPosition)
 		}
@@ -850,9 +852,31 @@ extension Script {
 	}
 
 	private func enemy_usecar(_ args: [Argument]) {
-		let carId = args[0].getValueOrVarValue(vars: vars)
-		let seatId = args[1].getValueOrVarValue(vars: vars)
-		guard let car = node(forScriptId: carId) else {
+		let car: SCNNode
+		let seatId: Int
+		if args.isEmpty {
+			if let currentCar = scene.humanVehicleOwners[ObjectIdentifier(node)] {
+				car = currentCar
+				seatId = inferredVehicleSeatId(for: node, inCar: currentCar)
+			} else if let target = pendingEnemyUseCarTarget, let targetCar = node(forScriptId: target.carId) {
+				car = targetCar
+				seatId = target.seatId
+			} else {
+				next()
+				return
+			}
+		} else {
+			let carId = args[0].getValueOrVarValue(vars: vars)
+			guard let targetCar = node(forScriptId: carId) else {
+				next()
+				return
+			}
+			car = targetCar
+			seatId = args[1].getValueOrVarValue(vars: vars)
+			pendingEnemyUseCarTarget = (carId: carId, seatId: seatId)
+		}
+
+		guard car.name?.lowercased() != "null" else {
 			next()
 			return
 		}
@@ -2555,19 +2579,45 @@ extension Script {
 			return
 		}
 
+		removePhysicsBodies(from: actor)
+		body.addChildNode(actor)
+		actor.position = vehicleSeatPosition(in: bounds, width: width, height: height, length: length, seatId: seatId)
+		actor.eulerAngles = SCNVector3Zero
+		actor.setHiddenInHierarchy(false)
+	}
+
+	private func inferredVehicleSeatId(for actor: SCNNode, inCar car: SCNNode) -> Int {
+		let body = carBodyNode(for: car)
+		let bounds = body.boundingBox
+		let width = bounds.max.x - bounds.min.x
+		let height = bounds.max.y - bounds.min.y
+		let length = bounds.max.z - bounds.min.z
+		guard width > 0, height > 0, length > 0 else { return 1 }
+
+		let actorPosition = actor.parent === body ? actor.position : body.convertPosition(actor.presentation.worldPosition, from: nil)
+		let seatIds = [0, 1, 2, 3]
+		return seatIds.min { lhs, rhs in
+			let lhsPosition = vehicleSeatPosition(in: bounds, width: width, height: height, length: length, seatId: lhs)
+			let rhsPosition = vehicleSeatPosition(in: bounds, width: width, height: height, length: length, seatId: rhs)
+			return (actorPosition - lhsPosition).length < (actorPosition - rhsPosition).length
+		} ?? 1
+	}
+
+	private func vehicleSeatPosition(
+		in bounds: (min: SCNVector3, max: SCNVector3),
+		width: SCNFloat,
+		height: SCNFloat,
+		length: SCNFloat,
+		seatId: Int
+	) -> SCNVector3 {
 		let isLeftSeat = seatId == 0 || seatId == 2
 		let isFrontSeat = seatId == 0 || seatId == 1
 		let seatZOffset = isFrontSeat ? -length * 0.12 : -length * 0.28
-		let seatPosition = SCNVector3(
+		return SCNVector3(
 			x: (bounds.min.x + bounds.max.x) / 2 + (isLeftSeat ? -width : width) * 0.12,
 			y: bounds.min.y + height * 0.24,
 			z: (bounds.min.z + bounds.max.z) / 2 + seatZOffset
 		)
-		removePhysicsBodies(from: actor)
-		body.addChildNode(actor)
-		actor.position = seatPosition
-		actor.eulerAngles = SCNVector3Zero
-		actor.setHiddenInHierarchy(false)
 	}
 
 	private func playNpcVehiclePassengerAnimation(in actor: SCNNode) {
@@ -2607,6 +2657,15 @@ extension Script {
 			"anims/AutoSm\(prefix) \(suffix).5ds",
 			"anims/AutoBig\(prefix) \(suffix).5ds"
 		])
+	}
+
+	private func firstExistingAnimation(named candidates: [String]) -> String? {
+		return candidates.first { animationExists(named: $0) }
+	}
+
+	private func animationExists(named animationName: String) -> Bool {
+		let url = mainDirectory.appendingPathComponent(animationName.lowercased())
+		return FileManager.default.fileExists(atPath: url.path)
 	}
 
 	private func carBodyNode(for car: SCNNode) -> SCNNode {

@@ -350,6 +350,7 @@ final class Script: @unchecked Sendable {
 	var sharedStreamIds = Set<Int>()
 	var nextStreamId = 1
 	var pendingEnemyTalk: ScriptEnemyTalkOperation?
+	var pendingEnemyUseCarTarget: (carId: Int, seatId: Int)?
 	var enemyAnimationOriginalTransform: SCNMatrix4?
 	var lastTickTime = Date.timeIntervalSinceReferenceDate
 	var timeoutEventBinding: ScriptEventBinding?
