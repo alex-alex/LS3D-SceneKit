@@ -1192,15 +1192,28 @@ final class Scene: @unchecked Sendable {
 			return
 		}
 
+		let tearDownStartTime = CFAbsoluteTimeGetCurrent()
+		var lastStepTime = tearDownStartTime
+		func logTearDownStep(_ name: String) {
+			let now = CFAbsoluteTimeGetCurrent()
+			print(String(format: "== Scene tearDown %@ %.3fs total %.3fs", name, now - lastStepTime, now - tearDownStartTime))
+			lastStepTime = now
+		}
+
 		setScriptsPaused(true)
 		let allScripts = Array(initScripts.values) + Array(scripts.values)
 		for script in allScripts {
 			script.stop()
 		}
+		logTearDownStep("scripts")
 		destroyScriptMusicStreams()
+		logTearDownStep("music streams")
 		unloadRecords()
+		logTearDownStep("records")
 		clearDifferenceFiles()
+		logTearDownStep("differences")
 		stopActiveAudioPlayers()
+		logTearDownStep("audio players")
 		playerNode = nil
 		compassNode = nil
 		playerFireEvent = nil
@@ -1228,6 +1241,7 @@ final class Scene: @unchecked Sendable {
 		weaponsLock.lock()
 		weaponsByOwner.removeAll()
 		weaponsLock.unlock()
+		logTearDownStep("state")
 	}
 
 	@discardableResult

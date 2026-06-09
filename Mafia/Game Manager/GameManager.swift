@@ -204,8 +204,15 @@ class GameManager: @unchecked Sendable {
 	}
 
 	private func releaseCurrentGame() {
-		game?.tearDown(from: view)
+		guard let currentGame = game else { return }
+
+		let startTime = CFAbsoluteTimeGetCurrent()
+		print("== Release Current Game begin")
+		currentGame.tearDown(from: view)
+		let tearDownTime = CFAbsoluteTimeGetCurrent()
+		print(String(format: "== Release Current Game tearDown %.3fs", tearDownTime - startTime))
 		game = nil
+		print(String(format: "== Release Current Game nil %.3fs", CFAbsoluteTimeGetCurrent() - tearDownTime))
 	}
 
 }

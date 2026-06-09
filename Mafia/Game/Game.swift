@@ -1122,6 +1122,14 @@ final class Game: NSObject, @unchecked Sendable {
 	}
 
 	@MainActor func tearDown(from view: SCNView) {
+		let tearDownStartTime = CFAbsoluteTimeGetCurrent()
+		var lastStepTime = tearDownStartTime
+		func logTearDownStep(_ name: String) {
+			let now = CFAbsoluteTimeGetCurrent()
+			print(String(format: "== Game tearDown %@ %.3fs total %.3fs", name, now - lastStepTime, now - tearDownStartTime))
+			lastStepTime = now
+		}
+
 		let oldHud = hud
 		if view.scene === scnScene {
 			view.scene = SCNScene()
@@ -1134,6 +1142,7 @@ final class Game: NSObject, @unchecked Sendable {
 		view.audioListener = nil
 		view.isPlaying = false
 		view.rendersContinuously = false
+		logTearDownStep("detach view")
 		onMissionEnded = nil
 		onMissionRestarted = nil
 		onLoadGameRequested = nil
@@ -1146,12 +1155,15 @@ final class Game: NSObject, @unchecked Sendable {
 		playerController?.stop()
 		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 		vehicle?.updateAudio(isActive: false)
+		logTearDownStep("stop controllers")
 		scene.tearDown()
+		logTearDownStep("scene")
 		oldHud?.removeAllActions()
 		oldHud?.removeAllChildren()
 		cameraContainer.removeFromParentNode()
 		hud = nil
 		renderView = nil
+		logTearDownStep("hud")
 	}
 
 	func restoreGameplayCamera() {
