@@ -132,6 +132,7 @@ final class HudScene: SKScene {
 	private var freeCameraRight = false
 	private var freeCameraUp = false
 	private var freeCameraDown = false
+	private var freeCameraFast = false
 
 	#endif
 
@@ -2385,7 +2386,7 @@ extension HudScene {
 		case 49: // space
 			freeCameraUp = true
 		case 56, 60: // shift
-			freeCameraDown = true
+			freeCameraFast = true
 		default:
 			return false
 		}
@@ -2412,7 +2413,7 @@ extension HudScene {
 			case 49: // space
 				freeCameraUp = false
 			case 56, 60: // shift
-				freeCameraDown = false
+				freeCameraFast = false
 			default:
 				break
 			}
@@ -2534,6 +2535,7 @@ extension HudScene {
 		freeCameraRight = false
 		freeCameraUp = false
 		freeCameraDown = false
+		freeCameraFast = false
 		game.setFreeCameraMovement(x: 0, y: 0, z: 0, isFast: false)
 	}
 
@@ -2574,6 +2576,13 @@ extension HudScene {
 		super.flagsChanged(with: event)
 
 		guard !game.isGamePaused else { return }
+		if game.mode == .freeCamera {
+			let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+			freeCameraFast = flags.contains(.shift)
+			updateFreeCameraControls()
+			return
+		}
+
 		guard game.mode == .walk, game.scene.playerNode != nil else {
 			setRunning(false)
 			setCrouching(false)
@@ -2607,7 +2616,7 @@ extension HudScene {
 			vertical = freeCameraUp ? 1 : -1
 		}
 
-		game.setFreeCameraMovement(x: strafe, y: vertical, z: forward, isFast: false)
+		game.setFreeCameraMovement(x: strafe, y: vertical, z: forward, isFast: freeCameraFast)
 	}
 
 	#endif
