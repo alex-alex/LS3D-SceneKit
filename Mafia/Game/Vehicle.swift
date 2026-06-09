@@ -543,7 +543,7 @@ func setCarDoorOpen(_ car: SCNNode, doorId: Int, percentage: Float, duration: Ti
 	let closedAngles = vehicleDoorStateStore.closedAngles(for: door)
 
 	let clampedPercentage = max(0, min(100, percentage))
-	let sideMultiplier: SCNFloat = doorId == 0 || doorId == 2 ? -1 : 1
+	let sideMultiplier = carDoorSideMultiplier(car: car, door: door, doorId: doorId)
 	let openAngle = sideMultiplier * SCNFloat.pi * 0.42 * SCNFloat(clampedPercentage / 100)
 	let targetAngles = SCNVector3(
 		x: closedAngles.x,
@@ -566,6 +566,32 @@ func setCarDoorOpen(_ car: SCNNode, doorId: Int, percentage: Float, duration: Ti
 	} else {
 		door.eulerAngles = targetAngles
 	}
+}
+
+private func carDoorSideMultiplier(car: SCNNode, door: SCNNode, doorId: Int) -> SCNFloat {
+	let body = carBodyNode(in: car)
+	let bounds = body.boundingBox
+	let width = bounds.max.x - bounds.min.x
+	if width > 0.0001 {
+		let doorPosition = body.convertPosition(door.presentation.worldPosition, from: nil)
+		let bodyCenterX = (bounds.min.x + bounds.max.x) / 2
+		let sideOffset = doorPosition.x - bodyCenterX
+		if abs(sideOffset) > width * 0.01 {
+			return sideOffset < 0 ? 1 : -1
+		}
+	}
+
+	return doorId == 0 || doorId == 2 ? 1 : -1
+}
+
+private func carBodyNode(in car: SCNNode) -> SCNNode {
+	if let body = car.mafiaChildNode(named: "BODY", recursively: false) {
+		return body
+	}
+	if let liveTransformNode = car.liveTransformNode {
+		return liveTransformNode
+	}
+	return car
 }
 
 private func carDoorNode(in car: SCNNode, doorId: Int) -> SCNNode? {
