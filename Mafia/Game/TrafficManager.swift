@@ -62,6 +62,12 @@ final class TrafficManager {
 			rootNode.isHidden = !isEnabled
 		}
 	}
+	var placedVehicleNodes: [SCNNode] {
+		guard isEnabled else { return [] }
+		return vehicles
+			.filter { $0.isPlaced && !$0.node.isHidden }
+			.map(\.node)
+	}
 
 	init?(road: Road?, trafficSettings: TrafficSettings?, scene: SCNScene) {
 		guard let road = road,

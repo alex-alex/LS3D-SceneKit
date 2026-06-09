@@ -75,6 +75,7 @@ final class Game: NSObject, @unchecked Sendable {
 				vehicle?.updateAudio(isActive: false)
 			} else {
 				VehicleSoundLog.log("Game mode changed to car; vehicle audio active")
+				didEnterCurrentVehicle = true
 				playerController?.stop()
 				movePlayerIntoVehicle()
 				playPlayerVehicleSittingAnimation()
@@ -172,7 +173,9 @@ final class Game: NSObject, @unchecked Sendable {
 	private var stealEnabledVehicleIds: Set<Int> = []
 	private var stealVehicleNodes: [Int: SCNNode] = [:]
 	private var stolenVehicleIds: Set<Int> = []
+	private var stolenVehicleNodeIds: Set<ObjectIdentifier> = []
 	private var activeSteal: (vehicle: Vehicle, startedAt: TimeInterval)?
+	private var didEnterCurrentVehicle = false
 	private let vehicleStealDuration: TimeInterval = 1.6
 	private var playerPhysicsBodyBeforeVehicle: SCNPhysicsBody?
 	private var trafficManager: TrafficManager?
@@ -999,7 +1002,7 @@ final class Game: NSObject, @unchecked Sendable {
 	private func beginVehicleSteal(_ vehicle: Vehicle) {
 		guard mode == .walk,
 			  activeSteal == nil,
-			  vehicleStealId(for: vehicle) != nil else { return }
+			  !isStolenVehicle(vehicle) else { return }
 
 		activeSteal = (vehicle, Date.timeIntervalSinceReferenceDate)
 		updateHud { hud in
@@ -1031,10 +1034,12 @@ final class Game: NSObject, @unchecked Sendable {
 			return
 		}
 
-		guard elapsed >= vehicleStealDuration,
-			  let carId = vehicleStealId(for: steal.vehicle) else { return }
+		guard elapsed >= vehicleStealDuration else { return }
 
-		stolenVehicleIds.insert(carId)
+		if let carId = vehicleStealId(for: steal.vehicle) {
+			stolenVehicleIds.insert(carId)
+		}
+		markVehicleStolen(steal.vehicle)
 		activeSteal = nil
 		updateHud { hud in
 			hud.updateVehicleStealProgress(1, isVisible: false)
@@ -1054,6 +1059,19 @@ final class Game: NSObject, @unchecked Sendable {
 			}
 		}
 		return nil
+	}
+
+	private func markVehicleStolen(_ vehicle: Vehicle) {
+		stolenVehicleNodeIds.insert(ObjectIdentifier(vehicle.node))
+		stolenVehicleNodeIds.insert(ObjectIdentifier(vehicle.scriptNode))
+	}
+
+	private func isStolenVehicle(_ vehicle: Vehicle) -> Bool {
+		if vehicleStealId(for: vehicle) != nil {
+			return false
+		}
+		return stolenVehicleNodeIds.contains(ObjectIdentifier(vehicle.node)) ||
+			stolenVehicleNodeIds.contains(ObjectIdentifier(vehicle.scriptNode))
 	}
 
 	private func stealableVehicleAction() -> Action? {
@@ -1110,6 +1128,7 @@ final class Game: NSObject, @unchecked Sendable {
 		}
 		guard let scriptedVehicle = Vehicle(scene: scnScene, node: node) else { return nil }
 		vehicle = scriptedVehicle
+		didEnterCurrentVehicle = false
 		return scriptedVehicle
 	}
 
@@ -1118,10 +1137,12 @@ final class Game: NSObject, @unchecked Sendable {
 			  let playerNode = scene.playerNode else { return nil }
 
 		let playerPosition = playerNode.presentation.worldPosition
-		return stealEnabledVehicleIds
-			.compactMap { carId -> (node: SCNNode, distance: Float)? in
-				guard !stolenVehicleIds.contains(carId),
-					  let node = stealVehicleNodes[carId] else { return nil }
+		return stealableVehicleNodes()
+			.compactMap { node -> (node: SCNNode, distance: Float)? in
+				guard node.actionsEnabledInHierarchy,
+					  !isNodeHiddenInHierarchy(node),
+					  !isCurrentVehicleNode(node),
+					  !isStolenVehicleNode(node) else { return nil }
 				return (node, node.actionSquaredDistance(to: playerPosition))
 			}
 			.filter { $0.distance < actionDistanceSquared }
@@ -1129,11 +1150,54 @@ final class Game: NSObject, @unchecked Sendable {
 			.flatMap { scriptedVehicle(for: $0.node) }
 	}
 
+	private func stealableVehicleNodes() -> [SCNNode] {
+		var nodes: [SCNNode] = []
+		nodes.append(contentsOf: stealVehicleNodes.values)
+		nodes.append(contentsOf: trafficManager?.placedVehicleNodes ?? [])
+		scene.rootNode.enumerateChildNodes { node, _ in
+			if node.type == .car || node.trafficCarDefinition != nil {
+				nodes.append(node)
+			}
+		}
+		var seen = Set<ObjectIdentifier>()
+		return nodes.filter { node in
+			let id = ObjectIdentifier(node)
+			guard !seen.contains(id) else { return false }
+			seen.insert(id)
+			return true
+		}
+	}
+
+	private func isCurrentVehicleNode(_ node: SCNNode) -> Bool {
+		guard didEnterCurrentVehicle,
+			  let vehicle = vehicle else { return false }
+		return isVehicle(vehicle, matching: node)
+	}
+
+	private func isStolenVehicleNode(_ node: SCNNode) -> Bool {
+		if stolenVehicleNodeIds.contains(ObjectIdentifier(node)) {
+			return true
+		}
+		for carId in stolenVehicleIds {
+			if let stolenNode = stealVehicleNodes[carId],
+			   stolenNode === node || stolenNode.name == node.name || isNode(node, inside: stolenNode) || isNode(stolenNode, inside: node) {
+				return true
+			}
+		}
+		return false
+	}
+
 	private func nearestScriptedEnterableVehicle() -> Vehicle? {
 		guard mode == .walk,
 			  let playerNode = scene.playerNode else { return nil }
 
 		let playerPosition = playerNode.presentation.worldPosition
+		if let vehicle = vehicle,
+		   canEnterCurrentVehicle(),
+		   vehicle.node.actionSquaredDistance(to: playerPosition) < actionDistanceSquared {
+			return vehicle
+		}
+
 		return stealVehicleNodes
 			.compactMap { carId, node -> (node: SCNNode, distance: Float)? in
 				guard stolenVehicleIds.contains(carId) else { return nil }
