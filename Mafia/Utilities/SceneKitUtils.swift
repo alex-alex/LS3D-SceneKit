@@ -766,7 +766,6 @@ func isSkyboxBackdropResourceName(_ name: String?) -> Bool {
 		normalized.hasPrefix("sky ") ||
 		normalized.hasPrefix("sky_") ||
 		normalized.hasPrefix("sky.") ||
-		normalized.hasPrefix("sky") ||
 		normalized.hasPrefix("denjasno") ||
 		normalized.hasPrefix("denzatazeno") ||
 		normalized.hasPrefix("den2") ||
