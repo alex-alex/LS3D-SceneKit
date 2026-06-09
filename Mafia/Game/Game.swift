@@ -1902,7 +1902,7 @@ extension Game: SCNSceneRendererDelegate {
 		case .walk:
 			return scene.playerNode?.presentation.worldPosition
 		case .car:
-			return vehicle?.node.presentation.worldPosition ?? scene.playerNode?.presentation.worldPosition
+			return scene.playerNode?.presentation.worldPosition ?? vehicle?.node.presentation.worldPosition
 		case .freeCamera:
 			return nil
 		}

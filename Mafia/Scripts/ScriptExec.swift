@@ -680,11 +680,14 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let distance = args[1].getValueOrVarValueFloat(vars: vars)
 		if let playerPosition = scene.game.playerReferencePosition() {
-			vars[varId] = (node.squaredDistance(to: playerPosition) <= distance * distance) ? 1 : 0
+			if node.squaredDistance(to: playerPosition) <= distance * distance {
+				vars[varId] = scene.game.mode == .car ? 2 : 1
+			} else {
+				vars[varId] = 0
+			}
 		} else {
 			vars[varId] = 0
 		}
-		variableValueTypes[varId] = .boolean
 		next()
 	}
 
@@ -1213,7 +1216,6 @@ extension Script {
 		let node2 = liveDistanceNode(forActorId: actor2Id, actor: actor2)
 		let distance = node1.distance(to: node2)
 		vars[varId] = distance
-		variableValueTypes[varId] = .number
 		print(
 			"== Script getactorsdist: script=\(name), " +
 			"actor1=\(actor1Id):\(actor1.name ?? "<unnamed>")->\(node1.name ?? "<unnamed>") path=\(node1.debugNodePath) pos=\(formatVector(node1.presentation.worldPosition)), " +
@@ -1258,7 +1260,6 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
-		variableValueTypes[varId] = .number
 		next()
 	}
 
@@ -1266,7 +1267,6 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
-		variableValueTypes[varId] = .number
 		next()
 	}
 
@@ -1544,7 +1544,6 @@ extension Script {
 			} else {
 				vars[varId] = 0
 			}
-			variableValueTypes[varId] = .number
 		} else {
 			vars[varId] = 0
 		}
@@ -1663,45 +1662,10 @@ extension Script {
 
 		let label1 = args[3].getString()
 		let label2 = args[4].getString()
-		let result = booleanIfResult(
-			valueArgument: args[0],
-			operatorString: opStr,
-			value1: value1,
-			value2: value2
-		) ?? operation(value1, value2)
-
-		if result {
+		if operation(value1, value2) {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
-		}
-	}
-
-	private func booleanIfResult(
-		valueArgument: Argument,
-		operatorString: String,
-		value1: Float,
-		value2: Float
-	) -> Bool? {
-		guard value1 == 0 || value1 == 1,
-			  case .variable(let varId) = valueArgument,
-			  variableValueTypes[varId] == .boolean else {
-			return nil
-		}
-
-		let left = value1 != 0
-		let right = value2 != 0
-		switch operatorString {
-		case "=":
-			return left == right
-		case "!":
-			return left != right
-		case "<":
-			return !left && right
-		case ">":
-			return left && right
-		default:
-			return nil
 		}
 	}
 
