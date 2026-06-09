@@ -38,6 +38,8 @@ extension Script {
 		case .actorDelete:				actor_delete(command.args)
 		case .actorSetpos:				actor_setplacement(command.args)
 		case .actorSetplacement:		actor_setplacement(command.args)
+		case .blockEnd:					noop()
+		case .blockStart:				noop()
 		case .cameraGetfov:				camera_getfov(command.args)
 		case .cameraSetfov:				camera_setfov(command.args)
 		case .cameraSetrange:			camera_setrange(command.args)
@@ -68,6 +70,7 @@ extension Script {
 		case .createPhysicalobject:		noop()
 		case .createweaponfromframe:		createweaponfromframe(command.args)
 		case .ctrlRead:					ctrl_read(command.args)
+		case .debugText:				debug_text(command.args)
 		case .detectorInrange:			detector_inrange(command.args)
 		case .detectorIssignal:			detector_issignal(command.args)
 		case .detectorSetsignal:			detector_setsignal(command.args)
@@ -96,7 +99,7 @@ extension Script {
 		case .enemyVidim:				noop()
 		case .enemyWait:				enemy_wait(command.args)
 		case .event:					event(command.args)
-		case .eventUseCb:				noop()
+		case .eventUseCb:				event_use_cb(command.args)
 		case .findactor:				findactor(command.args)
 		case .findframe:				findframe(command.args)
 		case .getactivecamera:			getactivecamera(command.args)
@@ -126,6 +129,7 @@ extension Script {
 		case .getRemoteFrame:			get_remote_frame(command.args)
 		case .getticktime:				getticktime(command.args)
 		case .goto:						goto(command.args)
+		case .gosub:					gosub(command.args)
 		case .humanActivateweapon:		human_activateweapon(command.args)
 		case .humanAddweapon:			human_addweapon(command.args)
 		case .humanAnyweaponinhand:		human_anyweaponinhand(command.args)
@@ -139,6 +143,7 @@ extension Script {
 		case .humanGetiteminrhand:		human_getiteminrhand(command.args)
 		case .humanGetowner:			human_getowner(command.args)
 		case .humanGetproperty:			human_getproperty(command.args)
+		case .humanGetseatidx:			human_getseatidx(command.args)
 		case .humanHolster:				human_holster(command.args)
 		case .humanIsweapon:			human_isweapon(command.args)
 		case .humanLooktoactor:		human_looktoactor(command.args)
@@ -202,6 +207,8 @@ extension Script {
 		case .timerSetinterval:			timer_setinterval(command.args)
 		case .timeroff:					timeroff(command.args)
 		case .timeron:					timeron(command.args)
+		case .down:						noop()
+		case .up:						noop()
 		case .vectAddVect:				vect_add_vect(command.args)
 		case .vectCopy:					vect_copy(command.args)
 		case .vectInverse:				vect_inverse(command.args)
@@ -214,7 +221,7 @@ extension Script {
 		case .versionIsGermany:			version_is_germany(command.args)
 		case .wait:						wait(command.args)
 		case .zatmyse:					zatmyse(command.args)
-		case .unknown:					noop(); // print("UNKNOWN COMMAND: \(command.rawName)")
+		case .unknown:					unknown(command)
 		}
 	}
 
@@ -276,6 +283,11 @@ extension Script {
 	// ----
 
 	private func noop() {
+		next()
+	}
+
+	private func unknown(_ command: ScriptCommand) {
+		print("== Script unknown command: script=\(name), line=\(command.sourceLine), command=\(command.rawName)")
 		next()
 	}
 
@@ -636,6 +648,15 @@ extension Script {
 				weapon.clipAmmo = profile.clipSize
 			}
 			scene.actions.append(.weapon(frame, weapon))
+		}
+		next()
+	}
+
+	private func debug_text(_ args: [Argument]) {
+		let text = args[0].getString()
+		print("== Script debug_text: \(text)")
+		DispatchQueue.main.async {
+			self.scene.game.hud?.showConsoleText(text)
 		}
 		next()
 	}
@@ -1002,6 +1023,14 @@ extension Script {
 		next()
 	}
 
+	private func event_use_cb(_ args: [Argument]) {
+		let isEnabled = args[0].getValueOrVarValue(vars: vars) != 0
+		if isEnabled {
+			useEventCallback()
+		}
+		next()
+	}
+
 	private func findactor(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
@@ -1309,7 +1338,17 @@ extension Script {
 	}
 
 	private func goto(_ args: [Argument]) {
-		let label = args[0].getString()
+		let label = labelTarget(from: args[0])
+		goto(label: label)
+	}
+
+	private func gosub(_ args: [Argument]) {
+		guard subroutineReturnLine == nil else {
+			next()
+			return
+		}
+		let label = labelTarget(from: args[0])
+		subroutineReturnLine = currentLine
 		goto(label: label)
 	}
 
@@ -1509,6 +1548,19 @@ extension Script {
 		} else {
 			vars[varId] = 0
 		}
+		next()
+	}
+
+	private func human_getseatidx(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		guard let actor = node(forScriptId: actorId),
+			  let car = ownerNode(forActorId: actorId) else {
+			vars[varId] = -1
+			next()
+			return
+		}
+		vars[varId] = Float(inferredVehicleSeatId(for: actor, inCar: car))
 		next()
 	}
 
@@ -2009,8 +2061,11 @@ extension Script {
 			eventCompletionHandler = nil
 			currentEventId = nil
 			executingEvent = false
-			currentLine = lineBeforeEvent
+			currentLine = adjustedReturnLine(from: lineBeforeEvent)
 			lineBeforeEvent = 0
+		} else if let returnLine = subroutineReturnLine {
+			subroutineReturnLine = nil
+			currentLine = adjustedReturnLine(from: returnLine)
 		}
 		next()
 	}
@@ -2875,6 +2930,20 @@ extension Script {
 		let y = SCNVector3(x: transform.m21, y: transform.m22, z: transform.m23).length
 		let z = SCNVector3(x: transform.m31, y: transform.m32, z: transform.m33).length
 		return SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
+	}
+
+	private func labelTarget(from argument: Argument) -> String {
+		switch argument {
+		case .label(let value), .string(let value):
+			return value
+		case .integer(let value):
+			return "\(value)"
+		case .number(let value):
+			return String(format: "%g", value)
+		case .variable:
+			let value = argument.getValueOrVarValueFloat(vars: vars)
+			return String(format: "%g", value)
+		}
 	}
 
 	private func beginPendingEnemyTalk() -> ScriptEnemyTalkOperation {

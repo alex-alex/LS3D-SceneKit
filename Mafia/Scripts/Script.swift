@@ -87,6 +87,8 @@ enum ScriptCommandName: String {
 	case actorDelete = "actor_delete"
 	case actorSetpos = "actor_setpos"
 	case actorSetplacement = "actor_setplacement"
+	case blockEnd = "}"
+	case blockStart = "{"
 	case cameraGetfov = "camera_getfov"
 	case cameraSetfov = "camera_setfov"
 	case cameraSetrange = "camera_setrange"
@@ -117,6 +119,7 @@ enum ScriptCommandName: String {
 	case createPhysicalobject = "create_physicalobject"
 	case createweaponfromframe
 	case ctrlRead = "ctrl_read"
+	case debugText = "debug_text"
 	case detectorInrange = "detector_inrange"
 	case detectorIssignal = "detector_issignal"
 	case detectorSetsignal = "detector_setsignal"
@@ -176,6 +179,7 @@ enum ScriptCommandName: String {
 	case getRemoteFrame = "get_remote_frame"
 	case getticktime
 	case goto
+	case gosub
 	case humanActivateweapon = "human_activateweapon"
 	case humanAddweapon = "human_addweapon"
 	case humanAnyweaponinhand = "human_anyweaponinhand"
@@ -188,6 +192,7 @@ enum ScriptCommandName: String {
 	case humanGetiteminrhand = "human_getiteminrhand"
 	case humanGetowner = "human_getowner"
 	case humanGetproperty = "human_getproperty"
+	case humanGetseatidx = "human_getseatidx"
 	case humanHolster = "human_holster"
 	case humanForceSettocar = "human_force_settocar"
 	case humanIsweapon = "human_isweapon"
@@ -251,6 +256,8 @@ enum ScriptCommandName: String {
 	case timerSetinterval = "timer_setinterval"
 	case timeroff
 	case timeron
+	case down
+	case up
 	case vectAddVect = "vect_add_vect"
 	case vectCopy = "vect_copy"
 	case vectInverse = "vect_inverse"
@@ -298,6 +305,17 @@ struct ScriptCommand {
 	}
 }
 
+private enum ScriptEventUseBlockDirection {
+	case up
+	case down
+}
+
+private struct ScriptEventUseBlock {
+	let direction: ScriptEventUseBlockDirection
+	let openLine: Int
+	let closeLine: Int
+}
+
 final class Script: @unchecked Sendable {
 
 	private static let commandLoggingState = CommandLoggingState()
@@ -318,6 +336,7 @@ final class Script: @unchecked Sendable {
 	var eventIdQueueStartIndex = 0
 	var currentEventId: String?
 	var lineBeforeEvent: Int = 0
+	var subroutineReturnLine: Int?
 	var executingEvent = false
 	var eventCompletionHandler: (() -> Void)?
 
@@ -327,6 +346,7 @@ final class Script: @unchecked Sendable {
 	var commands: [ScriptCommand]!
 	var labels: [String: Int] = [:]
 	var events: [String: Int] = [:]
+	private var eventUseBlocks: [ScriptEventUseBlock] = []
 	var currentLine: Int = 0
 	var isRunning = false
 	var isPaused = false
@@ -382,6 +402,7 @@ final class Script: @unchecked Sendable {
 
 		let lines = string.components(separatedBy: .newlines)
 		var parsed: [ScriptCommand] = []
+		var eventUseBlockStack: [(direction: ScriptEventUseBlockDirection, openLine: Int)] = []
 		var lineNum = 0
 		for (sourceLineIndex, rawLine) in lines.enumerated() {
 			let line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -399,6 +420,24 @@ final class Script: @unchecked Sendable {
 			if commandStr == "event" {
 				let label = scanParam(scanner)
 				events[label] = lineNum
+			}
+			if commandStr == "up" {
+				eventUseBlockStack.append((direction: .up, openLine: lineNum))
+			} else if commandStr == "down" {
+				eventUseBlockStack.append((direction: .down, openLine: lineNum))
+			} else if commandStr == "{" {
+				let direction = scanParamOptional(scanner)?.lowercased()
+				if direction == "up" {
+					eventUseBlockStack.append((direction: .up, openLine: lineNum))
+				} else if direction == "down" {
+					eventUseBlockStack.append((direction: .down, openLine: lineNum))
+				}
+			} else if commandStr == "}", let block = eventUseBlockStack.popLast() {
+				eventUseBlocks.append(ScriptEventUseBlock(
+					direction: block.direction,
+					openLine: block.openLine,
+					closeLine: lineNum
+				))
 			}
 
 			let args = getArgumentsForCommand(str: commandStr, scanner: scanner, sourceLine: line, lineNumber: sourceLineIndex + 1)
@@ -433,6 +472,7 @@ final class Script: @unchecked Sendable {
 			self.mainInEvent = false
 			self.currentEventId = nil
 			self.lineBeforeEvent = 0
+			self.subroutineReturnLine = nil
 			self.executingEvent = false
 			self.eventCompletionHandler = nil
 			self.eventIdQueue.removeAll()
@@ -573,6 +613,7 @@ final class Script: @unchecked Sendable {
 			self.eventIdQueueStartIndex = 0
 			self.currentEventId = nil
 			self.executingEvent = false
+			self.subroutineReturnLine = nil
 			self.recentCommandHistory.removeAll()
 			let streams = Array(self.streams.values)
 			let soundPlaybacks = Array(self.soundPlaybacks.values)
@@ -727,6 +768,37 @@ final class Script: @unchecked Sendable {
 			eventIdQueueStartIndex = 0
 		}
 		return eventId
+	}
+
+	func adjustedReturnLine(from returnLine: Int) -> Int {
+		guard let block = eventUseBlocks
+				.filter({ $0.openLine < returnLine && returnLine < $0.closeLine })
+				.max(by: { lhs, rhs in lhs.openLine < rhs.openLine }) else {
+			return returnLine
+		}
+
+		switch block.direction {
+		case .up:
+			return block.openLine
+		case .down:
+			return block.closeLine
+		}
+	}
+
+	func useEventCallback() {
+		guard executingEvent,
+			  let block = eventUseBlocks
+				.filter({ $0.openLine < lineBeforeEvent && lineBeforeEvent < $0.closeLine })
+				.max(by: { lhs, rhs in lhs.openLine < rhs.openLine }) else {
+			return
+		}
+
+		switch block.direction {
+		case .up:
+			lineBeforeEvent = block.openLine
+		case .down:
+			lineBeforeEvent = block.closeLine
+		}
 	}
 
 }

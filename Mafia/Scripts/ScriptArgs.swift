@@ -144,6 +144,7 @@ extension Script {
 		case "create_physicalobject":	return getArgs_create_physicalobject(scanner)
 		case "createweaponfromframe":	return getArgs_createweaponfromframe(scanner)
 		case "ctrl_read":				return getArgs_ctrl_read(scanner)
+		case "debug_text":				return getArgs_debug_text(scanner)
 		case "detector_inrange":		return getArgs_detector_inrange(scanner)
 		case "detector_issignal":		return getArgs_detector_issignal(scanner)
 		case "detector_setsignal":		return getArgs_detector_setsignal(scanner)
@@ -200,6 +201,7 @@ extension Script {
 		case "get_remote_frame":		return getArgs_get_remote_frame(scanner)
 		case "getticktime":				return getArgs_getticktime(scanner)
 		case "goto":					return getArgs_goto(scanner)
+		case "gosub":					return getArgs_goto(scanner)
 		case "human_activateweapon":	return getArgs_human_activateweapon(scanner)
 		case "human_addweapon":			return getArgs_human_addweapon(scanner)
 		case "human_anyweaponinhand":	return getArgs_human_anyweaponinhand(scanner)
@@ -213,6 +215,7 @@ extension Script {
 		case "human_getiteminrhand":		return getArgs_human_getiteminrhand(scanner)
 		case "human_getowner":			return getArgs_human_getowner(scanner)
 		case "human_getproperty":		return getArgs_human_getproperty(scanner)
+		case "human_getseatidx":		return getArgs_human_getseatidx(scanner)
 		case "human_holster":			return getArgs_human_holster(scanner)
 		case "human_isweapon":			return getArgs_human_isweapon(scanner)
 		case "human_looktoactor":		return []
@@ -425,6 +428,10 @@ extension Script {
 
 	private func getArgs_ctrl_read(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner))]
+	}
+
+	private func getArgs_debug_text(_ scanner: Scanner) -> [Argument] {
+		return [.string(scanString(scanner) ?? scanParam(scanner))]
 	}
 
 	private func getArgs_detector_inrange(_ scanner: Scanner) -> [Argument] {
@@ -641,7 +648,7 @@ extension Script {
 	}
 
 	private func getArgs_goto(_ scanner: Scanner) -> [Argument] {
-		return [.label(scanParam(scanner))]
+		return [scanLabelTarget(scanner)]
 	}
 
 	private func getArgs_human_activateweapon(_ scanner: Scanner) -> [Argument] {
@@ -696,6 +703,10 @@ extension Script {
 
 	private func getArgs_human_getproperty(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), .label(scanParam(scanner))]
+	}
+
+	private func getArgs_human_getseatidx(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_human_holster(_ scanner: Scanner) -> [Argument] {
@@ -1145,6 +1156,11 @@ extension Script {
 		} else {
 			scriptArgumentFatalError("Expected variable or numeric value")
 		}
+	}
+
+	private func scanLabelTarget(_ scanner: Scanner) -> Argument {
+		let token = scanParam(scanner)
+		return parseVarOrNumberToken(token) ?? .label(token)
 	}
 
 	private func scanVarOrValueOrNull(_ scanner: Scanner) -> Argument {
