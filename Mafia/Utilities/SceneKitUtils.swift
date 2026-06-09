@@ -752,11 +752,7 @@ func isSkyboxResourceName(_ name: String?) -> Bool {
 	}
 	guard let name = name?.lowercased() else { return false }
 	let normalized = name.replacingOccurrences(of: ".4ds", with: "")
-	return normalized.hasPrefix("mrak") ||
-		normalized.hasPrefix("0mrak") ||
-		normalized.hasPrefix("4mrak") ||
-		normalized.hasPrefix("9mrak") ||
-		normalized.contains("|mrak")
+	return normalized.components(separatedBy: "|").contains(where: isSkyboxCloudResourceName)
 }
 
 func isSkyboxBackdropResourceName(_ name: String?) -> Bool {
@@ -771,4 +767,12 @@ func isSkyboxBackdropResourceName(_ name: String?) -> Bool {
 		normalized.hasPrefix("den2") ||
 		normalized.hasPrefix("noczatazeno") ||
 		normalized.contains("|sky ")
+}
+
+private func isSkyboxCloudResourceName(_ name: String) -> Bool {
+	let normalized = name.replacingOccurrences(of: ".bmp", with: "")
+	for prefix in ["mrak", "0mrak", "4mrak", "9mrak"] where normalized.hasPrefix(prefix) {
+		return !normalized.hasPrefix(prefix + "odrap")
+	}
+	return false
 }
