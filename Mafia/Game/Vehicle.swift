@@ -469,6 +469,26 @@ final class Vehicle {
 		}
 	}
 
+	func moveForwardForCollisionDebug() {
+		let velocity = node.physicsBody?.velocity
+		let angularVelocity = node.physicsBody?.angularVelocity
+		let forward = node.presentation.worldFront
+		let horizontalForward = SCNVector3(x: forward.x, y: 0, z: forward.z).normalized
+		guard horizontalForward.length > 0 else { return }
+
+		var movedWorldTransform = node.presentation.worldTransform
+		movedWorldTransform.m41 -= horizontalForward.x * resetHeight
+		movedWorldTransform.m43 -= horizontalForward.z * resetHeight
+
+		node.transform = node.parent?.convertTransform(movedWorldTransform, from: nil) ?? movedWorldTransform
+		if let velocity = velocity {
+			node.physicsBody?.velocity = velocity
+		}
+		if let angularVelocity = angularVelocity {
+			node.physicsBody?.angularVelocity = angularVelocity
+		}
+	}
+
 	func setCollisionDebugVisible(_ isVisible: Bool) {
 		debugNode.isHidden = !isVisible
 	}
