@@ -63,6 +63,9 @@ final class Vehicle {
 	var velocity: SCNVector3 {
 		return node.physicsBody?.velocity ?? SCNVector3Zero
 	}
+	var isSteeringWheelTurning: Bool {
+		return abs(targetVehicleSteering) > 0.001 || abs(vehicleSteering) > 0.001
+	}
 	var debugGroundRayNames: [String] {
 		guard let scene = scene else { return [] }
 

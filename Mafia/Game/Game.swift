@@ -150,6 +150,7 @@ final class Game: NSObject, @unchecked Sendable {
 	private var npcHealthLabelNodes: [ObjectIdentifier: SCNNode] = [:]
 	private let npcHealthLabelNodeNamePrefix = "__npc_health_label_"
 	private let playerVehicleAnimationKey = "__player_vehicle__"
+	private var currentPlayerVehicleSittingAnimationName: String?
 	private var isPlayerVehicleTransitionActive = false
 	private var playerVehicleTransitionControlsWereLocked = false
 	private var modeBeforeFreeCamera: Mode = .walk
@@ -805,7 +806,14 @@ final class Game: NSObject, @unchecked Sendable {
 	private func playPlayerVehicleSittingAnimation() {
 		guard let playerNode = scene.playerNode,
 			  let animationName = vehicleSittingAnimationName() else { return }
+		currentPlayerVehicleSittingAnimationName = animationName
 		playPlayerVehicleAnimation(named: animationName, in: playerNode, repeat: true)
+	}
+
+	private func updatePlayerVehicleSittingAnimation() {
+		guard let animationName = vehicleSittingAnimationName(),
+			  animationName != currentPlayerVehicleSittingAnimationName else { return }
+		playPlayerVehicleSittingAnimation()
 	}
 
 	private func playPlayerVehicleAnimation(
@@ -829,6 +837,7 @@ final class Game: NSObject, @unchecked Sendable {
 
 	private func stopPlayerVehicleAnimation() {
 		guard let playerNode = scene.playerNode else { return }
+		currentPlayerVehicleSittingAnimationName = nil
 		playerNode.removeAction(forKey: playerVehicleAnimationKey)
 		playerNode.removeAction(forKey: playerVehicleAnimationKey + ":position")
 	}
@@ -848,9 +857,15 @@ final class Game: NSObject, @unchecked Sendable {
 	}
 
 	private func vehicleSittingAnimationName() -> String? {
+		if vehicle?.isSteeringWheelTurning == true {
+			return firstExistingAnimation(named: [
+				"anims/AutoRidicVolant.5ds",
+				"anims/AutoRidicStativ.5ds"
+			])
+		}
 		return firstExistingAnimation(named: [
-			"anims/AutoRidicVolant.5ds",
-			"anims/AutoRidicStativ.5ds"
+			"anims/AutoRidicStativ.5ds",
+			"anims/AutoRidicVolant.5ds"
 		])
 	}
 
@@ -1585,6 +1600,7 @@ extension Game: SCNSceneRendererDelegate {
 		} else if mode == .car && vehicle != nil {
 			if !isPlayerVehicleTransitionActive {
 				syncPlayerToVehicle()
+				updatePlayerVehicleSittingAnimation()
 			}
 			updateCarCameraLook(deltaTime: deltaTime)
 			updateCarCameraFollow(deltaTime: deltaTime)
