@@ -538,7 +538,7 @@ final class Script: @unchecked Sendable {
 		isTimerPausedForScriptPause = true
 		timerGeneration += 1
 		if isTimerVisible {
-			scene.game.updateScriptTimer(scriptId: uuid, remainingMilliseconds: timerRemainingMilliseconds)
+			updateScriptTimer(remainingMilliseconds: timerRemainingMilliseconds)
 		}
 	}
 
@@ -588,10 +588,25 @@ final class Script: @unchecked Sendable {
 					playback.node.removeAudioPlayer(playback.player)
 				}
 				if wasTimerVisible {
-					self.scene.game.hideScriptTimer(scriptId: self.uuid)
+					self.hideScriptTimer()
 				}
 			}
 		}
+	}
+
+	func showScriptTimer(remainingMilliseconds: Float) {
+		guard let game = scene.game else { return }
+		game.showScriptTimer(scriptId: uuid, remainingMilliseconds: remainingMilliseconds)
+	}
+
+	func updateScriptTimer(remainingMilliseconds: Float) {
+		guard let game = scene.game else { return }
+		game.updateScriptTimer(scriptId: uuid, remainingMilliseconds: remainingMilliseconds)
+	}
+
+	func hideScriptTimer() {
+		guard let game = scene.game else { return }
+		game.hideScriptTimer(scriptId: uuid)
 	}
 
 	func setAudioPaused(_ paused: Bool) {

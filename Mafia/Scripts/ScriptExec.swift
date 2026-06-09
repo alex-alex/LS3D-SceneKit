@@ -2328,7 +2328,7 @@ extension Script {
 		timerRemainingMilliseconds = 0
 		isTimerVisible = false
 		isTimerPausedForScriptPause = false
-		scene.game.hideScriptTimer(scriptId: uuid)
+		hideScriptTimer()
 		next()
 	}
 
@@ -2337,7 +2337,7 @@ extension Script {
 		isTimerVisible = true
 		isTimerPausedForScriptPause = false
 		startTimer(milliseconds: max(0, seconds * 1000))
-		scene.game.showScriptTimer(scriptId: uuid, remainingMilliseconds: currentTimerRemainingMilliseconds())
+		showScriptTimer(remainingMilliseconds: currentTimerRemainingMilliseconds())
 		next()
 	}
 
@@ -2789,7 +2789,7 @@ extension Script {
 		timerGeneration += 1
 		timerRemainingMilliseconds = milliseconds
 		if isTimerVisible {
-			scene.game.updateScriptTimer(scriptId: uuid, remainingMilliseconds: milliseconds)
+			updateScriptTimer(remainingMilliseconds: milliseconds)
 		}
 		guard milliseconds > 0 else {
 			timerEndTime = nil
@@ -2808,7 +2808,7 @@ extension Script {
 			self.timerEndTime = nil
 			self.timerRemainingMilliseconds = 0
 			if self.isTimerVisible {
-				self.scene.game.updateScriptTimer(scriptId: self.uuid, remainingMilliseconds: 0)
+				self.updateScriptTimer(remainingMilliseconds: 0)
 			}
 			guard let timeoutEventBinding = self.timeoutEventBinding else { return }
 			timeoutEventBinding.script.enqueueEvent(timeoutEventBinding.eventId)
