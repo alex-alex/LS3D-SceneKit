@@ -1936,7 +1936,7 @@ extension Game: SCNSceneRendererDelegate {
 			return nil
 		}
 
-		return atan2(-CGFloat(forward.x), CGFloat(forward.z))
+		return atan2(-CGFloat(forward.x), CGFloat(forward.z)) + .pi
 	}
 
 	private func updateDiagnostics(deltaTime: TimeInterval) {
@@ -3647,6 +3647,8 @@ extension Game {
 }
 
 private struct RoadMapBounds {
+	private static let artworkCalibrationOffset = CGPoint(x: 0.06, y: -0.14)
+
 	let minX: SCNFloat
 	let maxX: SCNFloat
 	let minZ: SCNFloat
@@ -3679,8 +3681,8 @@ private struct RoadMapBounds {
 		let x = CGFloat((position.x - minX) / (maxX - minX))
 		let y = CGFloat((position.z - minZ) / (maxZ - minZ))
 		return CGPoint(
-			x: max(0, min(1, x)),
-			y: max(0, min(1, y))
+			x: max(0, min(1, x + Self.artworkCalibrationOffset.x)),
+			y: max(0, min(1, y + Self.artworkCalibrationOffset.y))
 		)
 	}
 }

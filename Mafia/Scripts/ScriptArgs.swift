@@ -285,6 +285,7 @@ extension Script {
 		case "vect_sub_vect":			return getArgs_vect_sub_vect(scanner)
 		case "version_is_editor":		return getArgs_version_is_editor(scanner)
 		case "version_is_germany":		return getArgs_version_is_germany(scanner)
+		case "vlvp":					return getArgs_vlvp(scanner)
 		case "wait":					return getArgs_wait(scanner)
 		case "zatmyse":					return getArgs_zatmyse(scanner)
 		default:						return []
@@ -1052,6 +1053,10 @@ extension Script {
 	}
 
 	private func getArgs_version_is_germany(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_vlvp(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
 

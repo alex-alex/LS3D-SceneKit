@@ -268,6 +268,7 @@ enum ScriptCommandName: String {
 	case vectSubVect = "vect_sub_vect"
 	case versionIsEditor = "version_is_editor"
 	case versionIsGermany = "version_is_germany"
+	case vlvp
 	case wait
 	case zatmyse
 	case unknown
@@ -684,9 +685,9 @@ final class Script: @unchecked Sendable {
 		}
 
 		guard currentLine < commands.endIndex else {
-			guard commandBlockDepth == 0 else {
+			/*guard commandBlockDepth == 0 else {
 				fatalError("Unterminated commandblock")
-			}
+			}*/
 			if hasQueuedEvent {
 				currentLine = commands.endIndex - 1
 				next()

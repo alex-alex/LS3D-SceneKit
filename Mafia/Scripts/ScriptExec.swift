@@ -219,6 +219,7 @@ extension Script {
 		case .vectSubVect:				vect_sub_vect(command.args)
 		case .versionIsEditor:			version_is_editor(command.args)
 		case .versionIsGermany:			version_is_germany(command.args)
+		case .vlvp:						vlvp(command.args)
 		case .wait:						wait(command.args)
 		case .zatmyse:					zatmyse(command.args)
 		case .unknown:					unknown(command)
@@ -1274,8 +1275,18 @@ extension Script {
 		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		let _ = args[2].getValueOrVarValue(vars: vars) // offenseType
-		vars[varId] = 0
+		vars[varId] = Float(policeItchForPlayerState())
 		next()
+	}
+
+	private func vlvp(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = Float(policeItchForPlayerState())
+		next()
+	}
+
+	private func policeItchForPlayerState() -> Int {
+		return 0
 	}
 
 	private func get_remote_actor(_ args: [Argument]) {

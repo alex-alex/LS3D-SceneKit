@@ -96,6 +96,7 @@ final class HudScene: SKScene {
 	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
 	private var consoleMessages: [(id: Int, text: String)] = []
+	private var consoleMessageExpirationTasks: [Int: Task<Void, Never>] = [:]
 	private var nextConsoleMessageId = 1
 	private var activeScriptTimerId: NSUUID?
 	private var scriptTimerEndTime: TimeInterval?
@@ -554,23 +555,22 @@ final class HudScene: SKScene {
 		consoleMessages.append((id: messageId, text: remappedControlText(text)))
 		while consoleMessages.count > maxConsoleRowCount {
 			let removedMessage = consoleMessages.removeFirst()
-			removeAction(forKey: consoleActionKey(forMessageId: removedMessage.id))
+			consoleMessageExpirationTasks.removeValue(forKey: removedMessage.id)?.cancel()
 		}
 		refreshConsoleText()
 		removeAction(forKey: consoleActionKey)
 		consoleLabel.alpha = isCutsceneOverlayVisible ? 0 : 1
-		run(
-			SKAction.sequence([
-				SKAction.wait(forDuration: consoleMessageLifetime),
-				SKAction.run { [weak self] in
-					self?.removeConsoleMessage(messageId: messageId)
-				}
-			]),
-			withKey: consoleActionKey(forMessageId: messageId)
-		)
+
+		let expirationDelay = UInt64(max(0, consoleMessageLifetime) * 1_000_000_000)
+		consoleMessageExpirationTasks[messageId] = Task { @MainActor [weak self] in
+			try? await Task.sleep(nanoseconds: expirationDelay)
+			guard !Task.isCancelled else { return }
+			self?.removeConsoleMessage(messageId: messageId)
+		}
 	}
 
 	private func removeConsoleMessage(messageId: Int) {
+		consoleMessageExpirationTasks.removeValue(forKey: messageId)?.cancel()
 		consoleMessages.removeAll { $0.id == messageId }
 		refreshConsoleText()
 		guard consoleMessages.isEmpty else { return }
@@ -587,10 +587,6 @@ final class HudScene: SKScene {
 			.components(separatedBy: .newlines)
 			.suffix(maxConsoleRowCount)
 		consoleLabel.text = rows.joined(separator: "\n")
-	}
-
-	private func consoleActionKey(forMessageId messageId: Int) -> String {
-		return "\(consoleActionKey).\(messageId)"
 	}
 
 	func showSubtitleText(_ text: String, duration: TimeInterval = 4) {
