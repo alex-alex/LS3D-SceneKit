@@ -1201,8 +1201,6 @@ final class Scene: @unchecked Sendable {
 		unloadRecords()
 		clearDifferenceFiles()
 		stopActiveAudioPlayers()
-		rootNode.removeAllActionsRecursively()
-		rootNode.childNodes.forEach { $0.removeFromParentNode() }
 		playerNode = nil
 		compassNode = nil
 		playerFireEvent = nil

@@ -1082,35 +1082,34 @@ final class Game: NSObject, @unchecked Sendable {
 	}
 
 	@MainActor func tearDown(from view: SCNView) {
-		onMissionEnded = nil
-		onMissionRestarted = nil
-		onLoadGameRequested = nil
-		didEndMission = true
-		isGamePaused = true
-		scnScene.isPaused = true
-		setRenderLoopActive(false)
-		clearPendingLook()
-		lastUpdateTime = nil
-		playerController?.stop()
-		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
-		vehicle?.updateAudio(isActive: false)
-		scene.tearDown()
 		let oldHud = hud
-		oldHud?.removeAllActions()
-		oldHud?.removeAllChildren()
-		cameraContainer.removeFromParentNode()
-		scnScene.rootNode.removeAllActionsRecursively()
-		scnScene.rootNode.childNodes.forEach { $0.removeFromParentNode() }
 		if view.scene === scnScene {
 			view.scene = SCNScene()
 		}
 		if view.overlaySKScene === oldHud {
 			view.overlaySKScene = nil
 		}
-		hud = nil
 		view.delegate = nil
 		view.pointOfView = nil
 		view.audioListener = nil
+		view.isPlaying = false
+		view.rendersContinuously = false
+		onMissionEnded = nil
+		onMissionRestarted = nil
+		onLoadGameRequested = nil
+		didEndMission = true
+		isGamePaused = true
+		scnScene.isPaused = true
+		clearPendingLook()
+		lastUpdateTime = nil
+		playerController?.stop()
+		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+		vehicle?.updateAudio(isActive: false)
+		scene.tearDown()
+		oldHud?.removeAllActions()
+		oldHud?.removeAllChildren()
+		cameraContainer.removeFromParentNode()
+		hud = nil
 		renderView = nil
 	}
 
@@ -1303,13 +1302,6 @@ extension SCNNode {
 }
 
 private extension SCNNode {
-	func removeAllActionsRecursively() {
-		removeAllActions()
-		for child in childNodes {
-			child.removeAllActionsRecursively()
-		}
-	}
-
 	var hasModelContent: Bool {
 		if geometry != nil {
 			return true
