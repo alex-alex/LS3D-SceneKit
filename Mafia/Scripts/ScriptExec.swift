@@ -1209,6 +1209,9 @@ extension Script {
 			return
 		}
 
+		if isPlayerActor(actorId) {
+			scene.game.preservePlayerPhysicsBodyForVehicleEntry(actor)
+		}
 		scene.humanVehicleOwners[ObjectIdentifier(actor)] = car
 		placeHuman(actor, inCar: car, seatId: seatId)
 

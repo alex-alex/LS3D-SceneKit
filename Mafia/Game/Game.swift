@@ -686,11 +686,21 @@ final class Game: NSObject, @unchecked Sendable {
 				playerNode.physicsBody = playerPhysicsBodyBeforeVehicle
 				self.playerPhysicsBodyBeforeVehicle = nil
 			}
+			clearPlayerVehicleOwner(for: playerNode)
 			playerNode.isHidden = false
 			playerNode.setHiddenInHierarchy(false)
 		}
 
 		playerController.teleport(to: exit.position, yaw: exit.yaw)
+	}
+
+	func preservePlayerPhysicsBodyForVehicleEntry(_ playerNode: SCNNode) {
+		guard playerPhysicsBodyBeforeVehicle == nil else { return }
+		playerPhysicsBodyBeforeVehicle = playerNode.physicsBody
+	}
+
+	private func clearPlayerVehicleOwner(for playerNode: SCNNode) {
+		scene.humanVehicleOwners[ObjectIdentifier(playerNode)] = nil
 	}
 
 	private func playerExitPlacement(for vehicle: Vehicle) -> (position: SCNVector3, yaw: SCNFloat) {
