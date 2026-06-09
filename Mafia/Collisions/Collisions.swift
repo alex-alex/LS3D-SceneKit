@@ -485,12 +485,18 @@ final class Collisions {
 				chamferRadius: 0
 			)
 			shapes.append(SCNPhysicsShape(geometry: box, options: nil))
-			transforms.append(NSValue(scnMatrix4: SCNMatrix4(
+			let transform = SCNMatrix4(
 				m11: patch.tangent.x, m12: patch.tangent.y, m13: patch.tangent.z, m14: 0,
 				m21: patch.normal.x, m22: patch.normal.y, m23: patch.normal.z, m24: 0,
 				m31: patch.bitangent.x, m32: patch.bitangent.y, m33: patch.bitangent.z, m34: 0,
 				m41: patch.center.x, m42: patch.center.y, m43: patch.center.z, m44: 1
-			)))
+			)
+			transforms.append(NSValue(scnMatrix4: transform))
+
+			let debugNode = SCNNode(geometry: box)
+			debugNode.transform = transform
+			debugNode.configureAsCollisionWireframe()
+			groundNode.addChildNode(debugNode)
 		}
 
 		groundNode.physicsBody = SCNPhysicsBody(
