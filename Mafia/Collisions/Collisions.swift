@@ -91,8 +91,8 @@ final class Collisions {
 	let node = SCNNode()
 	let rootNode: SCNNode
 	private let nodeLookup: SceneNodeLookup
-	private let vehicleRaycastGroundOffset: SCNFloat = 0.26
 	private let vehicleRaycastGroundThickness: SCNFloat = 0.01
+	private let vehicleRaycastGroundClearance: SCNFloat = 0.01
 	private let vehicleRaycastGroundMargin: SCNFloat = 0.05
 	private let vehicleWallProxyMinHeight: SCNFloat = 0.45
 	private let vehicleWallProxyThickness: SCNFloat = 0.08
@@ -410,7 +410,7 @@ final class Collisions {
 		let center = centroid +
 			tangent * ((minU + maxU) / 2) +
 			bitangent * ((minV + maxV) / 2) -
-			normal * vehicleRaycastGroundOffset
+			normal * (vehicleRaycastGroundThickness / 2 + vehicleRaycastGroundClearance)
 
 		return VehicleRaycastGroundPatch(
 			center: center,
