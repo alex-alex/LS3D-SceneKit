@@ -590,9 +590,9 @@ extension Script {
 
 	private func detector_inrange(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
-		let distance = args[1].getValueOrVarValue(vars: vars)
-		if let playerNode = scene.playerNode {
-			vars[varId] = (node.distance(to: playerNode) <= Float(distance)) ? 1 : 0
+		let distance = args[1].getValueOrVarValueFloat(vars: vars)
+		if let playerPosition = scene.game.playerReferencePosition() {
+			vars[varId] = (node.squaredDistance(to: playerPosition) <= distance * distance) ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}

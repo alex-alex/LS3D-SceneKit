@@ -1699,8 +1699,15 @@ extension Game: SCNSceneRendererDelegate {
 		updateActionButtonVisibility(at: time)
 	}
 
-	private func playerReferencePosition() -> SCNVector3? {
-		return cameraNode.presentation.worldPosition
+	func playerReferencePosition() -> SCNVector3? {
+		switch mode {
+		case .walk:
+			return scene.playerNode?.presentation.worldPosition
+		case .car:
+			return vehicle?.node.presentation.worldPosition ?? scene.playerNode?.presentation.worldPosition
+		case .freeCamera:
+			return cameraNode.presentation.worldPosition
+		}
 	}
 
 	private func updateDiagnostics(deltaTime: TimeInterval) {
