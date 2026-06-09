@@ -134,6 +134,7 @@ final class Game: NSObject, @unchecked Sendable {
 	private let actionDistanceSquared: Float = 4
 	private let vehicleOwnerMatchDistanceSquared: Float = 36
 	private let vehicleStoppedSpeedThreshold: CGFloat = 1
+	private let playerVehicleDoorAnimationDuration: TimeInterval = 0.25
 	private var lastWeaponShotTime: TimeInterval = 0
 	private var reloadingWeaponUUID: NSUUID?
 	private var weaponReloadEndTime: TimeInterval = 0
@@ -297,7 +298,6 @@ final class Game: NSObject, @unchecked Sendable {
 
 		// -----
 
-		vehicle = findVehicle()
 		applyMissionTransition()
 
 		// -----
@@ -355,25 +355,6 @@ final class Game: NSObject, @unchecked Sendable {
 			}
 		}
 		return scene.rootNode.childNodes.first
-	}
-
-	private func findVehicle() -> Vehicle? {
-		let preferredNames = [
-			"cad_road",
-			"taxi2"
-		]
-		for name in preferredNames {
-			if let node = scnScene.rootNode.mafiaChildNode(named: name, recursively: true),
-			   node.hasModelContent,
-			   let vehicle = Vehicle(scene: scnScene, node: node) {
-				return vehicle
-			}
-		}
-
-		return scnScene.rootNode.firstResult { node in
-			guard node.type == .car && node.hasModelContent else { return nil }
-			return Vehicle(scene: scnScene, node: node)
-		}
 	}
 
 	private func applyMissionTransition() {
@@ -805,11 +786,14 @@ final class Game: NSObject, @unchecked Sendable {
 		isPlayerVehicleTransitionActive = true
 		playerVehicleTransitionControlsWereLocked = arePlayerControlsLocked
 		arePlayerControlsLocked = true
+		let doorVehicleNode = targetVehicle.scriptNode
+		setCarDoorOpen(doorVehicleNode, doorId: 0, percentage: 100, duration: playerVehicleDoorAnimationDuration)
 		let finish: @Sendable () -> Void = { [weak self] in
 			guard let self = self else { return }
 			self.isPlayerVehicleTransitionActive = false
 			self.arePlayerControlsLocked = self.playerVehicleTransitionControlsWereLocked
 			self.mode = .car
+			setCarDoorOpen(doorVehicleNode, doorId: 0, percentage: 0, duration: self.playerVehicleDoorAnimationDuration)
 		}
 
 		guard let animationName = vehicleEnterAnimationName() else {
@@ -827,11 +811,17 @@ final class Game: NSObject, @unchecked Sendable {
 		playerVehicleTransitionControlsWereLocked = arePlayerControlsLocked
 		arePlayerControlsLocked = true
 		stopPlayerVehicleAnimation()
+		if let vehicle = vehicle {
+			setCarDoorOpen(vehicle.scriptNode, doorId: 0, percentage: 100, duration: playerVehicleDoorAnimationDuration)
+		}
 
 		guard let playerNode = scene.playerNode,
 			  let animationName = vehicleExitAnimationName() else {
 			isPlayerVehicleTransitionActive = false
 			arePlayerControlsLocked = playerVehicleTransitionControlsWereLocked
+			if let vehicle = vehicle {
+				setCarDoorOpen(vehicle.scriptNode, doorId: 0, percentage: 0, duration: playerVehicleDoorAnimationDuration)
+			}
 			return
 		}
 
@@ -840,6 +830,9 @@ final class Game: NSObject, @unchecked Sendable {
 			self.isPlayerVehicleTransitionActive = false
 			self.arePlayerControlsLocked = self.playerVehicleTransitionControlsWereLocked
 			self.mode = .walk
+			if let vehicle = self.vehicle {
+				setCarDoorOpen(vehicle.scriptNode, doorId: 0, percentage: 0, duration: self.playerVehicleDoorAnimationDuration)
+			}
 		}
 	}
 
@@ -1058,16 +1051,12 @@ final class Game: NSObject, @unchecked Sendable {
 	}
 
 	private func stealableVehicleAction() -> Action? {
-		guard let vehicle = vehicle,
-			  vehicleStealId(for: vehicle) != nil else { return nil }
-
+		guard let vehicle = nearestScriptedStealableVehicle() else { return nil }
 		return .vehicleSteal(vehicle)
 	}
 
 	private func enterableVehicleAction() -> Action? {
-		guard let vehicle = vehicle,
-			  canEnterCurrentVehicle() else { return nil }
-
+		guard let vehicle = nearestScriptedEnterableVehicle() else { return nil }
 		return .vehicleEnter(vehicle)
 	}
 
@@ -1088,20 +1077,56 @@ final class Game: NSObject, @unchecked Sendable {
 			isNode(node, inside: vehicle.scriptNode)
 	}
 
-	func enterScriptedVehicle(_ node: SCNNode) {
+	private func scriptedVehicle(for node: SCNNode) -> Vehicle? {
 		if let vehicle = vehicle,
 		   isVehicle(vehicle, matching: node) {
-			mode = .car
-			return
+			return vehicle
 		}
 
 		if let vehicle = vehicle {
 			vehicle.updateAudio(isActive: false)
 			scnScene.physicsWorld.removeBehavior(vehicle.physicsVehicle)
 		}
-		guard let scriptedVehicle = Vehicle(scene: scnScene, node: node) else { return }
+		guard let scriptedVehicle = Vehicle(scene: scnScene, node: node) else { return nil }
 		vehicle = scriptedVehicle
-		mode = .car
+		return scriptedVehicle
+	}
+
+	private func nearestScriptedStealableVehicle() -> Vehicle? {
+		guard mode == .walk,
+			  let playerNode = scene.playerNode else { return nil }
+
+		let playerPosition = playerNode.presentation.worldPosition
+		return stealEnabledVehicleIds
+			.compactMap { carId -> (node: SCNNode, distance: Float)? in
+				guard !stolenVehicleIds.contains(carId),
+					  let node = stealVehicleNodes[carId] else { return nil }
+				return (node, node.actionSquaredDistance(to: playerPosition))
+			}
+			.filter { $0.distance < actionDistanceSquared }
+			.min { $0.distance < $1.distance }
+			.flatMap { scriptedVehicle(for: $0.node) }
+	}
+
+	private func nearestScriptedEnterableVehicle() -> Vehicle? {
+		guard mode == .walk,
+			  let playerNode = scene.playerNode else { return nil }
+
+		let playerPosition = playerNode.presentation.worldPosition
+		return stealVehicleNodes
+			.compactMap { carId, node -> (node: SCNNode, distance: Float)? in
+				guard stolenVehicleIds.contains(carId) else { return nil }
+				return (node, node.actionSquaredDistance(to: playerPosition))
+			}
+			.filter { $0.distance < actionDistanceSquared }
+			.min { $0.distance < $1.distance }
+			.flatMap { scriptedVehicle(for: $0.node) }
+	}
+
+	func enterScriptedVehicle(_ node: SCNNode) {
+		if scriptedVehicle(for: node) != nil {
+			mode = .car
+		}
 	}
 
 	@MainActor func setup(in view: SCNView) {
@@ -2560,8 +2585,9 @@ extension Game {
 
 	private func updateNPCHealthLabel(_ labelNode: SCNNode, for humanNode: SCNNode) {
 		let health = max(0, Int(round(humanNode.humanEnergy ?? 100)))
-		if let text = labelNode.geometry as? SCNText, text.string as? String != "\(health)" {
-			text.string = "\(health)"
+		let label = "\(npcDisplayName(for: humanNode))\n\(health)"
+		if let text = labelNode.geometry as? SCNText, text.string as? String != label {
+			text.string = label
 			let bounds = text.boundingBox
 			labelNode.pivot = SCNMatrix4MakeTranslation(
 				(bounds.min.x + bounds.max.x) / 2,
@@ -2571,6 +2597,11 @@ extension Game {
 		}
 		labelNode.position = scene.rootNode.convertPosition(npcHealthLabelPosition(for: humanNode), from: nil)
 		labelNode.isHidden = health <= 0
+	}
+
+	private func npcDisplayName(for humanNode: SCNNode) -> String {
+		let name = humanNode.name?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+		return name.isEmpty ? "<unnamed>" : name
 	}
 
 	private func npcHealthLabelPosition(for humanNode: SCNNode) -> SCNVector3 {

@@ -466,6 +466,68 @@ final class Vehicle {
 
 }
 
+private final class VehicleDoorStateStore: @unchecked Sendable {
+	private let lock = NSLock()
+	private var closedAngles: [ObjectIdentifier: SCNVector3] = [:]
+
+	func closedAngles(for door: SCNNode) -> SCNVector3 {
+		let key = ObjectIdentifier(door)
+		lock.lock()
+		defer { lock.unlock() }
+		if let value = closedAngles[key] {
+			return value
+		}
+		let value = door.eulerAngles
+		closedAngles[key] = value
+		return value
+	}
+}
+
+private let vehicleDoorStateStore = VehicleDoorStateStore()
+
+func setCarDoorOpen(_ car: SCNNode, doorId: Int, percentage: Float, duration: TimeInterval = 0) {
+	guard let door = carDoorNode(in: car, doorId: doorId) else { return }
+
+	let closedAngles = vehicleDoorStateStore.closedAngles(for: door)
+
+	let clampedPercentage = max(0, min(100, percentage))
+	let sideMultiplier: SCNFloat = doorId == 0 || doorId == 2 ? 1 : -1
+	let openAngle = sideMultiplier * SCNFloat.pi * 0.42 * SCNFloat(clampedPercentage / 100)
+	let targetAngles = SCNVector3(
+		x: closedAngles.x,
+		y: closedAngles.y + openAngle,
+		z: closedAngles.z
+	)
+
+	door.removeAction(forKey: "carDoorOpen")
+	if duration > 0 {
+		door.runAction(
+			SCNAction.rotateTo(
+				x: CGFloat(targetAngles.x),
+				y: CGFloat(targetAngles.y),
+				z: CGFloat(targetAngles.z),
+				duration: duration,
+				usesShortestUnitArc: true
+			),
+			forKey: "carDoorOpen"
+		)
+	} else {
+		door.eulerAngles = targetAngles
+	}
+}
+
+private func carDoorNode(in car: SCNNode, doorId: Int) -> SCNNode? {
+	let doorName = "DOOR\(doorId)"
+	if let door = car.mafiaChildNode(named: doorName, recursively: true) {
+		return door
+	}
+	if let liveTransformNode = car.liveTransformNode,
+	   let door = liveTransformNode.mafiaChildNode(named: doorName, recursively: true) {
+		return door
+	}
+	return nil
+}
+
 private struct VehicleSoundProfile {
 
 	let startSound: String?

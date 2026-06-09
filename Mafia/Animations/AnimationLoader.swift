@@ -685,6 +685,12 @@ func preloadAnimation(named name: String, includePositionAnimation: Bool = true)
 	_ = try? loadPositionAnimation(named: positionAnimationName)
 }
 
+func playDefaultHumanIdleAnimation(in node: SCNNode) {
+	let animationName = "anims/breath01a.5ds"
+	try? applyAnimationInitialPose(named: animationName, in: node)
+	try? playAnimation(named: animationName, in: node, repeat: true)
+}
+
 func applyAnimationInitialPose(named name: String, in node: SCNNode) throws {
 	let (animations, _) = try loadAnimation(named: name)
 	for animation in animations {

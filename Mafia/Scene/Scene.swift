@@ -841,6 +841,7 @@ final class Scene: @unchecked Sendable {
 								if let node = node {
 									node.humanEnergy = energy
 									self.playerNode = node
+									playDefaultHumanIdleAnimation(in: node)
 									print("== Player Node from object definition: \(name), node=\(node.name ?? "<unnamed>"), energy=\(energy), position=\(node.worldPosition)")
 								} else if !name.isEmpty {
 									pendingHumanEnergyByName[name] = energy
@@ -1157,6 +1158,7 @@ final class Scene: @unchecked Sendable {
 			guard let node = rootNode.mafiaChildNode(named: name, recursively: true) else { continue }
 			registerNodeTree(node)
 			node.humanEnergy = energy
+			playDefaultHumanIdleAnimation(in: node)
 			if name == pendingPlayerNodeName {
 				playerNode = node
 				print("== Resolved Player Node: \(name), energy=\(energy)")
@@ -1170,6 +1172,9 @@ final class Scene: @unchecked Sendable {
 		node.type = type
 		if type.hasDefaultHumanEnergy && node.humanEnergy == nil {
 			node.humanEnergy = 100
+		}
+		if type.hasDefaultHumanEnergy {
+			playDefaultHumanIdleAnimation(in: node)
 		}
 	}
 

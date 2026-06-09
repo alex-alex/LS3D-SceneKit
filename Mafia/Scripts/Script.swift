@@ -101,6 +101,9 @@ enum ScriptCommandName: String {
 	case carLockAll = "car_lock_all"
 	case carMuststeal = "car_muststeal"
 	case carRepair = "car_repair"
+	case carDisableUo = "car_disable_uo"
+	case carSetdestroymotor = "car_setdestroymotor"
+	case carSetdooropen = "car_setdooropen"
 	case carSetactlevel = "car_setactlevel"
 	case carSetspeed = "car_setspeed"
 	case changeMission = "change_mission"
@@ -130,8 +133,16 @@ enum ScriptCommandName: String {
 	case end
 	case endBang = "end!"
 	case endofmission
+	case enemyLook = "enemy_look"
+	case enemyLookto = "enemy_lookto"
+	case enemyMove = "enemy_move"
+	case enemyMoveToCar = "enemy_move_to_car"
 	case enemyPlayanim = "enemy_playanim"
+	case enemyShutUp = "enemy_shut_up"
+	case enemyStopanim = "enemy_stopanim"
 	case enemyTalk = "enemy_talk"
+	case enemyUsecar = "enemy_usecar"
+	case enemyVidim = "enemy_vidim"
 	case enemyWait = "enemy_wait"
 	case event
 	case eventUseCb = "event_use_cb"
@@ -180,6 +191,7 @@ enum ScriptCommandName: String {
 	case humanHolster = "human_holster"
 	case humanForceSettocar = "human_force_settocar"
 	case humanIsweapon = "human_isweapon"
+	case humanLooktoactor = "human_looktoactor"
 	case humanSetproperty = "human_setproperty"
 	case humanTalk = "human_talk"
 	case `if` = "if"
@@ -330,12 +342,15 @@ final class Script: @unchecked Sendable {
 	var vars: [Int: Float] = [:]
 	var variableValueTypes: [Int: ScriptVariableValueType] = [:]
 	var carActLevels: [Int: Float] = [:]
+	var disabledCarSeatIds: [Int: Set<Int>] = [:]
+	var carDoorOpenPercentages: [Int: [Int: Float]] = [:]
 	var soundPlaybacks: [Int: ScriptSoundPlayback] = [:]
 	var nextSoundPlaybackId = 1
 	var streams: [Int: ScriptMusicStream] = [:]
 	var sharedStreamIds = Set<Int>()
 	var nextStreamId = 1
 	var pendingEnemyTalk: ScriptEnemyTalkOperation?
+	var enemyAnimationOriginalTransform: SCNMatrix4?
 	var lastTickTime = Date.timeIntervalSinceReferenceDate
 	var timeoutEventBinding: ScriptEventBinding?
 	var timerEndTime: TimeInterval?
@@ -670,7 +685,7 @@ final class Script: @unchecked Sendable {
 
 private final class CommandLoggingState: @unchecked Sendable {
 	private let lock = NSLock()
-	private var enabled = false
+	private var enabled = true
 
 	var isEnabled: Bool {
 		lock.lock()

@@ -52,6 +52,9 @@ extension Script {
 		case .carLockAll:				car_lock_all(command.args)
 		case .carMuststeal:				car_muststeal(command.args)
 		case .carRepair:				car_repair(command.args)
+		case .carDisableUo:				car_disable_uo(command.args)
+		case .carSetdestroymotor:		car_setdestroymotor(command.args)
+		case .carSetdooropen:			car_setdooropen(command.args)
 		case .carSetactlevel:			car_setactlevel(command.args)
 		case .carSetspeed:				car_setspeed(command.args)
 		case .changeMission:			change_mission(command.args)
@@ -81,8 +84,16 @@ extension Script {
 		case .end:						end(command.args)
 		case .endBang:					end(command.args)
 		case .endofmission:				endofmission(command.args)
+		case .enemyLook:				enemy_look(command.args)
+		case .enemyLookto:				enemy_look(command.args)
+		case .enemyMove:				enemy_move(command.args)
+		case .enemyMoveToCar:			enemy_move_to_car(command.args)
 		case .enemyPlayanim:			enemy_playanim(command.args)
+		case .enemyShutUp:				noop()
+		case .enemyStopanim:			enemy_stopanim(command.args)
 		case .enemyTalk:				enemy_talk(command.args)
+		case .enemyUsecar:				enemy_usecar(command.args)
+		case .enemyVidim:				noop()
 		case .enemyWait:				enemy_wait(command.args)
 		case .event:					event(command.args)
 		case .eventUseCb:				noop()
@@ -130,6 +141,7 @@ extension Script {
 		case .humanGetproperty:			human_getproperty(command.args)
 		case .humanHolster:				human_holster(command.args)
 		case .humanIsweapon:			human_isweapon(command.args)
+		case .humanLooktoactor:		human_looktoactor(command.args)
 		case .humanSetproperty:			human_setproperty(command.args)
 		case .humanTalk:				human_talk(command.args)
 		case .`if`:						`if`(command.args)
@@ -337,6 +349,39 @@ extension Script {
 		let carId = args[0].getValueOrVarValue(vars: vars)
 		let enabled = args[1].getValueOrVarValue(vars: vars) != 0
 		node(forScriptId: carId)?.actionsEnabled = enabled
+		next()
+	}
+
+	private func car_disable_uo(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let seatId = args[1].getValueOrVarValue(vars: vars)
+		let disabled = args[2].getValueOrVarValue(vars: vars) != 0
+		if disabled {
+			disabledCarSeatIds[carId, default: []].insert(seatId)
+		} else {
+			disabledCarSeatIds[carId]?.remove(seatId)
+			if disabledCarSeatIds[carId]?.isEmpty == true {
+				disabledCarSeatIds[carId] = nil
+			}
+		}
+		next()
+	}
+
+	private func car_setdestroymotor(_ args: [Argument]) {
+		car_breakmotor(args)
+	}
+
+	private func car_setdooropen(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let doorId = args[1].getValueOrVarValue(vars: vars)
+		let percentage = args[2].getValueOrVarValueFloat(vars: vars)
+		let clampedPercentage = max(0, min(100, percentage))
+		carDoorOpenPercentages[carId, default: [:]][doorId] = clampedPercentage
+		if let car = node(forScriptId: carId) {
+			DispatchQueue.main.async {
+				setCarDoorOpen(car, doorId: doorId, percentage: clampedPercentage, duration: 0.2)
+			}
+		}
 		next()
 	}
 
@@ -763,10 +808,110 @@ extension Script {
 
 	private func enemy_playanim(_ args: [Argument]) {
 		let animName = args[0].getString()
+		if enemyAnimationOriginalTransform == nil {
+			enemyAnimationOriginalTransform = node.transform
+		}
+		removeDefaultAnimationActions(in: node)
 		DispatchQueue.main.async {
 			try? playAnimation(named: "anims/"+animName.replacingOccurrences(of: "i3d", with: "5DS"), in: self.node)
 		}
 		next()
+	}
+
+	private func enemy_look(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let actor = actors[actorId] {
+			let targetNode = liveDistanceNode(forActorId: actorId, actor: actor)
+			face(node, toward: targetNode.presentation.worldPosition)
+		}
+		next()
+	}
+
+	private func enemy_move(_ args: [Argument]) {
+		next()
+	}
+
+	private func enemy_move_to_car(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		if let car = node(forScriptId: carId) {
+			face(node, toward: carBodyNode(for: car).presentation.worldPosition)
+		}
+		next()
+	}
+
+	private func enemy_stopanim(_ args: [Argument]) {
+		removeDefaultAnimationActions(in: node)
+		if let originalTransform = enemyAnimationOriginalTransform {
+			node.transform = originalTransform
+			enemyAnimationOriginalTransform = nil
+		}
+		playDefaultHumanIdleAnimation(in: node)
+		next()
+	}
+
+	private func enemy_usecar(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let seatId = args[1].getValueOrVarValue(vars: vars)
+		guard let car = node(forScriptId: carId) else {
+			next()
+			return
+		}
+
+		if scene.humanVehicleOwners[ObjectIdentifier(node)] != nil {
+			removeDefaultAnimationActions(in: node)
+			DispatchQueue.main.async {
+				setCarDoorOpen(car, doorId: seatId, percentage: 100, duration: 0.2)
+				let finish: @Sendable () -> Void = {
+					self.scene.humanVehicleOwners[ObjectIdentifier(self.node)] = nil
+					self.placeHumanOutsideCar(self.node, car: car, seatId: seatId)
+					playDefaultHumanIdleAnimation(in: self.node)
+					setCarDoorOpen(car, doorId: seatId, percentage: 0, duration: 0.2)
+					self.next()
+				}
+				guard let animationName = self.npcVehicleExitAnimationName(seatId: seatId) else {
+					finish()
+					return
+				}
+				do {
+					try playAnimation(
+						named: animationName,
+						in: self.node,
+						repeat: false,
+						completionHandler: finish
+					)
+				} catch {
+					finish()
+				}
+			}
+			return
+		}
+
+		removeDefaultAnimationActions(in: node)
+		face(node, toward: carBodyNode(for: car).presentation.worldPosition)
+		DispatchQueue.main.async {
+			setCarDoorOpen(car, doorId: seatId, percentage: 100, duration: 0.2)
+			let finish: @Sendable () -> Void = {
+				self.scene.humanVehicleOwners[ObjectIdentifier(self.node)] = car
+				self.placeHuman(self.node, inCar: car, seatId: seatId)
+				self.playNpcVehiclePassengerAnimation(in: self.node)
+				setCarDoorOpen(car, doorId: seatId, percentage: 0, duration: 0.2)
+				self.next()
+			}
+			guard let animationName = self.npcVehicleEnterAnimationName(seatId: seatId) else {
+				finish()
+				return
+			}
+			do {
+				try playAnimation(
+					named: animationName,
+					in: self.node,
+					repeat: false,
+					completionHandler: finish
+				)
+			} catch {
+				finish()
+			}
+		}
 	}
 
 	private func enemy_talk(_ args: [Argument]) {
@@ -1003,15 +1148,15 @@ extension Script {
 			next()
 			return
 		}
-		let node1 = liveDistanceNode(for: actor1)
-		let node2 = liveDistanceNode(for: actor2)
+		let node1 = liveDistanceNode(forActorId: actor1Id, actor: actor1)
+		let node2 = liveDistanceNode(forActorId: actor2Id, actor: actor2)
 		let distance = node1.distance(to: node2)
 		vars[varId] = distance
 		variableValueTypes[varId] = .number
 		print(
 			"== Script getactorsdist: script=\(name), " +
-			"actor1=\(actor1Id):\(actor1.name ?? "<unnamed>")->\(node1.name ?? "<unnamed>"), " +
-			"actor2=\(actor2Id):\(actor2.name ?? "<unnamed>")->\(node2.name ?? "<unnamed>"), " +
+			"actor1=\(actor1Id):\(actor1.name ?? "<unnamed>")->\(node1.name ?? "<unnamed>") path=\(node1.debugNodePath) pos=\(formatVector(node1.presentation.worldPosition)), " +
+			"actor2=\(actor2Id):\(actor2.name ?? "<unnamed>")->\(node2.name ?? "<unnamed>") path=\(node2.debugNodePath) pos=\(formatVector(node2.presentation.worldPosition)), " +
 			"varId=\(varId), value=\(String(format: "%.2f", distance))"
 		)
 		next()
@@ -1354,6 +1499,14 @@ extension Script {
 			vars[varId] = 1
 		} else {
 			vars[varId] = 0
+		}
+		next()
+	}
+
+	private func human_looktoactor(_ args: [Argument]) {
+		if let actor = actors[1] {
+			let targetNode = liveDistanceNode(forActorId: 1, actor: actor)
+			face(node, toward: targetNode.presentation.worldPosition)
 		}
 		next()
 	}
@@ -2428,6 +2581,34 @@ extension Script {
 		)
 	}
 
+	private func npcVehicleEnterAnimationName(seatId: Int) -> String? {
+		return npcVehicleAnimationName(prefix: "Nas", seatId: seatId)
+	}
+
+	private func npcVehicleExitAnimationName(seatId: Int) -> String? {
+		return npcVehicleAnimationName(prefix: "Vys", seatId: seatId)
+	}
+
+	private func npcVehicleAnimationName(prefix: String, seatId: Int) -> String? {
+		let suffix: String
+		switch seatId {
+		case 0:
+			suffix = "FL"
+		case 1:
+			suffix = "FR"
+		case 2:
+			suffix = "BL"
+		case 3:
+			suffix = "BR"
+		default:
+			suffix = "FR"
+		}
+		return firstExistingAnimation(named: [
+			"anims/AutoSm\(prefix) \(suffix).5ds",
+			"anims/AutoBig\(prefix) \(suffix).5ds"
+		])
+	}
+
 	private func carBodyNode(for car: SCNNode) -> SCNNode {
 		if let body = car.mafiaChildNode(named: "BODY", recursively: false) {
 			return body
@@ -2438,8 +2619,50 @@ extension Script {
 		return car
 	}
 
-	private func liveDistanceNode(for actor: SCNNode) -> SCNNode {
+	private func placeHumanOutsideCar(_ actor: SCNNode, car: SCNNode, seatId: Int) {
+		let body = carBodyNode(for: car)
+		let bodyPosition = body.presentation.worldPosition
+		let bodyRight = body.presentation.worldRight.normalized
+		let bodyForward = body.presentation.worldFront.normalized
+		let isLeftSeat = seatId == 0 || seatId == 2
+		let isFrontSeat = seatId == 0 || seatId == 1
+		let side = bodyRight * (isLeftSeat ? -1 : 1)
+		let longitudinal = bodyForward * (isFrontSeat ? 0.35 : -0.35)
+		let exitPosition = bodyPosition + side * 1.35 + longitudinal
+		let yaw = atan2(-bodyForward.x, -bodyForward.z)
+
+		removePhysicsBodies(from: actor)
+		scene.rootNode.addChildNode(actor)
+		actor.worldPosition = SCNVector3(x: exitPosition.x, y: bodyPosition.y, z: exitPosition.z)
+		actor.eulerAngles = SCNVector3(x: 0, y: yaw, z: 0)
+		actor.setHiddenInHierarchy(false)
+	}
+
+	private func liveDistanceNode(forActorId actorId: Int, actor: SCNNode) -> SCNNode {
+		if isPlayerActor(actorId), scene.game.mode == .car, let vehicle = scene.game.vehicle {
+			return vehicle.node
+		}
+		if let owner = ownerNode(forActorId: actorId) {
+			return carBodyNode(for: owner)
+		}
 		return actor.liveTransformNode ?? actor
+	}
+
+	private func formatVector(_ vector: SCNVector3) -> String {
+		return String(format: "(%.1f,%.1f,%.1f)", Double(vector.x), Double(vector.y), Double(vector.z))
+	}
+
+	private func face(_ node: SCNNode, toward targetPosition: SCNVector3) {
+		let position = node.presentation.worldPosition
+		let dx = targetPosition.x - position.x
+		let dz = targetPosition.z - position.z
+		guard abs(dx) > 0.001 || abs(dz) > 0.001 else { return }
+
+		let worldYaw = atan2(-dx, -dz)
+		let worldForward = SCNVector3(x: -sin(worldYaw), y: 0, z: -cos(worldYaw))
+		let localForward = node.parent?.presentation.convertVector(worldForward, from: nil) ?? worldForward
+		let localYaw = atan2(-localForward.x, -localForward.z)
+		node.eulerAngles = SCNVector3(x: 0, y: localYaw, z: 0)
 	}
 
 	private func removePhysicsBodies(from node: SCNNode) {

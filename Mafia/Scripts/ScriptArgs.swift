@@ -128,6 +128,9 @@ extension Script {
 		case "car_lock_all":			return getArgs_car_lock_all(scanner)
 		case "car_muststeal":			return getArgs_car_muststeal(scanner)
 		case "car_repair":				return getArgs_car_repair(scanner)
+		case "car_disable_uo":			return getArgs_car_disable_uo(scanner)
+		case "car_setdestroymotor":		return getArgs_car_setdestroymotor(scanner)
+		case "car_setdooropen":			return getArgs_car_setdooropen(scanner)
 		case "car_setactlevel":			return getArgs_car_setactlevel(scanner)
 		case "car_setspeed":			return getArgs_car_setspeed(scanner)
 		case "change_mission":			return getArgs_change_mission(scanner)
@@ -155,8 +158,16 @@ extension Script {
 		case "door_lock":				return getArgs_door_lock(scanner)
 		case "door_open":				return getArgs_door_open(scanner)
 		case "endofmission":			return getArgs_endofmission(scanner)
+		case "enemy_look":				return getArgs_enemy_look(scanner)
+		case "enemy_lookto":			return getArgs_enemy_look(scanner)
+		case "enemy_move":				return getArgs_enemy_move(scanner)
+		case "enemy_move_to_car":		return getArgs_enemy_move_to_car(scanner)
 		case "enemy_playanim":			return getArgs_enemy_playanim(scanner)
+		case "enemy_shut_up":			return []
+		case "enemy_stopanim":			return []
 		case "enemy_talk":				return getArgs_enemy_talk(scanner)
+		case "enemy_usecar":			return getArgs_enemy_usecar(scanner)
+		case "enemy_vidim":				return []
 		case "enemy_wait":				return []
 		case "event_use_cb":			return getArgs_event_use_cb(scanner)
 		case "findactor":				return getArgs_findactor(scanner)
@@ -204,6 +215,7 @@ extension Script {
 		case "human_getproperty":		return getArgs_human_getproperty(scanner)
 		case "human_holster":			return getArgs_human_holster(scanner)
 		case "human_isweapon":			return getArgs_human_isweapon(scanner)
+		case "human_looktoactor":		return []
 		case "human_setproperty":		return getArgs_human_setproperty(scanner)
 		case "human_talk":				return getArgs_human_talk(scanner)
 		case "if":						return getArgs_if(scanner)
@@ -304,6 +316,18 @@ extension Script {
 
 	private func getArgs_car_enableus(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_car_disable_uo(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_car_setdestroymotor(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_car_setdooropen(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_car_breakmotor(_ scanner: Scanner) -> [Argument] {
@@ -462,6 +486,30 @@ extension Script {
 	private func getArgs_enemy_playanim(_ scanner: Scanner) -> [Argument] {
 		guard let animName = scanString(scanner) else { scriptArgumentFatalError("Expected animation name") }
 		return [.string(animName)]
+	}
+
+	private func getArgs_enemy_look(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_enemy_move(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner)]
+		if let movementMode = scanParamOptional(scanner) {
+			args.append(.label(movementMode))
+		}
+		return args
+	}
+
+	private func getArgs_enemy_move_to_car(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+		if let movementMode = scanParamOptional(scanner) {
+			args.append(.label(movementMode))
+		}
+		return args
+	}
+
+	private func getArgs_enemy_usecar(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_enemy_talk(_ scanner: Scanner) -> [Argument] {
