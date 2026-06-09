@@ -93,7 +93,6 @@ final class Collisions {
 	private let nodeLookup: SceneNodeLookup
 	private let vehicleRaycastGroundThickness: SCNFloat = 0.08
 	private let vehicleRaycastGroundMargin: SCNFloat = 0.8
-	private let collisionFaceMaxEdgeLength: Float = 35
 	//var names: [(Int, String)] = []
 	var nodes: [Int: SCNNode] = [:]
 
@@ -262,8 +261,9 @@ final class Collisions {
 		for _ in 0 ..< numFaces {
 			try autoreleasepool {
 				let face = try Triangle(stream: stream)
-				if let vertices = face.getWorldVertices(treeKlz: self) {
-					if isUsableCollisionFace(vertices) {
+				if let faceData = face.getWorldVerticesWithLinkIds(treeKlz: self) {
+					let vertices = faceData.vertices
+					if isUsableCollisionFace(vertices, linkIds: faceData.linkIds) {
 						faceVertices.append(contentsOf: vertices)
 					}
 					if let patch = vehicleRaycastGroundPatch(for: vertices) {
@@ -456,7 +456,7 @@ final class Collisions {
 		return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
 	}
 
-	private func isUsableCollisionFace(_ vertices: [SCNVector3]) -> Bool {
+	private func isUsableCollisionFace(_ vertices: [SCNVector3], linkIds: [UInt16]) -> Bool {
 		guard vertices.count == 3 else { return false }
 
 		let firstVector = vertices[1] - vertices[0]
@@ -466,10 +466,7 @@ final class Collisions {
 			return true
 		}
 
-		let firstEdge = (vertices[1] - vertices[0]).length
-		let secondEdge = (vertices[2] - vertices[1]).length
-		let thirdEdge = (vertices[0] - vertices[2]).length
-		return max(firstEdge, secondEdge, thirdEdge) <= collisionFaceMaxEdgeLength
+		return Set(linkIds).count == 1
 	}
 
 	private func vehicleRaycastGroundDebugMaterial() -> SCNMaterial {

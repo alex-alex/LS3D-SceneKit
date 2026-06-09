@@ -61,13 +61,19 @@ struct Triangle {
 	}
 
 	func getWorldVertices(treeKlz: Collisions) -> [SCNVector3]? {
+		return getWorldVerticesWithLinkIds(treeKlz: treeKlz)?.vertices
+	}
+
+	func getWorldVerticesWithLinkIds(treeKlz: Collisions) -> (vertices: [SCNVector3], linkIds: [UInt16])? {
 		var worldVertices: [SCNVector3] = []
+		var linkIds: [UInt16] = []
 		for vertex in vertices {
 			guard let localVertex = localVertex(for: vertex, treeKlz: treeKlz) else { continue }
 			worldVertices.append(localVertex.node.convertPosition(localVertex.position, to: nil))
+			linkIds.append(vertex.linkIndex)
 		}
 
-		return worldVertices.count == 3 ? worldVertices : nil
+		return worldVertices.count == 3 ? (worldVertices, linkIds) : nil
 	}
 
 	private func localVertex(for vertex: VertexLink, treeKlz: Collisions) -> (node: SCNNode, position: SCNVector3)? {
