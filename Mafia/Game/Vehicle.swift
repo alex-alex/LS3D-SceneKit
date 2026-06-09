@@ -523,7 +523,7 @@ func setCarDoorOpen(_ car: SCNNode, doorId: Int, percentage: Float, duration: Ti
 	let closedAngles = vehicleDoorStateStore.closedAngles(for: door)
 
 	let clampedPercentage = max(0, min(100, percentage))
-	let sideMultiplier: SCNFloat = doorId == 0 || doorId == 2 ? 1 : -1
+	let sideMultiplier: SCNFloat = doorId == 0 || doorId == 2 ? -1 : 1
 	let openAngle = sideMultiplier * SCNFloat.pi * 0.42 * SCNFloat(clampedPercentage / 100)
 	let targetAngles = SCNVector3(
 		x: closedAngles.x,
