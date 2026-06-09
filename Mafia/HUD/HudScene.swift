@@ -1073,10 +1073,14 @@ extension HudScene {
 	private func moveMissionEndSelection(by offset: Int) {
 		guard !missionEndOptionLabels.isEmpty else { return }
 
-		selectedMissionEndOptionIndex = max(
+		let nextIndex = max(
 			0,
 			min(missionEndOptionLabels.count - 1, selectedMissionEndOptionIndex + offset)
 		)
+		guard nextIndex != selectedMissionEndOptionIndex else { return }
+
+		selectedMissionEndOptionIndex = nextIndex
+		game.playInGameMenuChangeSound()
 		refreshMissionEndSelection()
 	}
 
@@ -1471,7 +1475,7 @@ extension HudScene {
 		guard inventoryOverlay.isHidden == false else { return false }
 
 		let overlayPoint = convert(point, to: inventoryOverlay)
-		for row in inventoryRows where row.node.frame.contains(overlayPoint) {
+		for (index, row) in inventoryRows.enumerated() where row.node.frame.contains(overlayPoint) {
 			if let weapon = row.weapon,
 			   let dropButton = row.dropButton {
 				let rowPoint = row.node.convert(overlayPoint, from: inventoryOverlay)
@@ -1482,6 +1486,11 @@ extension HudScene {
 				}
 			}
 
+			if selectedInventoryRowIndex != index {
+				game.playInGameMenuChangeSound()
+			}
+			selectedInventoryRowIndex = index
+			refreshInventorySelection()
 			game.equipPlayerWeapon(row.weapon)
 			setInventoryVisible(false)
 			return true
@@ -1615,7 +1624,11 @@ extension HudScene {
 	private func moveInventorySelection(by offset: Int) {
 		guard !inventoryRows.isEmpty else { return }
 
-		selectedInventoryRowIndex = max(0, min(inventoryRows.count - 1, selectedInventoryRowIndex + offset))
+		let nextIndex = max(0, min(inventoryRows.count - 1, selectedInventoryRowIndex + offset))
+		guard nextIndex != selectedInventoryRowIndex else { return }
+
+		selectedInventoryRowIndex = nextIndex
+		game.playInGameMenuChangeSound()
 		scrollSelectedInventoryRowIntoView()
 		refreshInventorySelection()
 		layoutInventoryRows()
@@ -1791,6 +1804,9 @@ extension HudScene {
 		guard game.isGamePaused, pauseOverlay.isHidden == false else { return false }
 
 		for (index, frame) in pauseOptionFrames.enumerated() where frame.contains(point) {
+			if selectedPauseOptionIndex != index {
+				game.playInGameMenuChangeSound()
+			}
 			selectedPauseOptionIndex = index
 			refreshPauseSelection()
 			activateSelectedPauseOption()
@@ -1803,10 +1819,14 @@ extension HudScene {
 	private func movePauseSelection(by offset: Int) {
 		guard !pauseOptionLabels.isEmpty else { return }
 
-		selectedPauseOptionIndex = max(
+		let nextIndex = max(
 			0,
 			min(pauseOptionLabels.count - 1, selectedPauseOptionIndex + offset)
 		)
+		guard nextIndex != selectedPauseOptionIndex else { return }
+
+		selectedPauseOptionIndex = nextIndex
+		game.playInGameMenuChangeSound()
 		refreshPauseSelection()
 	}
 
@@ -2075,6 +2095,11 @@ extension HudScene {
 		guard isMissionEndVisible else { return false }
 
 		for (index, frame) in missionEndOptionFrames.enumerated() where frame.contains(point) {
+			if selectedMissionEndOptionIndex != index {
+				game.playInGameMenuChangeSound()
+			}
+			selectedMissionEndOptionIndex = index
+			refreshMissionEndSelection()
 			game.activateMissionEndOption(at: index)
 			return true
 		}

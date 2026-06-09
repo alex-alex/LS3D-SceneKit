@@ -146,6 +146,8 @@ final class Game: NSObject, @unchecked Sendable {
 	private let batMaxImpulse: SCNFloat = 18
 	private var batSwingAnimationIndex = 0
 	private var weaponAudioSources: [String: SCNAudioSource] = [:]
+	private var pauseMenuOpenSoundSource: SCNAudioSource?
+	private var pauseMenuChangeSoundSource: SCNAudioSource?
 	private var heldWeaponNode: SCNNode?
 	private var heldWeaponUUID: NSUUID?
 	private let heldWeaponNodeNamePrefix = "__held_weapon_"
@@ -211,6 +213,8 @@ final class Game: NSObject, @unchecked Sendable {
 		progressHandler?(0.45)
 
 		super.init()
+
+		preloadMenuSounds()
 
 		scene.game = self
 		scene.rootNode.name = "__scene__"
@@ -1379,12 +1383,30 @@ final class Game: NSObject, @unchecked Sendable {
 		onLoadGameRequested?()
 	}
 
-	private func playPauseMenuOpenSound() {
-		let url = mainDirectory.appendingPathComponent("sounds/menuopen.wav")
-		guard let source = SCNAudioSource(url: url) else { return }
+	private func preloadMenuSounds() {
+		pauseMenuOpenSoundSource = loadMenuSound(named: "menuopen.wav")
+		pauseMenuChangeSoundSource = loadMenuSound(named: "menuchange.wav")
+	}
+
+	private func loadMenuSound(named fileName: String) -> SCNAudioSource? {
+		let url = mainDirectory.appendingPathComponent("sounds/\(fileName)")
+		guard let source = SCNAudioSource(url: url) else { return nil }
 		source.isPositional = false
 		source.load()
+		return source
+	}
 
+	private func playPauseMenuOpenSound() {
+		guard let source = pauseMenuOpenSoundSource else { return }
+		playPauseMenuSound(source)
+	}
+
+	func playInGameMenuChangeSound() {
+		guard let source = pauseMenuChangeSoundSource else { return }
+		playPauseMenuSound(source)
+	}
+
+	private func playPauseMenuSound(_ source: SCNAudioSource) {
 		let player = SCNAudioPlayer(source: source)
 		player.didFinishPlayback = { [weak self, weak player] in
 			DispatchQueue.main.async {
@@ -1497,12 +1519,7 @@ private extension SCNNode {
 		if followsCamera {
 			return true
 		}
-		if isSkyboxResourceName(name) {
-			return true
-		}
-		return geometry?.materials.contains { material in
-			isSkyboxResourceName(material.name)
-		} ?? false
+		return isSkyboxResourceName(name)
 	}
 
 	func containsWorldPosition(_ position: SCNVector3) -> Bool {

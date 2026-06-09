@@ -22,6 +22,7 @@ class MainMenu {
 	private let loadGameControls: [MenuDefControl]
 	private let entries: [MainMenuEntry]
 	private weak var menuScene: MainMenuScene?
+	private var menuOpenSoundSource: SCNAudioSource?
 	private var menuChangeSoundSource: SCNAudioSource?
 
 	init(gameManager: GameManager) throws {
@@ -68,6 +69,8 @@ class MainMenu {
 		if let startAnchor = menuAnchor(named: "camera_start") ?? entries.first.flatMap({ menuAnchor(named: $0.anchorName) }) {
 			cameraRig.transform = startAnchor.presentation.worldTransform
 		}
+
+		preloadMenuSounds()
 	}
 
 	private static func visibleControls(in controls: [MenuDefControl]) -> [MenuDefControl] {
@@ -149,6 +152,7 @@ class MainMenu {
 			self?.activateEntry(at: index)
 		}
 		menuScene.onSaveGameActivated = { [weak self] saveGame in
+			self?.playMenuOpenSound()
 			self?.stopMenuScripts()
 			self?.gameManager?.loadSaveGame(saveGame)
 		}
@@ -167,16 +171,26 @@ class MainMenu {
 		moveCamera(to: anchor, animated: animated)
 	}
 
-	private func playMenuChangeSound() {
-		if menuChangeSoundSource == nil {
-			let url = mainDirectory.appendingPathComponent("sounds/menuchange.wav")
-			guard let source = SCNAudioSource(url: url) else { return }
-			source.isPositional = false
-			source.load()
-			menuChangeSoundSource = source
-		}
+	private func preloadMenuSounds() {
+		menuOpenSoundSource = loadMenuSound(named: "menuopen.wav")
+		menuChangeSoundSource = loadMenuSound(named: "menuchange.wav")
+	}
 
+	private func loadMenuSound(named fileName: String) -> SCNAudioSource? {
+		let url = mainDirectory.appendingPathComponent("sounds/\(fileName)")
+		guard let source = SCNAudioSource(url: url) else { return nil }
+		source.isPositional = false
+		source.load()
+		return source
+	}
+
+	private func playMenuChangeSound() {
 		guard let source = menuChangeSoundSource else { return }
+		scene.playAudio(source, on: scene.rootNode)
+	}
+
+	private func playMenuOpenSound() {
+		guard let source = menuOpenSoundSource else { return }
 		scene.playAudio(source, on: scene.rootNode)
 	}
 
@@ -186,6 +200,8 @@ class MainMenu {
 
 	@MainActor private func activateEntry(at index: Int) {
 		guard entries.indices.contains(index) else { return }
+
+		playMenuOpenSound()
 
 		switch entries[index].action {
 		case .mission(let folder, let imageName):
