@@ -130,6 +130,7 @@ extension Script {
 		case "car_repair":				return getArgs_car_repair(scanner)
 		case "car_setactlevel":			return getArgs_car_setactlevel(scanner)
 		case "car_setspeed":			return getArgs_car_setspeed(scanner)
+		case "change_mission":			return getArgs_change_mission(scanner)
 		case "cleardifferences":		return []
 		case "commandblock":			return getArgs_commandblock(scanner)
 		case "compareactors":			return getArgs_compareactors(scanner)
@@ -351,6 +352,12 @@ extension Script {
 
 	private func getArgs_car_setspeed(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(0)]
+	}
+
+	private func getArgs_change_mission(_ scanner: Scanner) -> [Argument] {
+		let folder = scanString(scanner) ?? scanParam(scanner)
+		let frameName = scanString(scanner) ?? scanParam(scanner)
+		return [.string(folder), .string(frameName), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_commandblock(_ scanner: Scanner) -> [Argument] {
@@ -1019,7 +1026,7 @@ extension Script {
 		guard scanner.scanString("\"", into: nil) || scanner.isAtEnd else { scriptArgumentFatalError("Expected closing quote") }
 		let separator = CharacterSet(charactersIn: ",").union(.whitespaces)
 		scanner.scanCharacters(from: separator, into: nil)
-		return (str as String?)
+		return (str as String?) ?? ""
 	}
 
 	private func scanVar(_ scanner: Scanner) -> Int? {

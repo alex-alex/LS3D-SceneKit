@@ -54,6 +54,7 @@ extension Script {
 		case .carRepair:				car_repair(command.args)
 		case .carSetactlevel:			car_setactlevel(command.args)
 		case .carSetspeed:				car_setspeed(command.args)
+		case .changeMission:			change_mission(command.args)
 		case .cleardifferences:			cleardifferences(command.args)
 		case .commandblock:				commandblock(command.args)
 		case .compareactors:			compareactors(command.args)
@@ -427,12 +428,29 @@ extension Script {
 	private func car_setspeed(_ args: [Argument]) {
 		let carId = args[0].getValueOrVarValue(vars: vars)
 		let speed = args[1].getValueOrVarValueFloat(vars: vars)
+		if let car = node(forScriptId: carId) {
+			let metersPerSecond = SCNFloat(speed / 3.6)
+			let velocity = car.presentation.worldFront.normalized * metersPerSecond
+			let physicsBody = car.mafiaChildNode(named: "BODY", recursively: false)?.physicsBody ?? car.physicsBody
+			physicsBody?.velocity = velocity
+			if speed == 0 {
+				physicsBody?.angularVelocity = SCNVector4Zero
+			}
+		}
 		if speed == 0, playerOwnerMatches(carId: carId) {
 			scene.game.vehicle?.updateControls(throttle: 0, brake: true, steering: 0)
-			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
-			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
 		}
 		next()
+	}
+
+	private func change_mission(_ args: [Argument]) {
+		let folder = args[0].getString()
+		let frameName = args[1].getString()
+		let speed = args[2].getValueOrVarValueFloat(vars: vars)
+		DispatchQueue.main.async {
+			self.scene.game.changeMission(folder: folder, frameName: frameName, speed: speed)
+		}
+		end(args)
 	}
 
 	private func cleardifferences(_ args: [Argument]) {

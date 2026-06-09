@@ -25,6 +25,7 @@ final class Game: NSObject, @unchecked Sendable {
 	var onMissionEnded: (@Sendable () -> Void)?
 	var onMissionRestarted: (@Sendable () -> Void)?
 	var onLoadGameRequested: (@Sendable () -> Void)?
+	var onMissionChangeRequested: (@Sendable (_ folder: String, _ frameName: String, _ speed: CGFloat?) -> Void)?
 
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
@@ -176,9 +177,18 @@ final class Game: NSObject, @unchecked Sendable {
 	private var environmentSectorNodes: [String: SCNNode] = [:]
 	private var missingEnvironmentSectorNames = Set<String>()
 	private let isMenuMission: Bool
+	private let transitionFrameName: String?
+	private let transitionVehicleSpeed: CGFloat?
 
-	init(missionName: String, progressHandler: ((CGFloat) -> Void)? = nil) throws {
+	init(
+		missionName: String,
+		transitionFrameName: String? = nil,
+		transitionVehicleSpeed: CGFloat? = nil,
+		progressHandler: ((CGFloat) -> Void)? = nil
+	) throws {
 		isMenuMission = missionName.lowercased() == "00menu"
+		self.transitionFrameName = transitionFrameName
+		self.transitionVehicleSpeed = transitionVehicleSpeed
 		progressHandler?(0.05)
 		scnScene.rootNode.name = "__root__"
 		ambientLightNode.name = "__ambient_environment__"
@@ -288,6 +298,7 @@ final class Game: NSObject, @unchecked Sendable {
 		// -----
 
 		vehicle = findVehicle()
+		applyMissionTransition()
 
 		// -----
 
@@ -363,6 +374,35 @@ final class Game: NSObject, @unchecked Sendable {
 			guard node.type == .car && node.hasModelContent else { return nil }
 			return Vehicle(scene: scnScene, node: node)
 		}
+	}
+
+	private func applyMissionTransition() {
+		let trimmedFrameName = transitionFrameName?.trimmingCharacters(in: .whitespacesAndNewlines)
+		let placementNode = trimmedFrameName.flatMap { frameName -> SCNNode? in
+			guard !frameName.isEmpty else { return nil }
+			return scene.node(named: frameName) ?? scnScene.rootNode.mafiaChildNode(named: frameName, recursively: true)
+		}
+
+		if let speed = transitionVehicleSpeed, let vehicle = vehicle {
+			if let placementNode = placementNode {
+				let transform = placementNode.presentation.worldTransform
+				vehicle.node.transform = vehicle.node.parent?.convertTransform(transform, from: nil) ?? transform
+			}
+			mode = .car
+			syncPlayerToVehicle()
+			setVehicleSpeed(vehicle, kilometersPerHour: speed)
+		} else if let placementNode = placementNode, let playerNode = scene.playerNode {
+			let transform = placementNode.presentation.worldTransform
+			playerNode.transform = playerNode.parent?.convertTransform(transform, from: nil) ?? transform
+		}
+	}
+
+	private func setVehicleSpeed(_ vehicle: Vehicle, kilometersPerHour speed: CGFloat) {
+		let metersPerSecond = SCNFloat(speed / 3.6)
+		let forward = vehicle.node.presentation.worldFront.normalized
+		let velocity = forward * metersPerSecond
+		let chassisBody = vehicle.node.mafiaChildNode(named: "BODY", recursively: false)?.physicsBody
+		(chassisBody ?? vehicle.node.physicsBody)?.velocity = velocity
 	}
 
 	private func configureCamera(for mode: Mode) {
@@ -1097,6 +1137,7 @@ final class Game: NSObject, @unchecked Sendable {
 		onMissionEnded = nil
 		onMissionRestarted = nil
 		onLoadGameRequested = nil
+		onMissionChangeRequested = nil
 		didEndMission = true
 		isGamePaused = true
 		scnScene.isPaused = true
@@ -1239,6 +1280,21 @@ final class Game: NSObject, @unchecked Sendable {
 			DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
 				self?.onMissionEnded?()
 			}
+		}
+	}
+
+	func changeMission(folder: String, frameName: String, speed: Float) {
+		guard !didEndMission else { return }
+		didEndMission = true
+		let transitionSpeed: CGFloat?
+		if mode == .car {
+			transitionSpeed = speed < 0 ? vehicle?.speed : CGFloat(speed)
+		} else {
+			transitionSpeed = nil
+		}
+		scene.setScriptsPaused(true)
+		DispatchQueue.main.async {
+			self.onMissionChangeRequested?(folder, frameName, transitionSpeed)
 		}
 	}
 

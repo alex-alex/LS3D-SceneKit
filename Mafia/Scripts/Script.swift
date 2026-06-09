@@ -103,6 +103,7 @@ enum ScriptCommandName: String {
 	case carRepair = "car_repair"
 	case carSetactlevel = "car_setactlevel"
 	case carSetspeed = "car_setspeed"
+	case changeMission = "change_mission"
 	case cleardifferences
 	case commandblock
 	case compareactors

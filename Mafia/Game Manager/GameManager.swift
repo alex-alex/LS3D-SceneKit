@@ -129,7 +129,13 @@ class GameManager: @unchecked Sendable {
 		}
 	}
 
-	func loadMission(textId: Int, imageName: String, folder: String) {
+	func loadMission(
+		textId: Int,
+		imageName: String,
+		folder: String,
+		transitionFrameName: String? = nil,
+		transitionVehicleSpeed: CGFloat? = nil
+	) {
 		let title = TextDb.get(textId) ?? "<none>"
 		print("== Loading Mission: folder=\(folder), textId=\(textId), title=\"\(title)\", image=\(imageName)")
 		releaseCurrentGame()
@@ -140,7 +146,11 @@ class GameManager: @unchecked Sendable {
 		view.overlaySKScene = loadingScene
 		DispatchQueue.global().async {
 			do {
-				let game = try Game(missionName: folder) { progress in
+				let game = try Game(
+					missionName: folder,
+					transitionFrameName: transitionFrameName,
+					transitionVehicleSpeed: transitionVehicleSpeed
+				) { progress in
 					Task { @MainActor in
 						loadingScene.setProgress(progress)
 					}
@@ -158,6 +168,17 @@ class GameManager: @unchecked Sendable {
 				game.onLoadGameRequested = { [weak self] in
 					Task { @MainActor in
 						self?.loadSaveGameSelector()
+					}
+				}
+				game.onMissionChangeRequested = { [weak self] folder, frameName, speed in
+					Task { @MainActor in
+						self?.loadMission(
+							textId: MissionLoadInfo.textId(for: folder),
+							imageName: MissionLoadInfo.imageName(for: folder),
+							folder: folder,
+							transitionFrameName: frameName,
+							transitionVehicleSpeed: speed
+						)
 					}
 				}
 				Task { @MainActor in
