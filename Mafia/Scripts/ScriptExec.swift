@@ -951,7 +951,7 @@ extension Script {
 		}
 
 		let soundId = soundIdArgument.scriptTalkSoundId(vars: vars)
-		guard let url = mafiaResourceURL(directory: "sounds", name: "\(soundId).wav"),
+		guard let url = scriptTalkSoundURL(soundId: soundId),
 			  let source = SCNAudioSource(url: url) else {
 			pendingEnemyTalk = nil
 			next()
@@ -970,6 +970,14 @@ extension Script {
 			}
 		}
 		next()
+	}
+
+	private func scriptTalkSoundURL(soundId: String) -> URL? {
+		if let url = mafiaResourceURL(directory: "sounds", name: "\(soundId).wav") {
+			return url
+		}
+		guard let numericSoundId = Int(soundId) else { return nil }
+		return mafiaResourceURL(directory: "sounds", name: String(format: "%08d.wav", numericSoundId))
 	}
 
 	private func enemy_wait(_ args: [Argument]) {
@@ -1551,9 +1559,9 @@ extension Script {
 
 	private func human_talk(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
-		let soundId = args[1].getString()
+		let soundId = args[1].scriptTalkSoundId(vars: vars)
 
-		if let url = mafiaResourceURL(directory: "sounds", name: "\(soundId).wav"),
+		if let url = scriptTalkSoundURL(soundId: soundId),
 		   let source = SCNAudioSource(url: url) {
 			source.isPositional = false
 			source.load()
