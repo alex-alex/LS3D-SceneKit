@@ -268,6 +268,11 @@ final class ScriptSoundPlayback: @unchecked Sendable {
 	}
 }
 
+enum ScriptVariableValueType {
+	case number
+	case boolean
+}
+
 struct ScriptCommand {
 	let name: ScriptCommandName
 	let rawName: String
@@ -322,6 +327,7 @@ final class Script: @unchecked Sendable {
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
 	var vars: [Int: Float] = [:]
+	var variableValueTypes: [Int: ScriptVariableValueType] = [:]
 	var carActLevels: [Int: Float] = [:]
 	var soundPlaybacks: [Int: ScriptSoundPlayback] = [:]
 	var nextSoundPlaybackId = 1
@@ -404,6 +410,7 @@ final class Script: @unchecked Sendable {
 			self.isWaitingForCommandBlockAsyncOperations = false
 			self.waitGeneration += 1
 			self.isWaitingForScriptWait = false
+			self.variableValueTypes.removeAll()
 			self.mainInEvent = false
 			self.currentEventId = nil
 			self.lineBeforeEvent = 0

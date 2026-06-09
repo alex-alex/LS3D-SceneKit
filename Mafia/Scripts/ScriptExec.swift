@@ -600,6 +600,7 @@ extension Script {
 		} else {
 			vars[varId] = 0
 		}
+		variableValueTypes[varId] = .boolean
 		next()
 	}
 
@@ -643,23 +644,17 @@ extension Script {
 	}
 
 	private func dim_act(_ args: [Argument]) {
-		let count = max(0, args[0].getValueOrVarValue(vars: vars))
-		actors.reserveCapacity(count)
+		_ = args[0].getValueOrVarValue(vars: vars)
 		next()
 	}
 
 	private func dim_flt(_ args: [Argument]) {
-		let count = max(0, args[0].getValueOrVarValue(vars: vars))
-		vars.reserveCapacity(count)
-		for varId in 0..<count where vars[varId] == nil {
-			vars[varId] = 0
-		}
+		_ = args[0].getValueOrVarValue(vars: vars)
 		next()
 	}
 
 	private func dim_frm(_ args: [Argument]) {
-		let count = max(0, args[0].getValueOrVarValue(vars: vars))
-		frames.reserveCapacity(count)
+		_ = args[0].getValueOrVarValue(vars: vars)
 		next()
 	}
 
@@ -994,6 +989,7 @@ extension Script {
 		let node2 = liveDistanceNode(for: actor2)
 		let distance = node1.distance(to: node2)
 		vars[varId] = distance
+		variableValueTypes[varId] = .number
 		print(
 			"== Script getactorsdist: script=\(name), " +
 			"actor1=\(actor1Id):\(actor1.name ?? "<unnamed>")->\(node1.name ?? "<unnamed>"), " +
@@ -1038,6 +1034,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
+		variableValueTypes[varId] = .number
 		next()
 	}
 
@@ -1045,6 +1042,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		vars[varId] = 0
+		variableValueTypes[varId] = .number
 		next()
 	}
 
@@ -1312,6 +1310,7 @@ extension Script {
 			} else {
 				vars[varId] = 0
 			}
+			variableValueTypes[varId] = .number
 		} else {
 			vars[varId] = 0
 		}
@@ -1400,7 +1399,7 @@ extension Script {
 		} else if opStr == "<" {
 			operation = (<)
 		} else if opStr == ">" {
-			operation = (>=)
+			operation = (>)
 		} else {
 			fatalError()
 		}
@@ -1409,12 +1408,45 @@ extension Script {
 
 		let label1 = args[3].getString()
 		let label2 = args[4].getString()
-		let result = operation(value1, value2)
+		let result = booleanIfResult(
+			valueArgument: args[0],
+			operatorString: opStr,
+			value1: value1,
+			value2: value2
+		) ?? operation(value1, value2)
 
 		if result {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
+		}
+	}
+
+	private func booleanIfResult(
+		valueArgument: Argument,
+		operatorString: String,
+		value1: Float,
+		value2: Float
+	) -> Bool? {
+		guard value1 == 0 || value1 == 1,
+			  case .variable(let varId) = valueArgument,
+			  variableValueTypes[varId] == .boolean else {
+			return nil
+		}
+
+		let left = value1 != 0
+		let right = value2 != 0
+		switch operatorString {
+		case "=":
+			return left == right
+		case "!":
+			return left != right
+		case "<":
+			return !left && right
+		case ">":
+			return left && right
+		default:
+			return nil
 		}
 	}
 
