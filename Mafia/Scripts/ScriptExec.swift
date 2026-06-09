@@ -28,6 +28,7 @@ private extension Argument {
 extension Script {
 
 	private static let loopYieldInterval: DispatchTimeInterval = .milliseconds(16)
+	private static let npcVehiclePassengerAnimationKey = "__npc_vehicle_passenger__"
 
 	func performCommand(command: ScriptCommand) {
 		switch command.name {
@@ -1214,6 +1215,9 @@ extension Script {
 		}
 		scene.humanVehicleOwners[ObjectIdentifier(actor)] = car
 		placeHuman(actor, inCar: car, seatId: seatId)
+		if !isPlayerActor(actorId) {
+			playNpcVehiclePassengerAnimation(in: actor)
+		}
 
 		if isPlayerActor(actorId) {
 			DispatchQueue.main.async {
@@ -2332,6 +2336,17 @@ extension Script {
 		actor.position = seatPosition
 		actor.eulerAngles = SCNVector3Zero
 		actor.setHiddenInHierarchy(false)
+	}
+
+	private func playNpcVehiclePassengerAnimation(in actor: SCNNode) {
+		actor.removeAction(forKey: Self.npcVehiclePassengerAnimationKey)
+		actor.removeAction(forKey: Self.npcVehiclePassengerAnimationKey + ":position")
+		try? playAnimation(
+			named: "anims/AutoSpolStativ.5ds",
+			in: actor,
+			repeat: true,
+			animationKey: Self.npcVehiclePassengerAnimationKey
+		)
 	}
 
 	private func carBodyNode(for car: SCNNode) -> SCNNode {

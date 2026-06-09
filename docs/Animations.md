@@ -286,7 +286,7 @@ The exe animation table includes these related animations:
 ## Current Implementation Notes
 
 - `Game.swift` plays driver-side `FL` enter/exit animation candidates around mode changes, then keeps Tommy visible in the corrected driver seat. It loops `AutoRidicStativ` for neutral driving and switches to `AutoRidicVolant` while the steering wheel is turned.
-- `ScriptExec.swift` has `human_force_settocar`, which places a human in a car seat directly.
+- `ScriptExec.swift` has `human_force_settocar`, which places a human in a car seat directly and loops `AutoSpolStativ` for non-player occupants.
 - `PlayerController.swift` uses the documented movement, crouch, jump/fall/land, idle, turn, and directional locomotion families for supported player movement states.
 - `Game.swift` supports weapon fire/reload animations, `Fire Straf` gun variants, shotgun pump cycling, weapon toggle/drop animations, baseball bat animations, side jump action animations, and player driver enter/exit/sitting animations.
 - Car combat, car death, and throwing people from cars are documented above, but this project does not currently expose gameplay states that invoke those player/NPC animation families.
