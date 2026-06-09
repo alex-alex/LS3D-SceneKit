@@ -131,6 +131,7 @@ final class Vehicle {
 		scriptNode = node
 		self.node = taxiNode
 		self.scene = scene
+		node.liveTransformNode = taxiNode
 
 		Vehicle.attachChassisVisuals(from: node, to: taxiNode)
 		Vehicle.detachChassisForPhysics(

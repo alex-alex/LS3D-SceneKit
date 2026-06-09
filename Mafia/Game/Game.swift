@@ -1706,7 +1706,7 @@ extension Game: SCNSceneRendererDelegate {
 		case .car:
 			return vehicle?.node.presentation.worldPosition ?? scene.playerNode?.presentation.worldPosition
 		case .freeCamera:
-			return cameraNode.presentation.worldPosition
+			return nil
 		}
 	}
 

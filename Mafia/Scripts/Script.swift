@@ -155,6 +155,9 @@ enum ScriptCommandName: String {
 	case getenemyaistate
 	case getframefromactor
 	case getgametime
+	case getPmCrashtime = "get_pm_crashtime"
+	case getPmFiretime = "get_pm_firetime"
+	case getPmHumanstate = "get_pm_humanstate"
 	case getPmState = "get_pm_state"
 	case getRemoteActor = "get_remote_actor"
 	case getRemoteFloat = "get_remote_float"

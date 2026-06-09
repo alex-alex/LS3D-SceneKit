@@ -444,6 +444,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 	let humanEnergy = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let vehicleModelName = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let trafficCarDefinition = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let liveTransformNode = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let recordSourcePosition = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let recordSourceOrientationVector = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 
@@ -456,6 +457,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 		humanEnergy.initialize(to: 0)
 		vehicleModelName.initialize(to: 0)
 		trafficCarDefinition.initialize(to: 0)
+		liveTransformNode.initialize(to: 0)
 		recordSourcePosition.initialize(to: 0)
 		recordSourceOrientationVector.initialize(to: 0)
 	}
@@ -562,6 +564,20 @@ extension SCNNode {
 			} else {
 				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.trafficCarDefinition, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
+		}
+	}
+
+	var liveTransformNode: SCNNode? {
+		get {
+			return objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.liveTransformNode) as? SCNNode
+		}
+		set {
+			objc_setAssociatedObject(
+				self,
+				scnNodeAssociatedObjectKeys.liveTransformNode,
+				newValue,
+				.OBJC_ASSOCIATION_RETAIN
+			)
 		}
 	}
 

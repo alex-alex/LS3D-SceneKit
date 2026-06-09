@@ -105,6 +105,9 @@ extension Script {
 		case .getenemyaistate:			getenemyaistate(command.args)
 		case .getframefromactor:		getframefromactor(command.args)
 		case .getgametime:				getgametime(command.args)
+		case .getPmCrashtime:			get_pm_crashtime(command.args)
+		case .getPmFiretime:			get_pm_firetime(command.args)
+		case .getPmHumanstate:			get_pm_humanstate(command.args)
 		case .getPmState:				get_pm_state(command.args)
 		case .getRemoteActor:			get_remote_actor(command.args)
 		case .getRemoteFloat:			get_remote_float(command.args)
@@ -983,10 +986,20 @@ extension Script {
 		guard let actor1 = actors[actor1Id],
 			  let actor2 = actors[actor2Id] else {
 			vars[varId] = 0
+			print("== Script getactorsdist: script=\(name), actor1Id=\(actor1Id), actor2Id=\(actor2Id), varId=\(varId), missing actor, value=0")
 			next()
 			return
 		}
-		vars[varId] = actor1.distance(to: actor2)
+		let node1 = liveDistanceNode(for: actor1)
+		let node2 = liveDistanceNode(for: actor2)
+		let distance = node1.distance(to: node2)
+		vars[varId] = distance
+		print(
+			"== Script getactorsdist: script=\(name), " +
+			"actor1=\(actor1Id):\(actor1.name ?? "<unnamed>")->\(node1.name ?? "<unnamed>"), " +
+			"actor2=\(actor2Id):\(actor2.name ?? "<unnamed>")->\(node2.name ?? "<unnamed>"), " +
+			"varId=\(varId), value=\(String(format: "%.2f", distance))"
+		)
 		next()
 	}
 
@@ -1010,6 +1023,28 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let elapsed = Date.timeIntervalSinceReferenceDate - scene.game.scriptStartTime
 		vars[varId] = Float(elapsed * 1000)
+		next()
+	}
+
+	private func get_pm_crashtime(_ args: [Argument]) {
+		get_pm_elapsed_time(args, commandName: "get_pm_crashtime")
+	}
+
+	private func get_pm_firetime(_ args: [Argument]) {
+		get_pm_elapsed_time(args, commandName: "get_pm_firetime")
+	}
+
+	private func get_pm_elapsed_time(_ args: [Argument], commandName: String) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = 0
+		next()
+	}
+
+	private func get_pm_humanstate(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = 0
 		next()
 	}
 
@@ -1277,13 +1312,6 @@ extension Script {
 			} else {
 				vars[varId] = 0
 			}
-			if actorId == 0 {
-				let actor = node(forScriptId: actorId)
-				let player = scene.playerNode
-				let actorEnergy = actor?.humanEnergy.map { "\($0)" } ?? "<nil>"
-				let playerEnergy = player?.humanEnergy.map { "\($0)" } ?? "<nil>"
-				print("== Script human_getproperty Energy: script=\(self.name), actorId=\(actorId), varId=\(varId), value=\(vars[varId] ?? -1), actor=\(actor?.name ?? "<nil>"), isPlayer=\(actor === player), actorEnergy=\(actorEnergy), player=\(player?.name ?? "<nil>"), playerEnergy=\(playerEnergy), playerHealth=\(scene.game.playerHealth)")
-			}
 		} else {
 			vars[varId] = 0
 		}
@@ -1381,8 +1409,9 @@ extension Script {
 
 		let label1 = args[3].getString()
 		let label2 = args[4].getString()
+		let result = operation(value1, value2)
 
-		if operation(value1, value2) {
+		if result {
 			goto(label: label1)
 		} else {
 			goto(label: label2)
@@ -2353,11 +2382,14 @@ extension Script {
 		if let body = car.mafiaChildNode(named: "BODY", recursively: false) {
 			return body
 		}
-		if let vehicle = scene.game.vehicle,
-		   vehicle.scriptNode === car || vehicle.scriptNode.name == car.name {
-			return vehicle.node
+		if let liveTransformNode = car.liveTransformNode {
+			return liveTransformNode
 		}
 		return car
+	}
+
+	private func liveDistanceNode(for actor: SCNNode) -> SCNNode {
+		return actor.liveTransformNode ?? actor
 	}
 
 	private func removePhysicsBodies(from node: SCNNode) {
