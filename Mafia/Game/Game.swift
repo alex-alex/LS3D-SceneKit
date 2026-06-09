@@ -175,6 +175,7 @@ final class Game: NSObject, @unchecked Sendable {
 	private var playerPhysicsBodyBeforeVehicle: SCNPhysicsBody?
 	private var trafficManager: TrafficManager?
 	private var roadDebugNode: SCNNode?
+	private var roadMapBounds: RoadMapBounds?
 	private var environmentSectorNodes: [String: SCNNode] = [:]
 	private var missingEnvironmentSectorNames = Set<String>()
 	private let isMenuMission: Bool
@@ -247,6 +248,7 @@ final class Game: NSObject, @unchecked Sendable {
 
 		let road: Road? = (try? Road(name: "missions/"+missionName)) ?? nil
 		if let road = road {
+			roadMapBounds = RoadMapBounds(road: road)
 			let debugNode = Game.roadDebugNode(for: road)
 			debugNode.isHidden = true
 			scnScene.rootNode.addChildNode(debugNode)
@@ -1750,6 +1752,10 @@ extension Game: SCNSceneRendererDelegate {
 				isVisible: isVehicleSpeedVisible,
 				isSpeedLimiterEnabled: isSpeedLimiterEnabled
 			)
+			hud.updateMapMarker(
+				normalizedPosition: self.mapReferencePosition(),
+				heading: self.mapReferenceHeading()
+			)
 		}
 		refreshPlayerStatusHud()
 		updateNPCHealthLabels()
@@ -1793,6 +1799,37 @@ extension Game: SCNSceneRendererDelegate {
 		case .freeCamera:
 			return nil
 		}
+	}
+
+	func mapReferencePosition() -> CGPoint? {
+		guard let position = playerReferencePosition(),
+			  let bounds = roadMapBounds else { return nil }
+
+		return bounds.normalizedPoint(for: position)
+	}
+
+	func mapReferenceHeading() -> CGFloat? {
+		let forward: SCNVector3
+		switch mode {
+		case .walk:
+			if let playerNode = scene.playerNode {
+				forward = playerNode.presentation.worldFront
+			} else {
+				forward = cameraContainer.presentation.worldFront
+			}
+		case .car:
+			if let vehicle = vehicle {
+				forward = vehicle.node.presentation.worldFront
+			} else if let playerNode = scene.playerNode {
+				forward = playerNode.presentation.worldFront
+			} else {
+				forward = cameraContainer.presentation.worldFront
+			}
+		case .freeCamera:
+			return nil
+		}
+
+		return atan2(-CGFloat(forward.x), CGFloat(forward.z))
 	}
 
 	private func updateDiagnostics(deltaTime: TimeInterval) {
@@ -3483,4 +3520,43 @@ extension Game {
 		}
 	}
 
+}
+
+private struct RoadMapBounds {
+	let minX: SCNFloat
+	let maxX: SCNFloat
+	let minZ: SCNFloat
+	let maxZ: SCNFloat
+
+	init?(road: Road) {
+		let positions = road.waypoints.map(\.position) + road.crossroads.map(\.position)
+		guard let first = positions.first else { return nil }
+
+		var minX = first.x
+		var maxX = first.x
+		var minZ = first.z
+		var maxZ = first.z
+		for position in positions.dropFirst() {
+			minX = min(minX, position.x)
+			maxX = max(maxX, position.x)
+			minZ = min(minZ, position.z)
+			maxZ = max(maxZ, position.z)
+		}
+
+		guard maxX > minX, maxZ > minZ else { return nil }
+
+		self.minX = minX
+		self.maxX = maxX
+		self.minZ = minZ
+		self.maxZ = maxZ
+	}
+
+	func normalizedPoint(for position: SCNVector3) -> CGPoint {
+		let x = CGFloat((position.x - minX) / (maxX - minX))
+		let y = CGFloat((position.z - minZ) / (maxZ - minZ))
+		return CGPoint(
+			x: max(0, min(1, x)),
+			y: max(0, min(1, y))
+		)
+	}
 }

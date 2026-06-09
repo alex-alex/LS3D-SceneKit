@@ -22,6 +22,9 @@ final class HudScene: SKScene {
 	var speedLimitIndicator: SKSpriteNode!
 	var revCounter: SKSpriteNode!
 	var revCounterNeedle: SKShapeNode!
+	var mapNode: SKSpriteNode!
+	var mapBorderNode: SKShapeNode!
+	var mapMarkerNode: SKShapeNode!
 	var pauseButton: SKShapeNode!
 	var inventoryButton: SKShapeNode!
 	var reloadButton: SKShapeNode!
@@ -216,6 +219,7 @@ final class HudScene: SKScene {
 		revCounter.addChild(revCounterNeedle)
 
 		renderButtons()
+		renderMapOverlay()
 
 		objectivesNode = SKNode()
 		addChild(objectivesNode)
@@ -318,6 +322,9 @@ final class HudScene: SKScene {
 				  speedLimitIndicator != nil,
 				  revCounter != nil,
 				  revCounterNeedle != nil,
+				  mapNode != nil,
+				  mapBorderNode != nil,
+				  mapMarkerNode != nil,
 				  objectivesNode != nil,
 				  consoleLabel != nil,
 				  subtitleLabel != nil,
@@ -351,6 +358,7 @@ final class HudScene: SKScene {
 		compass.position = CGPoint(x: 70, y: size.height-70)
 		actionButton.position = CGPoint(x: 45, y: 104)
 		layoutVehicleInstruments()
+		layoutMapOverlay()
 		objectivesNode.position = CGPoint(x: size.width/2, y: size.height * 2 / 3)
 		consoleLabel.position = CGPoint(x: 24, y: actionButton.position.y + actionButton.size.height / 2 + 36)
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
@@ -640,6 +648,9 @@ final class HudScene: SKScene {
 		guard isCutsceneOverlayVisible != isVisible else { return }
 
 		isCutsceneOverlayVisible = isVisible
+		if isVisible {
+			setMapOverlayVisible(false)
+		}
 		letterboxTopBar.isHidden = !isVisible
 		letterboxBottomBar.isHidden = !isVisible
 
@@ -707,11 +718,103 @@ final class HudScene: SKScene {
 	}
 
 	func showMissionEndText(_ text: String?) {
+		setMapOverlayVisible(false)
 		missionEndLabel.text = text
 		missionEndLabel.alpha = text == nil ? 0 : 1
 		missionEndContainer.isHidden = false
 		selectedMissionEndOptionIndex = 0
 		layoutMissionEndMenu()
+	}
+
+}
+
+// MARK: - Map Overlay
+
+extension HudScene {
+
+	private func renderMapOverlay() {
+		let texture = SKTexture(imageUrl: mainDirectory.appendingPathComponent("maps/0mapar.bmp"))
+
+		mapNode = SKSpriteNode(texture: texture)
+		mapNode.anchorPoint = CGPoint(x: 0.5, y: 0.5)
+		mapNode.alpha = 0.62
+		mapNode.zPosition = 700
+		mapNode.isHidden = true
+		addChild(mapNode)
+
+		mapBorderNode = SKShapeNode()
+		mapBorderNode.fillColor = SKColor.clear
+		mapBorderNode.strokeColor = SKColor.black.withAlphaComponent(0.75)
+		mapBorderNode.lineWidth = 1.5
+		mapBorderNode.zPosition = mapNode.zPosition + 1
+		mapBorderNode.isHidden = true
+		addChild(mapBorderNode)
+
+		let markerPath = CGMutablePath()
+		markerPath.move(to: CGPoint(x: 0, y: 12))
+		markerPath.addLine(to: CGPoint(x: -9, y: -8))
+		markerPath.addLine(to: CGPoint(x: 9, y: -8))
+		markerPath.closeSubpath()
+
+		mapMarkerNode = SKShapeNode(path: markerPath)
+		mapMarkerNode.fillColor = SKColor(red: 1, green: 0.93, blue: 0.12, alpha: 0.96)
+		mapMarkerNode.strokeColor = SKColor.black.withAlphaComponent(0.65)
+		mapMarkerNode.lineWidth = 1
+		mapMarkerNode.zPosition = 2
+		mapMarkerNode.isHidden = true
+		mapNode.addChild(mapMarkerNode)
+	}
+
+	private func layoutMapOverlay() {
+		let targetAspect: CGFloat = 2
+		let maximumWidth = size.width * 0.86
+		let maximumHeight = size.height * 0.74
+		let width = min(maximumWidth, maximumHeight * targetAspect)
+		let height = width / targetAspect
+		let mapSize = CGSize(width: max(1, width), height: max(1, height))
+
+		mapNode.size = mapSize
+		mapNode.position = CGPoint(x: size.width / 2, y: size.height * 0.52)
+
+		mapBorderNode.path = CGPath(
+			rect: CGRect(x: -mapSize.width / 2, y: -mapSize.height / 2, width: mapSize.width, height: mapSize.height),
+			transform: nil
+		)
+		mapBorderNode.position = mapNode.position
+	}
+
+	private func setMapOverlayVisible(_ isVisible: Bool) {
+		if !isVisible {
+			game.releaseControl(.MAP)
+		}
+
+		guard !isCutsceneOverlayVisible,
+			  !isPauseScreenVisible,
+			  !isInventoryVisible,
+			  !isMissionEndVisible else {
+			mapNode?.isHidden = true
+			mapBorderNode?.isHidden = true
+			return
+		}
+
+		mapNode.isHidden = !isVisible
+		mapBorderNode.isHidden = !isVisible
+		if !isVisible {
+			mapMarkerNode.isHidden = true
+		}
+	}
+
+	func updateMapMarker(normalizedPosition: CGPoint?, heading: CGFloat?) {
+		guard let normalizedPosition = normalizedPosition else {
+			mapMarkerNode.isHidden = true
+			return
+		}
+
+		let localX = (normalizedPosition.x - 0.5) * mapNode.size.width
+		let localY = (normalizedPosition.y - 0.5) * mapNode.size.height
+		mapMarkerNode.position = CGPoint(x: localX, y: localY)
+		mapMarkerNode.zRotation = heading ?? 0
+		mapMarkerNode.isHidden = mapNode.isHidden
 	}
 
 }
@@ -1256,6 +1359,7 @@ extension HudScene {
 		if isVisible {
 			guard !game.isGamePaused else { return }
 
+			setMapOverlayVisible(false)
 			inventoryOverlay.isHidden = false
 			rebuildInventoryRows()
 			inventoryPausedGame = true
@@ -1545,6 +1649,7 @@ extension HudScene {
 
 	func setPauseScreenVisible(_ isVisible: Bool) {
 		if isVisible {
+			setMapOverlayVisible(false)
 			setGameplayHudHiddenForPause(true)
 			pauseOverlay.isHidden = false
 			selectedPauseOptionIndex = pauseOptionControls.firstIndex(where: { $0.id == 102 }) ?? 0
@@ -2180,6 +2285,16 @@ extension HudScene {
 			return
 		}
 
+		if event.keyCode == 48 { // tab
+			guard !game.isGamePaused,
+				  inventoryOverlay.isHidden,
+				  !isCutsceneOverlayVisible,
+				  !isMissionEndVisible else { return }
+			game.pressControl(.MAP)
+			setMapOverlayVisible(true)
+			return
+		}
+
 		if inventoryOverlay.isHidden == false {
 			switch event.keyCode {
 			case 125: // down
@@ -2397,6 +2512,11 @@ extension HudScene {
 
 	override func keyUp(with event: NSEvent) {
 		super.keyUp(with: event)
+
+		if event.keyCode == 48 { // tab
+			setMapOverlayVisible(false)
+			return
+		}
 
 		guard !game.isGamePaused else { return }
 
