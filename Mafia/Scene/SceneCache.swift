@@ -65,7 +65,7 @@ final class SceneCache {
 				let objNameSize: UInt32 = try stream.read()
 				var objName: String = try stream.read(maxLength: Int(objNameSize))
 				objName = objName.lowercased().replacingOccurrences(of: ".i3d", with: "")
-				objNode.followsCamera = isSkyboxResourceName(objName)
+				objNode.name = objName
 
 				if let model = modelCache[objName] {
 					objNode.addChildNode(model.clone())

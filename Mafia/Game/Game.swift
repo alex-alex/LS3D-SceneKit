@@ -1516,10 +1516,7 @@ private extension SCNNode {
 	}
 
 	var isSkyboxNode: Bool {
-		if followsCamera {
-			return true
-		}
-		return isSkyboxResourceName(name)
+		return followsCamera && parent?.parent?.name == "__cache__"
 	}
 
 	func containsWorldPosition(_ position: SCNVector3) -> Bool {
