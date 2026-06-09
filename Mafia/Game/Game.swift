@@ -1674,6 +1674,9 @@ extension Game: SCNSceneRendererDelegate {
 		let deltaTime = lastUpdateTime.map { time - $0 } ?? 0
 		lastUpdateTime = time
 		updateDiagnostics(deltaTime: deltaTime)
+		updateHud { hud in
+			hud.refreshScriptTimer()
+		}
 
 		if isCutsceneCameraActive {
 			updateSkyboxPosition()

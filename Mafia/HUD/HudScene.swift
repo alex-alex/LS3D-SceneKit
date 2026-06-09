@@ -614,10 +614,6 @@ final class HudScene: SKScene {
 			.replacingOccurrences(of: "Default: F5", with: "Default: V")
 	}
 
-	override func update(_: TimeInterval) {
-		updateScriptTimerLabel()
-	}
-
 	func showScriptTimer(scriptId: NSUUID, remainingMilliseconds: Float) {
 		activeScriptTimerId = scriptId
 		isScriptTimerRequestedVisible = true
@@ -654,6 +650,10 @@ final class HudScene: SKScene {
 
 	private func refreshScriptTimerVisibility() {
 		scriptTimerLabel.isHidden = !isGameplayHudVisible(isScriptTimerRequestedVisible)
+	}
+
+	func refreshScriptTimer() {
+		updateScriptTimerLabel()
 	}
 
 	private func updateScriptTimerLabel() {
