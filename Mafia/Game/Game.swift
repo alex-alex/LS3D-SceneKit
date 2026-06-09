@@ -1323,14 +1323,7 @@ final class Game: NSObject, @unchecked Sendable {
 			hud.showMissionEndText(message)
 			hud.setScriptBlackoutVisible(true, immediate: false)
 		}
-		isGamePaused = true
-		scnScene.isPaused = true
-		scene.setAudioPaused(true)
-		scene.setScriptsPaused(true)
-		lastUpdateTime = nil
-		updateHud { hud in
-			hud.setPauseScreenVisible(false)
-		}
+		setPaused(true, showsPauseScreen: false)
 		playerController?.stop()
 		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 		if returnsToMainMenu {
