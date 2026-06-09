@@ -94,9 +94,6 @@ final class Collisions {
 	private let vehicleRaycastGroundThickness: SCNFloat = 0.01
 	private let vehicleRaycastGroundClearance: SCNFloat = 0.01
 	private let vehicleRaycastGroundMargin: SCNFloat = 0.05
-	private let vehicleWallProxyMinHeight: SCNFloat = 0.45
-	private let vehicleWallProxyThickness: SCNFloat = 0.08
-	private let vehicleWallProxyMargin: SCNFloat = 0.08
 	//var names: [(Int, String)] = []
 	var nodes: [Int: SCNNode] = [:]
 
@@ -260,7 +257,6 @@ final class Collisions {
 
 		var nodesVertices: [UInt32: [SCNVector3]] = [:]
 		var vehicleRaycastGroundPatches: [VehicleRaycastGroundPatch] = []
-		var vehicleWallProxyPatches: [VehicleRaycastGroundPatch] = []
 		print("=== numFaces:", numFaces)
 
 		for _ in 0 ..< numFaces {
@@ -276,10 +272,6 @@ final class Collisions {
 				if let vertices = face.getWorldVertices(treeKlz: self),
 				   let patch = vehicleRaycastGroundPatch(for: vertices) {
 					vehicleRaycastGroundPatches.append(patch)
-				}
-				if let vertices = face.getWorldVertices(treeKlz: self),
-				   let patch = vehicleWallProxyPatch(for: vertices) {
-					vehicleWallProxyPatches.append(patch)
 				}
 			}
 		}
@@ -314,7 +306,6 @@ final class Collisions {
 		}
 		node.addChildNode(facesNode)
 		addVehicleRaycastGround(from: vehicleRaycastGroundPatches)
-		addVehicleWallProxy(from: vehicleWallProxyPatches)
 
 		print("=== Loaded Scene Collision Faces")
 
@@ -422,50 +413,6 @@ final class Collisions {
 		)
 	}
 
-	private func vehicleWallProxyPatch(for vertices: [SCNVector3]) -> VehicleRaycastGroundPatch? {
-		guard vertices.count == 3 else { return nil }
-
-		let firstEdge = vertices[1] - vertices[0]
-		let secondEdge = vertices[2] - vertices[0]
-		let normal = firstEdge.cross(secondEdge).normalized
-		guard abs(normal.y) <= 0.35 else { return nil }
-		let minY = vertices.map { $0.y }.min() ?? 0
-		let maxY = vertices.map { $0.y }.max() ?? 0
-		guard maxY - minY >= vehicleWallProxyMinHeight else { return nil }
-
-		let tangent = firstEdge.normalized
-		guard tangent.length > 0.0001 else { return nil }
-
-		let bitangent = normal.cross(tangent).normalized
-		let centroid = SCNVector3(
-			x: (vertices[0].x + vertices[1].x + vertices[2].x) / 3,
-			y: (vertices[0].y + vertices[1].y + vertices[2].y) / 3,
-			z: (vertices[0].z + vertices[1].z + vertices[2].z) / 3
-		)
-
-		let projected = vertices.map { vertex -> (u: SCNFloat, v: SCNFloat) in
-			let offset = vertex - centroid
-			return (dot(offset, tangent), dot(offset, bitangent))
-		}
-		guard let minU = projected.map({ $0.u }).min(),
-			  let maxU = projected.map({ $0.u }).max(),
-			  let minV = projected.map({ $0.v }).min(),
-			  let maxV = projected.map({ $0.v }).max() else { return nil }
-
-		let center = centroid +
-			tangent * ((minU + maxU) / 2) +
-			bitangent * ((minV + maxV) / 2)
-
-		return VehicleRaycastGroundPatch(
-			center: center,
-			tangent: tangent,
-			normal: normal,
-			bitangent: bitangent,
-			width: max(maxU - minU + vehicleWallProxyMargin, vehicleWallProxyMargin),
-			length: max(maxV - minV + vehicleWallProxyMargin, vehicleWallProxyMargin)
-		)
-	}
-
 	private func addVehicleRaycastGround(from patches: [VehicleRaycastGroundPatch]) {
 		guard !patches.isEmpty else { return }
 
@@ -510,46 +457,6 @@ final class Collisions {
 		node.addChildNode(groundNode)
 
 		print("=== Loaded Vehicle Raycast Ground Patches:", patches.count)
-	}
-
-	private func addVehicleWallProxy(from patches: [VehicleRaycastGroundPatch]) {
-		guard !patches.isEmpty else { return }
-
-		let wallNode = SCNNode()
-		wallNode.name = "__vehicle_wall_proxy__"
-
-		var shapes: [SCNPhysicsShape] = []
-		var transforms: [NSValue] = []
-		shapes.reserveCapacity(patches.count)
-		transforms.reserveCapacity(patches.count)
-
-		for patch in patches {
-			let box = SCNBox(
-				width: CGFloat(patch.width),
-				height: CGFloat(vehicleWallProxyThickness),
-				length: CGFloat(patch.length),
-				chamferRadius: 0
-			)
-			shapes.append(SCNPhysicsShape(geometry: box, options: nil))
-			transforms.append(NSValue(scnMatrix4: SCNMatrix4(
-				m11: patch.tangent.x, m12: patch.tangent.y, m13: patch.tangent.z, m14: 0,
-				m21: patch.normal.x, m22: patch.normal.y, m23: patch.normal.z, m24: 0,
-				m31: patch.bitangent.x, m32: patch.bitangent.y, m33: patch.bitangent.z, m34: 0,
-				m41: patch.center.x, m42: patch.center.y, m43: patch.center.z, m44: 1
-			)))
-		}
-
-		wallNode.physicsBody = SCNPhysicsBody(
-			type: .static,
-			shape: SCNPhysicsShape(shapes: shapes, transforms: transforms)
-		)
-		wallNode.physicsBody?.configureAsVehicleRaycastGroundCollider()
-		wallNode.physicsBody?.friction = 0
-		wallNode.physicsBody?.restitution = 0
-		wallNode.physicsBody?.rollingFriction = 0
-		node.addChildNode(wallNode)
-
-		print("=== Loaded Vehicle Wall Proxy Patches:", patches.count)
 	}
 
 	private func dot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
