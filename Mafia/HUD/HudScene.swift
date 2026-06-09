@@ -614,7 +614,7 @@ final class HudScene: SKScene {
 			.replacingOccurrences(of: "Default: F5", with: "Default: V")
 	}
 
-	override func update(_ currentTime: TimeInterval) {
+	override func update(_: TimeInterval) {
 		updateScriptTimerLabel()
 	}
 

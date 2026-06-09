@@ -2327,6 +2327,7 @@ extension Script {
 		timerEndTime = nil
 		timerRemainingMilliseconds = 0
 		isTimerVisible = false
+		isTimerPausedForScriptPause = false
 		scene.game.hideScriptTimer(scriptId: uuid)
 		next()
 	}
@@ -2334,6 +2335,7 @@ extension Script {
 	private func timeron(_ args: [Argument]) {
 		let seconds = args[3].getValueOrVarValueFloat(vars: vars)
 		isTimerVisible = true
+		isTimerPausedForScriptPause = false
 		startTimer(milliseconds: max(0, seconds * 1000))
 		scene.game.showScriptTimer(scriptId: uuid, remainingMilliseconds: currentTimerRemainingMilliseconds())
 		next()
@@ -2783,7 +2785,7 @@ extension Script {
 		return timerRemainingMilliseconds
 	}
 
-	private func startTimer(milliseconds: Float) {
+	func startTimer(milliseconds: Float) {
 		timerGeneration += 1
 		timerRemainingMilliseconds = milliseconds
 		if isTimerVisible {

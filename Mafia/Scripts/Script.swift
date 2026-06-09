@@ -357,6 +357,7 @@ final class Script: @unchecked Sendable {
 	var timerEndTime: TimeInterval?
 	var timerRemainingMilliseconds: Float = 0
 	var isTimerVisible = false
+	var isTimerPausedForScriptPause = false
 	var timerGeneration = 0
 	var waitGeneration = 0
 	var isWaitingForScriptWait = false
@@ -512,6 +513,11 @@ final class Script: @unchecked Sendable {
 			guard self.isPaused != paused else { return }
 
 			self.isPaused = paused
+			if paused {
+				self.pauseTimerForScriptPause()
+			} else {
+				self.resumeTimerForScriptPause()
+			}
 			if !paused {
 				if self.hasPendingNext {
 					self.hasPendingNext = false
@@ -522,6 +528,25 @@ final class Script: @unchecked Sendable {
 				}
 			}
 		}
+	}
+
+	private func pauseTimerForScriptPause() {
+		guard let timerEndTime = timerEndTime else { return }
+
+		timerRemainingMilliseconds = Float(max(0, timerEndTime - Date.timeIntervalSinceReferenceDate) * 1000)
+		self.timerEndTime = nil
+		isTimerPausedForScriptPause = true
+		timerGeneration += 1
+		if isTimerVisible {
+			scene.game.updateScriptTimer(scriptId: uuid, remainingMilliseconds: timerRemainingMilliseconds)
+		}
+	}
+
+	private func resumeTimerForScriptPause() {
+		guard isTimerPausedForScriptPause else { return }
+
+		isTimerPausedForScriptPause = false
+		startTimer(milliseconds: timerRemainingMilliseconds)
 	}
 
 	func stop() {
@@ -539,6 +564,7 @@ final class Script: @unchecked Sendable {
 			self.timerRemainingMilliseconds = 0
 			let wasTimerVisible = self.isTimerVisible
 			self.isTimerVisible = false
+			self.isTimerPausedForScriptPause = false
 			self.timeoutEventBinding = nil
 			self.pendingEnemyTalk = nil
 			self.completionHandler = nil
@@ -692,7 +718,7 @@ final class Script: @unchecked Sendable {
 
 private final class CommandLoggingState: @unchecked Sendable {
 	private let lock = NSLock()
-	private var enabled = true
+	private var enabled = false
 
 	var isEnabled: Bool {
 		lock.lock()
