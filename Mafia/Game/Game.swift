@@ -1215,6 +1215,24 @@ final class Game: NSObject, @unchecked Sendable {
 		}
 	}
 
+	func showScriptTimer(scriptId: NSUUID, remainingMilliseconds: Float) {
+		updateHud { hud in
+			hud.showScriptTimer(scriptId: scriptId, remainingMilliseconds: remainingMilliseconds)
+		}
+	}
+
+	func updateScriptTimer(scriptId: NSUUID, remainingMilliseconds: Float) {
+		updateHud { hud in
+			hud.updateScriptTimer(scriptId: scriptId, remainingMilliseconds: remainingMilliseconds)
+		}
+	}
+
+	func hideScriptTimer(scriptId: NSUUID) {
+		updateHud { hud in
+			hud.hideScriptTimer(scriptId: scriptId)
+		}
+	}
+
 	func setCutsceneOverlayVisible(_ isVisible: Bool) {
 		updateHud { hud in
 			hud.setCutsceneOverlayVisible(isVisible)

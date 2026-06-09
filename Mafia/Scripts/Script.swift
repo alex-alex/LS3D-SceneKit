@@ -356,6 +356,7 @@ final class Script: @unchecked Sendable {
 	var timeoutEventBinding: ScriptEventBinding?
 	var timerEndTime: TimeInterval?
 	var timerRemainingMilliseconds: Float = 0
+	var isTimerVisible = false
 	var timerGeneration = 0
 	var waitGeneration = 0
 	var isWaitingForScriptWait = false
@@ -536,6 +537,8 @@ final class Script: @unchecked Sendable {
 			self.timerGeneration += 1
 			self.timerEndTime = nil
 			self.timerRemainingMilliseconds = 0
+			let wasTimerVisible = self.isTimerVisible
+			self.isTimerVisible = false
 			self.timeoutEventBinding = nil
 			self.pendingEnemyTalk = nil
 			self.completionHandler = nil
@@ -557,6 +560,9 @@ final class Script: @unchecked Sendable {
 				for playback in soundPlaybacks {
 					playback.player.didFinishPlayback = nil
 					playback.node.removeAudioPlayer(playback.player)
+				}
+				if wasTimerVisible {
+					self.scene.game.hideScriptTimer(scriptId: self.uuid)
 				}
 			}
 		}

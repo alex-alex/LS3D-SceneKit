@@ -34,6 +34,7 @@ final class HudScene: SKScene {
 	var objectivesNode: SKNode!
 	var consoleLabel: SKLabelNode!
 	var subtitleLabel: SKLabelNode!
+	private var scriptTimerLabel: SKLabelNode!
 	private var cutsceneSubtitleLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
@@ -84,8 +85,13 @@ final class HudScene: SKScene {
 	private var lastSpeedText: String?
 	private var lastPlayerStatusText: String?
 	private var lastDiagnosticsText: String?
+	private var lastScriptTimerText: String?
 	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
+	private var activeScriptTimerId: NSUUID?
+	private var scriptTimerEndTime: TimeInterval?
+	private var scriptTimerRemainingMilliseconds: Float = 0
+	private var isScriptTimerRequestedVisible = false
 	private let consoleActionKey = "consoleMessage"
 	private let subtitleActionKey = "subtitleMessage"
 	private let cutsceneSubtitleActionKey = "cutsceneSubtitleMessage"
@@ -248,6 +254,16 @@ final class HudScene: SKScene {
 		subtitleLabel.zPosition = 2100
 		addChild(subtitleLabel)
 
+		scriptTimerLabel = SKLabelNode()
+		scriptTimerLabel.fontName = "Menlo-Bold"
+		scriptTimerLabel.fontSize = 24
+		scriptTimerLabel.fontColor = SKColor.white
+		scriptTimerLabel.horizontalAlignmentMode = .right
+		scriptTimerLabel.verticalAlignmentMode = .top
+		scriptTimerLabel.zPosition = 1200
+		scriptTimerLabel.isHidden = true
+		addChild(scriptTimerLabel)
+
 		cutsceneSubtitleLabel = SKLabelNode()
 		cutsceneSubtitleLabel.fontName = "Arial"
 		cutsceneSubtitleLabel.fontSize = 22
@@ -328,6 +344,7 @@ final class HudScene: SKScene {
 				  objectivesNode != nil,
 				  consoleLabel != nil,
 				  subtitleLabel != nil,
+				  scriptTimerLabel != nil,
 				  cutsceneSubtitleLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
@@ -365,6 +382,7 @@ final class HudScene: SKScene {
 		let letterboxBarHeight = max(48, size.height * 0.12)
 		subtitleLabel.position = CGPoint(x: size.width / 2, y: size.height / 2)
 		subtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
+		scriptTimerLabel.position = CGPoint(x: size.width - 24, y: size.height - 24)
 		cutsceneSubtitleLabel.position = CGPoint(x: size.width / 2, y: letterboxBarHeight / 2)
 		cutsceneSubtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
@@ -596,8 +614,76 @@ final class HudScene: SKScene {
 			.replacingOccurrences(of: "Default: F5", with: "Default: V")
 	}
 
+	override func update(_ currentTime: TimeInterval) {
+		updateScriptTimerLabel()
+	}
+
+	func showScriptTimer(scriptId: NSUUID, remainingMilliseconds: Float) {
+		activeScriptTimerId = scriptId
+		isScriptTimerRequestedVisible = true
+		setScriptTimerRemainingMilliseconds(remainingMilliseconds)
+		refreshScriptTimerVisibility()
+	}
+
+	func updateScriptTimer(scriptId: NSUUID, remainingMilliseconds: Float) {
+		guard activeScriptTimerId == scriptId else { return }
+		setScriptTimerRemainingMilliseconds(remainingMilliseconds)
+		refreshScriptTimerVisibility()
+	}
+
+	func hideScriptTimer(scriptId: NSUUID) {
+		guard activeScriptTimerId == scriptId else { return }
+		activeScriptTimerId = nil
+		scriptTimerEndTime = nil
+		scriptTimerRemainingMilliseconds = 0
+		isScriptTimerRequestedVisible = false
+		lastScriptTimerText = nil
+		scriptTimerLabel.text = nil
+		refreshScriptTimerVisibility()
+	}
+
+	private func setScriptTimerRemainingMilliseconds(_ remainingMilliseconds: Float) {
+		scriptTimerRemainingMilliseconds = max(0, remainingMilliseconds)
+		if scriptTimerRemainingMilliseconds > 0 {
+			scriptTimerEndTime = Date.timeIntervalSinceReferenceDate + TimeInterval(scriptTimerRemainingMilliseconds) / 1000
+		} else {
+			scriptTimerEndTime = nil
+		}
+		updateScriptTimerLabel()
+	}
+
+	private func refreshScriptTimerVisibility() {
+		scriptTimerLabel.isHidden = !isGameplayHudVisible(isScriptTimerRequestedVisible)
+	}
+
+	private func updateScriptTimerLabel() {
+		guard isScriptTimerRequestedVisible else { return }
+		let remainingMilliseconds: Float
+		if let scriptTimerEndTime = scriptTimerEndTime {
+			remainingMilliseconds = Float(max(0, scriptTimerEndTime - Date.timeIntervalSinceReferenceDate) * 1000)
+		} else {
+			remainingMilliseconds = scriptTimerRemainingMilliseconds
+		}
+		let text = HudScene.scriptTimerText(remainingMilliseconds: remainingMilliseconds)
+		if lastScriptTimerText != text {
+			lastScriptTimerText = text
+			scriptTimerLabel.text = text
+		}
+	}
+
 	private func isGameplayHudVisible(_ requestedVisibility: Bool) -> Bool {
 		return requestedVisibility && !isCutsceneOverlayVisible && !isPauseScreenVisible
+	}
+
+	private static func scriptTimerText(remainingMilliseconds: Float) -> String {
+		let totalSeconds = Int(ceil(Double(max(0, remainingMilliseconds)) / 1000))
+		let hours = totalSeconds / 3600
+		let minutes = (totalSeconds / 60) % 60
+		let seconds = totalSeconds % 60
+		if hours > 0 {
+			return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+		}
+		return String(format: "%02d:%02d", minutes, seconds)
 	}
 
 	private func updateInstrumentNeedles(speed: CGFloat, force: CGFloat) {
@@ -662,6 +748,7 @@ final class HudScene: SKScene {
 			revCounter.isHidden = true
 			speedLabel.isHidden = true
 			playerStatusLabel.isHidden = true
+			scriptTimerLabel.isHidden = true
 			crosshairNode.isHidden = true
 			vehicleStealProgressBackground.isHidden = true
 			vehicleStealProgressFill.isHidden = true
@@ -686,6 +773,7 @@ final class HudScene: SKScene {
 			speedLimitIndicator.isHidden = true
 			revCounter.isHidden = !wasSpeedVisible
 			speedLabel.isHidden = true
+			refreshScriptTimerVisibility()
 			objectivesNode.isHidden = objectivesNode.children.isEmpty
 			consoleLabel.alpha = consoleLabel.hasActions() ? 1 : 0
 			cutsceneSubtitleLabel.removeAction(forKey: cutsceneSubtitleActionKey)
@@ -1798,6 +1886,7 @@ extension HudScene {
 				diagnosticsLabel,
 				consoleLabel,
 				subtitleLabel,
+				scriptTimerLabel,
 				cutsceneSubtitleLabel,
 				crosshairNode,
 				vehicleStealProgressBackground,
@@ -1821,6 +1910,7 @@ extension HudScene {
 		} else {
 			pauseHiddenStates.forEach { $0.node.isHidden = $0.isHidden }
 			pauseHiddenStates.removeAll()
+			refreshScriptTimerVisibility()
 			layoutTouchButtons()
 		}
 	}

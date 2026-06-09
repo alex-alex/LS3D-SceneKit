@@ -2326,12 +2326,16 @@ extension Script {
 		timerGeneration += 1
 		timerEndTime = nil
 		timerRemainingMilliseconds = 0
+		isTimerVisible = false
+		scene.game.hideScriptTimer(scriptId: uuid)
 		next()
 	}
 
 	private func timeron(_ args: [Argument]) {
 		let seconds = args[3].getValueOrVarValueFloat(vars: vars)
+		isTimerVisible = true
 		startTimer(milliseconds: max(0, seconds * 1000))
+		scene.game.showScriptTimer(scriptId: uuid, remainingMilliseconds: currentTimerRemainingMilliseconds())
 		next()
 	}
 
@@ -2782,6 +2786,9 @@ extension Script {
 	private func startTimer(milliseconds: Float) {
 		timerGeneration += 1
 		timerRemainingMilliseconds = milliseconds
+		if isTimerVisible {
+			scene.game.updateScriptTimer(scriptId: uuid, remainingMilliseconds: milliseconds)
+		}
 		guard milliseconds > 0 else {
 			timerEndTime = nil
 			if let timeoutEventBinding = timeoutEventBinding {
@@ -2798,6 +2805,9 @@ extension Script {
 			guard self.timerGeneration == generation else { return }
 			self.timerEndTime = nil
 			self.timerRemainingMilliseconds = 0
+			if self.isTimerVisible {
+				self.scene.game.updateScriptTimer(scriptId: self.uuid, remainingMilliseconds: 0)
+			}
 			guard let timeoutEventBinding = self.timeoutEventBinding else { return }
 			timeoutEventBinding.script.enqueueEvent(timeoutEventBinding.eventId)
 		}
