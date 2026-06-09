@@ -1400,7 +1400,7 @@ extension Script {
 		} else if opStr == "<" {
 			operation = (<)
 		} else if opStr == ">" {
-			operation = (>)
+			operation = (>=)
 		} else {
 			fatalError()
 		}
