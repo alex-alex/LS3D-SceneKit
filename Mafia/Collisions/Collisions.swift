@@ -94,6 +94,7 @@ final class Collisions {
 	private let vehicleRaycastGroundThickness: SCNFloat = 0.08
 	private let vehicleRaycastGroundClearance: SCNFloat = 0.01
 	private let vehicleRaycastGroundMargin: SCNFloat = 0.8
+	private let collisionFaceMaxEdgeLength: Float = 35
 	//var names: [(Int, String)] = []
 	var nodes: [Int: SCNNode] = [:]
 
@@ -255,38 +256,33 @@ final class Collisions {
 
 		stream.currentOffset += 4
 
-		var nodesVertices: [UInt32: [SCNVector3]] = [:]
+		var faceVertices: [SCNVector3] = []
 		var vehicleRaycastGroundPatches: [VehicleRaycastGroundPatch] = []
 		print("=== numFaces:", numFaces)
 
 		for _ in 0 ..< numFaces {
 			try autoreleasepool {
 				let face = try Triangle(stream: stream)
-				if let (node, vertices) = face.getVertices(treeKlz: self) {
-					if nodesVertices[node] == nil {
-						nodesVertices[node] = vertices
-					} else {
-						nodesVertices[node]!.append(contentsOf: vertices)
+				if let vertices = face.getWorldVertices(treeKlz: self) {
+					if isUsableCollisionFace(vertices) {
+						faceVertices.append(contentsOf: vertices)
 					}
-				}
-				if let vertices = face.getWorldVertices(treeKlz: self),
-				   let patch = vehicleRaycastGroundPatch(for: vertices) {
-					vehicleRaycastGroundPatches.append(patch)
+					if let patch = vehicleRaycastGroundPatch(for: vertices) {
+						vehicleRaycastGroundPatches.append(patch)
+					}
 				}
 			}
 		}
 
 		print("=== Loaded Scene Collision Face Vertices")
 
-		let facesNode = SCNNode()
-		for (linkId, vertices) in nodesVertices {
+		if !faceVertices.isEmpty {
 			autoreleasepool {
-				guard let _node = getNode(linkId: linkId) else { return }
-
+				let facesNode = SCNNode()
 				let node = SCNNode()
-				let verticesSource = SCNGeometrySource(vertices: vertices)
+				let verticesSource = SCNGeometrySource(vertices: faceVertices)
 				var indices: [Int32] = []
-				for i in 0 ..< Int32(vertices.count) {
+				for i in 0 ..< Int32(faceVertices.count) {
 					indices.append(i)
 				}
 				let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
@@ -294,7 +290,6 @@ final class Collisions {
 //				geometry.firstMaterial = SCNMaterial()
 //				geometry.firstMaterial?.isDoubleSided = true
 //				geometry.firstMaterial?.diffuse.contents = SKColor.random()
-				node.transform = _node.worldTransform
 				node.geometry = geometry
 				node.configureAsCollisionWireframe()
 				node.physicsBody = SCNPhysicsBody(type: .static, shape: SCNPhysicsShape(geometry: geometry, options: [
@@ -302,9 +297,9 @@ final class Collisions {
 				]))
 				node.physicsBody?.configureAsWorldCollider()
 				facesNode.addChildNode(node)
+				self.node.addChildNode(facesNode)
 			}
 		}
-		node.addChildNode(facesNode)
 		addVehicleRaycastGround(from: vehicleRaycastGroundPatches)
 
 		print("=== Loaded Scene Collision Faces")
@@ -442,7 +437,7 @@ final class Collisions {
 
 			let debugNode = SCNNode(geometry: box)
 			debugNode.transform = transform
-			debugNode.configureAsCollisionWireframe()
+			debugNode.geometry?.firstMaterial = vehicleRaycastGroundDebugMaterial()
 			groundNode.addChildNode(debugNode)
 		}
 
@@ -461,6 +456,33 @@ final class Collisions {
 
 	private func dot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
 		return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
+	}
+
+	private func isUsableCollisionFace(_ vertices: [SCNVector3]) -> Bool {
+		guard vertices.count == 3 else { return false }
+
+		let firstVector = vertices[1] - vertices[0]
+		let secondVector = vertices[2] - vertices[0]
+		let normal = firstVector.cross(secondVector).normalized
+		if abs(normal.y) > 0.35 {
+			return true
+		}
+
+		let firstEdge = (vertices[1] - vertices[0]).length
+		let secondEdge = (vertices[2] - vertices[1]).length
+		let thirdEdge = (vertices[0] - vertices[2]).length
+		return max(firstEdge, secondEdge, thirdEdge) <= collisionFaceMaxEdgeLength
+	}
+
+	private func vehicleRaycastGroundDebugMaterial() -> SCNMaterial {
+		let material = SCNMaterial()
+		material.diffuse.contents = SKColor.cyan.withAlphaComponent(0.2)
+		material.emission.contents = SKColor.cyan.withAlphaComponent(0.2)
+		material.lightingModel = .constant
+		material.isDoubleSided = true
+		material.fillMode = .fill
+		material.transparency = 0
+		return material
 	}
 
 }
