@@ -12,6 +12,7 @@ import Cocoa
 class AppDelegate: NSObject {
 
     @IBOutlet weak var window: NSWindow!
+	private var didEnterFullScreenOnLaunch = false
 
 }
 
@@ -20,7 +21,19 @@ class AppDelegate: NSObject {
 extension AppDelegate: NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // Insert code here to initialize your application
+		window.collectionBehavior = window.collectionBehavior.union(.fullScreenPrimary)
+		window.makeKeyAndOrderFront(nil)
+
+		DispatchQueue.main.async { [weak self] in
+			guard let self = self,
+				  !self.didEnterFullScreenOnLaunch,
+				  !self.window.styleMask.contains(.fullScreen) else {
+				return
+			}
+
+			self.didEnterFullScreenOnLaunch = true
+			self.window.toggleFullScreen(nil)
+		}
     }
 
 }
