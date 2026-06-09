@@ -42,7 +42,7 @@ struct Triangle {
 		plane = try Plane(stream: stream)
 	}
 
-	func getVertices(treeKlz: Collisions) -> (UInt32, [SCNVector3])? {
+	func getWorldVertices(treeKlz: Collisions) -> [SCNVector3]? {
 		var localVertices: [(node: SCNNode, position: SCNVector3)] = []
 		for vertex in vertices {
 			guard let localVertex = localVertex(for: vertex, treeKlz: treeKlz) else { continue }
@@ -51,29 +51,13 @@ struct Triangle {
 
 		guard localVertices.count == 3 else { return nil }
 
-		let worldVertices = localVertices.map { $0.node.convertPosition($0.position, to: nil) }
+		var worldVertices = localVertices.map { $0.node.convertPosition($0.position, to: nil) }
 		let worldPlaneNormal = localVertices[0].node.convertVector(plane.n, to: nil).normalized
 		if dot(triangleNormal(for: worldVertices).normalized, worldPlaneNormal) < 0 {
-			localVertices.swapAt(1, 2)
+			worldVertices.swapAt(1, 2)
 		}
 
-		return (UInt32(vertices[0].linkIndex), localVertices.map { $0.position })
-	}
-
-	func getWorldVertices(treeKlz: Collisions) -> [SCNVector3]? {
-		return getWorldVerticesWithLinkIds(treeKlz: treeKlz)?.vertices
-	}
-
-	func getWorldVerticesWithLinkIds(treeKlz: Collisions) -> (vertices: [SCNVector3], linkIds: [UInt16])? {
-		var worldVertices: [SCNVector3] = []
-		var linkIds: [UInt16] = []
-		for vertex in vertices {
-			guard let localVertex = localVertex(for: vertex, treeKlz: treeKlz) else { continue }
-			worldVertices.append(localVertex.node.convertPosition(localVertex.position, to: nil))
-			linkIds.append(vertex.linkIndex)
-		}
-
-		return worldVertices.count == 3 ? (worldVertices, linkIds) : nil
+		return worldVertices
 	}
 
 	private func localVertex(for vertex: VertexLink, treeKlz: Collisions) -> (node: SCNNode, position: SCNVector3)? {

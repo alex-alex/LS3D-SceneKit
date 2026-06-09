@@ -261,11 +261,8 @@ final class Collisions {
 		for _ in 0 ..< numFaces {
 			try autoreleasepool {
 				let face = try Triangle(stream: stream)
-				if let faceData = face.getWorldVerticesWithLinkIds(treeKlz: self) {
-					let vertices = faceData.vertices
-					if isUsableCollisionFace(vertices, linkIds: faceData.linkIds) {
-						faceVertices.append(contentsOf: vertices)
-					}
+				if let vertices = face.getWorldVertices(treeKlz: self) {
+					faceVertices.append(contentsOf: vertices)
 					if let patch = vehicleRaycastGroundPatch(for: vertices) {
 						vehicleRaycastGroundPatches.append(patch)
 					}
@@ -454,19 +451,6 @@ final class Collisions {
 
 	private func dot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
 		return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
-	}
-
-	private func isUsableCollisionFace(_ vertices: [SCNVector3], linkIds: [UInt16]) -> Bool {
-		guard vertices.count == 3 else { return false }
-
-		let firstVector = vertices[1] - vertices[0]
-		let secondVector = vertices[2] - vertices[0]
-		let normal = firstVector.cross(secondVector).normalized
-		if abs(normal.y) > 0.35 {
-			return true
-		}
-
-		return Set(linkIds).count == 1
 	}
 
 	private func vehicleRaycastGroundDebugMaterial() -> SCNMaterial {
