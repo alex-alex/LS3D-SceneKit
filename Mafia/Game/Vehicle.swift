@@ -18,6 +18,7 @@ final class Vehicle {
 
 	private weak var scene: SCNScene?
 	private let debugNode = SCNNode()
+	private var wheels: [SCNPhysicsVehicleWheel] = []
 	private let maximumSteering: CGFloat = 0.32
 	private let engineForce: CGFloat = 6500
 	private let brakeForce: CGFloat = 260
@@ -103,6 +104,36 @@ final class Vehicle {
 		}
 		return names
 	}
+	var debugWheelRayNames: [String] {
+		guard let scene = scene else { return [] }
+
+		return wheels.enumerated().map { index, wheel in
+			let from = node.presentation.convertPosition(wheel.connectionPosition, to: nil)
+			let rayLength = SCNFloat(wheel.suspensionRestLength + wheel.maximumSuspensionTravel + wheel.radius)
+			let toLocal = SCNVector3(
+				x: wheel.connectionPosition.x,
+				y: wheel.connectionPosition.y - rayLength,
+				z: wheel.connectionPosition.z
+			)
+			let to = node.presentation.convertPosition(toLocal, to: nil)
+			let hits = scene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
+				SCNPhysicsWorld.TestOption.backfaceCulling: false,
+				SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.world | PhysicsCategory.vehicleRaycastGround,
+				SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
+			])
+			guard let hit = hits.first(where: { $0.node !== node }) else {
+				return "W\(index) --"
+			}
+			let hitDistance = (hit.worldCoordinates - from).length
+			return String(
+				format: "W%d %.2f n%.2f %@",
+				index,
+				Double(hitDistance),
+				Double(hit.worldNormal.y),
+				hit.node.debugNodePath
+			)
+		}
+	}
 	var vehicleSteering: CGFloat = 0 {
 		didSet {
 			if vehicleSteering < -maximumSteering {
@@ -168,6 +199,7 @@ final class Vehicle {
 
 		let wheels = [wheel0, wheel1, wheel2, wheel3]
 		let wheelNodes = [whl0, whr0, whl1, whr1]
+		self.wheels = wheels
 
 		for (wheel, wheelNode) in zip(wheels, wheelNodes) {
 			wheel.radius = Vehicle.wheelRadius(for: wheelNode) * wheelRadiusScale

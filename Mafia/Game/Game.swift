@@ -1900,12 +1900,15 @@ extension Game: SCNSceneRendererDelegate {
 		if mode == .car, let vehicle = vehicle {
 			let rayNames = vehicle.debugGroundRayNames
 			let rays = rayNames.isEmpty ? "--" : rayNames.prefix(3).joined(separator: " | ")
+			let wheelRayNames = vehicle.debugWheelRayNames
+			let wheelRays = wheelRayNames.isEmpty ? "--" : wheelRayNames.joined(separator: " | ")
 			return String(
-				format: "CAR\nbody %.2f  wheel %.2f  force %.0f\nR %@",
+				format: "CAR\nbody %.2f  wheel %.2f  force %.0f\nR %@\nW %@",
 				Double(vehicle.velocity.length),
 				Double(vehicle.speed),
 				Double(vehicle.force),
-				rays
+				rays,
+				wheelRays
 			)
 		}
 
