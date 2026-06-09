@@ -95,11 +95,15 @@ final class HudScene: SKScene {
 	private var lastScriptTimerText: String?
 	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
+	private var consoleMessages: [(id: Int, text: String)] = []
+	private var nextConsoleMessageId = 1
 	private var activeScriptTimerId: NSUUID?
 	private var scriptTimerEndTime: TimeInterval?
 	private var scriptTimerRemainingMilliseconds: Float = 0
 	private var isScriptTimerRequestedVisible = false
 	private let consoleActionKey = "consoleMessage"
+	private let consoleMessageLifetime: TimeInterval = 4
+	private let maxConsoleRowCount = 10
 	private let subtitleActionKey = "subtitleMessage"
 	private let cutsceneSubtitleActionKey = "cutsceneSubtitleMessage"
 	private let objectivesActionKey = "objectivesMessage"
@@ -247,8 +251,8 @@ final class HudScene: SKScene {
 		consoleLabel.fontSize = 17
 		consoleLabel.fontColor = SKColor.white
 		consoleLabel.horizontalAlignmentMode = .left
-		consoleLabel.verticalAlignmentMode = .top
-		consoleLabel.numberOfLines = 0
+		consoleLabel.verticalAlignmentMode = .bottom
+		consoleLabel.numberOfLines = maxConsoleRowCount
 		consoleLabel.preferredMaxLayoutWidth = max(240, size.width - 120)
 		consoleLabel.alpha = 0
 		consoleLabel.zPosition = 2100
@@ -545,16 +549,48 @@ final class HudScene: SKScene {
 	}
 
 	func showConsoleText(_ text: String) {
-		consoleLabel.removeAction(forKey: consoleActionKey)
-		consoleLabel.text = remappedControlText(text)
+		let messageId = nextConsoleMessageId
+		nextConsoleMessageId += 1
+		consoleMessages.append((id: messageId, text: remappedControlText(text)))
+		while consoleMessages.count > maxConsoleRowCount {
+			let removedMessage = consoleMessages.removeFirst()
+			removeAction(forKey: consoleActionKey(forMessageId: removedMessage.id))
+		}
+		refreshConsoleText()
+		removeAction(forKey: consoleActionKey)
 		consoleLabel.alpha = isCutsceneOverlayVisible ? 0 : 1
-		consoleLabel.run(
+		run(
 			SKAction.sequence([
-				SKAction.wait(forDuration: 4),
-				SKAction.fadeOut(withDuration: 0.35)
+				SKAction.wait(forDuration: consoleMessageLifetime),
+				SKAction.run { [weak self] in
+					self?.removeConsoleMessage(messageId: messageId)
+				}
 			]),
+			withKey: consoleActionKey(forMessageId: messageId)
+		)
+	}
+
+	private func removeConsoleMessage(messageId: Int) {
+		consoleMessages.removeAll { $0.id == messageId }
+		refreshConsoleText()
+		guard consoleMessages.isEmpty else { return }
+		consoleLabel.run(
+			SKAction.fadeOut(withDuration: 0.35),
 			withKey: consoleActionKey
 		)
+	}
+
+	private func refreshConsoleText() {
+		let rows = consoleMessages
+			.map(\.text)
+			.joined(separator: "\n")
+			.components(separatedBy: .newlines)
+			.suffix(maxConsoleRowCount)
+		consoleLabel.text = rows.joined(separator: "\n")
+	}
+
+	private func consoleActionKey(forMessageId messageId: Int) -> String {
+		return "\(consoleActionKey).\(messageId)"
 	}
 
 	func showSubtitleText(_ text: String, duration: TimeInterval = 4) {
@@ -790,7 +826,7 @@ final class HudScene: SKScene {
 			speedLabel.isHidden = true
 			refreshScriptTimerVisibility()
 			objectivesNode.isHidden = objectivesNode.children.isEmpty
-			consoleLabel.alpha = consoleLabel.hasActions() ? 1 : 0
+			consoleLabel.alpha = consoleMessages.isEmpty ? 0 : 1
 			cutsceneSubtitleLabel.removeAction(forKey: cutsceneSubtitleActionKey)
 			cutsceneSubtitleLabel.alpha = 0
 			layoutTouchButtons()
