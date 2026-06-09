@@ -846,7 +846,7 @@
 				DEVELOPMENT_TEAM = FDEPQUD75A;
 				INFOPLIST_FILE = "$(SRCROOT)/Mafia-Mac/Resources/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 12;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Mafia/Mafia-Bridging-Header.h";
@@ -863,7 +863,7 @@
 				DEVELOPMENT_TEAM = FDEPQUD75A;
 				INFOPLIST_FILE = "$(SRCROOT)/Mafia-Mac/Resources/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MACOSX_DEPLOYMENT_TARGET = 10.15;
+				MACOSX_DEPLOYMENT_TARGET = 12;
 				PRODUCT_BUNDLE_IDENTIFIER = me.studnicka.Mafia;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_OBJC_BRIDGING_HEADER = "$(SRCROOT)/Mafia/Mafia-Bridging-Header.h";

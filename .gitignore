@@ -20,7 +20,7 @@ DerivedData/
 !default.mode2v3
 *.perspectivev3
 !default.perspectivev3
-xcuserdata/
+**/xcuserdata/
 
 ## Other
 *.moved-aside
@@ -62,3 +62,6 @@ fastlane/test_output
 
 
 # End of https://www.gitignore.io/api/swift
+
+AGENTS.md
+
