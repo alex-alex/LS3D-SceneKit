@@ -29,7 +29,7 @@ final class Vehicle {
 	private let reverseLaunchMinimumWheelForceScale: CGFloat = 0.7
 	private let centerOfMassYOffset: SCNFloat = -0.45
 	private let wheelSuspensionRestLength: CGFloat = 0.18
-	private let wheelSuspensionTravel: CGFloat = 0.65
+	private let wheelSuspensionTravel: CGFloat = 0.95
 	private let wheelSuspensionStiffness: CGFloat = 32
 	private let wheelSuspensionCompression: CGFloat = 16
 	private let wheelSuspensionDamping: CGFloat = 24

@@ -91,9 +91,9 @@ final class Collisions {
 	let node = SCNNode()
 	let rootNode: SCNNode
 	private let nodeLookup: SceneNodeLookup
-	private let vehicleRaycastGroundThickness: SCNFloat = 0.01
+	private let vehicleRaycastGroundThickness: SCNFloat = 0.08
 	private let vehicleRaycastGroundClearance: SCNFloat = 0.01
-	private let vehicleRaycastGroundMargin: SCNFloat = 0.05
+	private let vehicleRaycastGroundMargin: SCNFloat = 0.8
 	//var names: [(Int, String)] = []
 	var nodes: [Int: SCNNode] = [:]
 
