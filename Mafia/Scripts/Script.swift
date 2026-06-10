@@ -85,6 +85,8 @@ enum Argument {
 enum ScriptCommandName: String {
 	case actSetstate = "act_setstate"
 	case actorDelete = "actor_delete"
+	case actorDuplicate = "actor_duplicate"
+	case actorSetdir = "actor_setdir"
 	case actorSetpos = "actor_setpos"
 	case actorSetplacement = "actor_setplacement"
 	case blockEnd = "}"
@@ -124,6 +126,9 @@ enum ScriptCommandName: String {
 	case detectorIssignal = "detector_issignal"
 	case detectorSetsignal = "detector_setsignal"
 	case detectorWaitforuse = "detector_waitforuse"
+	case dialogBegin = "dialog_begin"
+	case dialogCamswitch = "dialog_camswitch"
+	case dialogEnd = "dialog_end"
 	case dimAct = "dim_act"
 	case dimFlt = "dim_flt"
 	case dimFrm = "dim_frm"
@@ -153,6 +158,7 @@ enum ScriptCommandName: String {
 	case findframe
 	case getactivecamera
 	case getactiveplayer
+	case getangleactortoactor
 	case getactorframe
 	case getfilmmusic
 	case frmGetpos = "frm_getpos"
@@ -205,6 +211,7 @@ enum ScriptCommandName: String {
 	case introSubtitleAdd = "intro_subtitle_add"
 	case inventoryClear = "inventory_clear"
 	case iscarusable
+	case ispointinarea
 	case label
 	case `let` = "let"
 	case loaddifferences
@@ -224,6 +231,8 @@ enum ScriptCommandName: String {
 	case playsound
 	case playsoundstop
 	case pmShowsymbol = "pm_showsymbol"
+	case recaddactor
+	case recclear
 	case recload
 	case recloadfull
 	case recwaitforend
@@ -376,6 +385,7 @@ final class Script: @unchecked Sendable {
 	var timerGeneration = 0
 	var waitGeneration = 0
 	var isWaitingForScriptWait = false
+	var dialogCameraSide = 0
 	var recentCommandHistory: [(commandIndex: Int, sourceLine: Int, eventId: String?, description: String)] = []
 
 	var signal = false

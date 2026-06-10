@@ -112,6 +112,8 @@ extension Script {
 		switch str {
 		case "act_setstate":			return getArgs_act_setstate(scanner)
 		case "actor_delete":			return getArgs_actor_delete(scanner)
+		case "actor_duplicate":		return getArgs_actor_duplicate(scanner)
+		case "actor_setdir":			return getArgs_actor_setdir(scanner)
 		case "actor_setpos":			return getArgs_actor_setplacement(scanner)
 		case "actor_setplacement":		return getArgs_actor_setplacement(scanner)
 		case "camera_getfov":			return getArgs_camera_getfov(scanner)
@@ -149,6 +151,9 @@ extension Script {
 		case "detector_issignal":		return getArgs_detector_issignal(scanner)
 		case "detector_setsignal":		return getArgs_detector_setsignal(scanner)
 		case "detector_waitforuse":		return getArgs_detector_waitforuse(scanner)
+		case "dialog_begin":			return getArgs_dialog_begin(scanner)
+		case "dialog_camswitch":		return getArgs_dialog_camswitch(scanner)
+		case "dialog_end":				return []
 		case "dim_act":					return getArgs_dim(scanner)
 		case "dim_flt":					return getArgs_dim(scanner)
 		case "dim_frm":					return getArgs_dim(scanner)
@@ -175,6 +180,7 @@ extension Script {
 		case "findframe":				return getArgs_findframe(scanner)
 		case "getactivecamera":			return getArgs_getactivecamera(scanner)
 		case "getactiveplayer":			return getArgs_getactiveplayer(scanner)
+		case "getangleactortoactor":	return getArgs_getangleactortoactor(scanner)
 		case "getactorframe":			return getArgs_getactorframe(scanner)
 		case "getfilmmusic":			return getArgs_getfilmmusic(scanner)
 		case "frm_getpos":				return getArgs_frm_getpos(scanner)
@@ -218,7 +224,7 @@ extension Script {
 		case "human_getseatidx":		return getArgs_human_getseatidx(scanner)
 		case "human_holster":			return getArgs_human_holster(scanner)
 		case "human_isweapon":			return getArgs_human_isweapon(scanner)
-		case "human_looktoactor":		return []
+		case "human_looktoactor":		return getArgs_human_looktoactor(scanner)
 		case "human_setproperty":		return getArgs_human_setproperty(scanner)
 		case "human_talk":				return getArgs_human_talk(scanner)
 		case "if":						return getArgs_if(scanner)
@@ -227,6 +233,7 @@ extension Script {
 		case "intro_subtitle_add":		return getArgs_subtitle_add(scanner)
 		case "inventory_clear":			return getArgs_inventory_clear(scanner)
 		case "iscarusable":				return getArgs_iscarusable(scanner)
+		case "ispointinarea":			return getArgs_ispointinarea(scanner)
 		case "let":						return getArgs_let(scanner)
 		case "loaddifferences":			return getArgs_loaddifferences(scanner)
 		case "math_abs":				return getArgs_math_abs(scanner)
@@ -245,6 +252,8 @@ extension Script {
 		case "playsound":				return getArgs_playsound(scanner)
 		case "playsoundstop":			return getArgs_playsoundstop(scanner)
 		case "pm_showsymbol":			return getArgs_pm_showsymbol(scanner)
+		case "recaddactor":				return getArgs_recaddactor(scanner)
+		case "recclear":				return []
 		case "rnd":						return getArgs_rnd(scanner)
 		case "recload":					return getArgs_recload(scanner)
 		case "recloadfull":				return getArgs_recload(scanner)
@@ -300,6 +309,14 @@ extension Script {
 
 	private func getArgs_actor_delete(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_actor_duplicate(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_actor_setdir(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_actor_setplacement(_ scanner: Scanner) -> [Argument] {
@@ -455,6 +472,14 @@ extension Script {
 		}
 	}
 
+	private func getArgs_dialog_begin(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_dialog_camswitch(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_dim(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
@@ -558,6 +583,10 @@ extension Script {
 
 	private func getArgs_getactiveplayer(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_getangleactortoactor(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_getactorframe(_ scanner: Scanner) -> [Argument] {
@@ -714,6 +743,14 @@ extension Script {
 		return [scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_human_looktoactor(_ scanner: Scanner) -> [Argument] {
+		var args: [Argument] = []
+		while let arg = scanVarOrValueOptional(scanner) {
+			args.append(arg)
+		}
+		return args
+	}
+
 	private func getArgs_human_isweapon(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
@@ -768,6 +805,10 @@ extension Script {
 
 	private func getArgs_iscarusable(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_ispointinarea(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_inventory_clear(_ scanner: Scanner) -> [Argument] {
@@ -886,6 +927,12 @@ extension Script {
 
 	private func getArgs_rnd(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_recaddactor(_ scanner: Scanner) -> [Argument] {
+		let actorId = scanVarOrValue(scanner)
+		let name = scanString(scanner) ?? scanParam(scanner)
+		return [actorId, .string(name)]
 	}
 
 	private func getArgs_recload(_ scanner: Scanner) -> [Argument] {

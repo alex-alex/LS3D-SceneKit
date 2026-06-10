@@ -447,6 +447,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 	let liveTransformNode = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let recordSourcePosition = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let recordSourceOrientationVector = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let areaBounds = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 
 	init() {
 		nodeType.initialize(to: 0)
@@ -460,6 +461,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 		liveTransformNode.initialize(to: 0)
 		recordSourcePosition.initialize(to: 0)
 		recordSourceOrientationVector.initialize(to: 0)
+		areaBounds.initialize(to: 0)
 	}
 }
 
@@ -472,6 +474,16 @@ enum ActorState: String {
 
 	var canRunScript: Bool {
 		return self == .active
+	}
+}
+
+final class AreaBounds: @unchecked Sendable {
+	let min: SCNVector3
+	let max: SCNVector3
+
+	init(min: SCNVector3, max: SCNVector3) {
+		self.min = min
+		self.max = max
 	}
 }
 
@@ -613,6 +625,19 @@ extension SCNNode {
 				)
 			} else {
 				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.recordSourceOrientationVector, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
+		}
+	}
+
+	var areaBounds: AreaBounds? {
+		get {
+			return objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.areaBounds) as? AreaBounds
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.areaBounds, newValue, .OBJC_ASSOCIATION_RETAIN)
+			} else {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.areaBounds, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
 	}

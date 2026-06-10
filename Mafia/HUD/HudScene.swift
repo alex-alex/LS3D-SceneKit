@@ -25,6 +25,7 @@ final class HudScene: SKScene {
 	var mapNode: SKSpriteNode!
 	var mapBorderNode: SKShapeNode!
 	var mapMarkerNode: SKShapeNode!
+	var mapDestinationNode: SKShapeNode!
 	var pauseButton: SKShapeNode!
 	var inventoryButton: SKShapeNode!
 	var reloadButton: SKShapeNode!
@@ -359,6 +360,7 @@ final class HudScene: SKScene {
 				  mapNode != nil,
 				  mapBorderNode != nil,
 				  mapMarkerNode != nil,
+				  mapDestinationNode != nil,
 				  objectivesNode != nil,
 				  consoleLabel != nil,
 				  subtitleLabel != nil,
@@ -898,6 +900,20 @@ extension HudScene {
 		mapMarkerNode.zPosition = 2
 		mapMarkerNode.isHidden = true
 		mapNode.addChild(mapMarkerNode)
+
+		let destinationPath = CGMutablePath()
+		destinationPath.move(to: CGPoint(x: -8, y: 0))
+		destinationPath.addLine(to: CGPoint(x: 8, y: 0))
+		destinationPath.move(to: CGPoint(x: 0, y: -8))
+		destinationPath.addLine(to: CGPoint(x: 0, y: 8))
+
+		mapDestinationNode = SKShapeNode(path: destinationPath)
+		mapDestinationNode.fillColor = SKColor.clear
+		mapDestinationNode.strokeColor = SKColor(red: 0.05, green: 0.35, blue: 1, alpha: 0.96)
+		mapDestinationNode.lineWidth = 3
+		mapDestinationNode.zPosition = 3
+		mapDestinationNode.isHidden = true
+		mapNode.addChild(mapDestinationNode)
 	}
 
 	private func layoutMapOverlay() {
@@ -929,6 +945,8 @@ extension HudScene {
 			  !isMissionEndVisible else {
 			mapNode?.isHidden = true
 			mapBorderNode?.isHidden = true
+			mapMarkerNode?.isHidden = true
+			mapDestinationNode?.isHidden = true
 			return
 		}
 
@@ -936,6 +954,7 @@ extension HudScene {
 		mapBorderNode.isHidden = !isVisible
 		if !isVisible {
 			mapMarkerNode.isHidden = true
+			mapDestinationNode.isHidden = true
 		}
 	}
 
@@ -945,11 +964,25 @@ extension HudScene {
 			return
 		}
 
-		let localX = (normalizedPosition.x - 0.5) * mapNode.size.width
-		let localY = (normalizedPosition.y - 0.5) * mapNode.size.height
-		mapMarkerNode.position = CGPoint(x: localX, y: localY)
+		mapMarkerNode.position = mapLocalPosition(for: normalizedPosition)
 		mapMarkerNode.zRotation = heading ?? 0
 		mapMarkerNode.isHidden = mapNode.isHidden
+	}
+
+	func updateMapDestination(normalizedPosition: CGPoint?) {
+		guard let normalizedPosition = normalizedPosition else {
+			mapDestinationNode.isHidden = true
+			return
+		}
+
+		mapDestinationNode.position = mapLocalPosition(for: normalizedPosition)
+		mapDestinationNode.isHidden = mapNode.isHidden
+	}
+
+	private func mapLocalPosition(for normalizedPosition: CGPoint) -> CGPoint {
+		let localX = (normalizedPosition.x - 0.5) * mapNode.size.width
+		let localY = (normalizedPosition.y - 0.5) * mapNode.size.height
+		return CGPoint(x: localX, y: localY)
 	}
 
 }

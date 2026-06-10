@@ -36,6 +36,8 @@ extension Script {
 //		"}"
 		case .actSetstate:				act_setstate(command.args)
 		case .actorDelete:				actor_delete(command.args)
+		case .actorDuplicate:			actor_duplicate(command.args)
+		case .actorSetdir:				actor_setdir(command.args)
 		case .actorSetpos:				actor_setplacement(command.args)
 		case .actorSetplacement:		actor_setplacement(command.args)
 		case .blockEnd:					noop()
@@ -75,6 +77,9 @@ extension Script {
 		case .detectorIssignal:			detector_issignal(command.args)
 		case .detectorSetsignal:			detector_setsignal(command.args)
 		case .detectorWaitforuse:		detector_waitforuse(command.args)
+		case .dialogBegin:				dialog_begin(command.args)
+		case .dialogCamswitch:			dialog_camswitch(command.args)
+		case .dialogEnd:				dialog_end(command.args)
 		case .dimAct:					dim_act(command.args)
 		case .dimFlt:					dim_flt(command.args)
 		case .dimFrm:					dim_frm(command.args)
@@ -88,7 +93,7 @@ extension Script {
 		case .endBang:					end(command.args)
 		case .endofmission:				endofmission(command.args)
 		case .enemyLook:				enemy_look(command.args)
-		case .enemyLookto:				enemy_look(command.args)
+		case .enemyLookto:				enemy_lookto(command.args)
 		case .enemyMove:				enemy_move(command.args)
 		case .enemyMoveToCar:			enemy_move_to_car(command.args)
 		case .enemyPlayanim:			enemy_playanim(command.args)
@@ -104,6 +109,7 @@ extension Script {
 		case .findframe:				findframe(command.args)
 		case .getactivecamera:			getactivecamera(command.args)
 		case .getactiveplayer:			getactiveplayer(command.args)
+		case .getangleactortoactor:		getangleactortoactor(command.args)
 		case .getactorframe:			getactorframe(command.args)
 		case .frmGetpos:				frm_getpos(command.args)
 		case .frmGetnumchildren:		frm_getnumchildren(command.args)
@@ -155,6 +161,7 @@ extension Script {
 		case .introSubtitleAdd:			subtitle_add(command.args)
 		case .inventoryClear:			inventory_clear(command.args)
 		case .iscarusable:				iscarusable(command.args)
+		case .ispointinarea:			ispointinarea(command.args)
 		case .label:					noop()
 		case .`let`:					`let`(command.args)
 		case .loaddifferences:			loaddifferences(command.args)
@@ -174,6 +181,8 @@ extension Script {
 		case .playsound:				playsound(command.args)
 		case .playsoundstop:			playsoundstop(command.args)
 		case .pmShowsymbol:				pm_showsymbol(command.args)
+		case .recaddactor:				recaddactor(command.args)
+		case .recclear:					recclear(command.args)
 		case .recload:					recload(command.args, full: false)
 		case .recloadfull:				recload(command.args, full: true)
 		case .recwaitforend:			recwaitforend(command.args)
@@ -309,8 +318,39 @@ extension Script {
 
 	private func actor_delete(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
-		actors[actorId]?.removeFromParentNode()
 		actors[actorId] = nil
+		next()
+	}
+
+	private func actor_duplicate(_ args: [Argument]) {
+		let sourceActorId = args[0].getValueOrVarValue(vars: vars)
+		let targetActorId = args[1].getValueOrVarValue(vars: vars)
+		let stateValue = args[2].getValueOrVarValue(vars: vars)
+		guard let sourceActor = node(forScriptId: sourceActorId) else {
+			next()
+			return
+		}
+
+		let duplicatedActor = sourceActor.clone()
+		duplicatedActor.name = duplicateActorName(from: sourceActor.name, actorId: targetActorId)
+		duplicatedActor.actorState = actorState(forDuplicateStateValue: stateValue)
+		if let parent = sourceActor.parent {
+			parent.addChildNode(duplicatedActor)
+		} else {
+			scene.rootNode.addChildNode(duplicatedActor)
+		}
+		scene.registerNodeTree(duplicatedActor)
+		actors[targetActorId] = duplicatedActor
+		next()
+	}
+
+	private func actor_setdir(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let frameId = args[1].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId),
+		   let frame = node(forScriptId: frameId) {
+			face(actor, toward: frame.presentation.worldPosition)
+		}
 		next()
 	}
 
@@ -432,7 +472,8 @@ extension Script {
 		let carId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		if playerOwnerMatches(carId: carId), let vehicle = scene.game.vehicle {
-			vars[varId] = Float(vehicle.speed)
+			let speed = Float(vehicle.speed)
+			vars[varId] = speed <= 1 ? 0 : speed
 		} else {
 			vars[varId] = 0
 		}
@@ -680,12 +721,16 @@ extension Script {
 	private func detector_inrange(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let distance = args[1].getValueOrVarValueFloat(vars: vars)
-		if let playerPosition = scene.game.playerReferencePosition() {
-			if node.squaredDistance(to: playerPosition) <= distance * distance {
-				vars[varId] = scene.game.mode == .car ? 2 : 1
-			} else {
-				vars[varId] = 0
-			}
+		let squaredDistance = distance * distance
+		if scene.game.mode == .car {
+			let positions = [
+				scene.game.playerReferencePosition(),
+				scene.game.vehicle?.node.presentation.worldPosition,
+				scene.game.vehicle?.scriptNode.presentation.worldPosition
+			].compactMap { $0 }
+			vars[varId] = positions.contains { node.squaredDistance(to: $0) <= squaredDistance } ? 2 : 0
+		} else if let playerPosition = scene.game.playerReferencePosition() {
+			vars[varId] = node.squaredDistance(to: playerPosition) <= squaredDistance ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}
@@ -729,6 +774,39 @@ extension Script {
 		if waitsForCommandBlock {
 			next()
 		}
+	}
+
+	private func dialog_begin(_ args: [Argument]) {
+		let firstId = args[0].getValueOrVarValue(vars: vars)
+		let secondId = args[1].getValueOrVarValue(vars: vars)
+		dialogCameraSide = secondId == 1 ? 1 : 0
+		if firstId != secondId,
+		   let speaker = node(forScriptId: firstId),
+		   let target = node(forScriptId: secondId) {
+			setDialogCamera(speaker: speaker, target: target, side: dialogCameraSide)
+		} else if let speaker = node(forScriptId: 0),
+				  let target = node(forScriptId: 1) {
+			setDialogCamera(speaker: speaker, target: target, side: dialogCameraSide)
+		}
+		next()
+	}
+
+	private func dialog_camswitch(_ args: [Argument]) {
+		let speakerId = args[0].getValueOrVarValue(vars: vars)
+		let targetId = args[1].getValueOrVarValue(vars: vars)
+		if let speaker = node(forScriptId: speakerId),
+		   let target = node(forScriptId: targetId) {
+			setDialogCamera(speaker: speaker, target: target, side: dialogCameraSide)
+		}
+		next()
+	}
+
+	private func dialog_end(_ args: [Argument]) {
+		DispatchQueue.main.async {
+			self.scene.game.isCutsceneCameraActive = false
+			self.scene.game.restoreGameplayCamera()
+		}
+		next()
 	}
 
 	private func dim_act(_ args: [Argument]) {
@@ -848,6 +926,15 @@ extension Script {
 		if let actor = actors[actorId] {
 			let targetNode = liveDistanceNode(forActorId: actorId, actor: actor)
 			face(node, toward: targetNode.presentation.worldPosition)
+		}
+		next()
+	}
+
+	private func enemy_lookto(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let actor = actors[actorId] {
+			let targetNode = liveDistanceNode(forActorId: actorId, actor: actor)
+			face(node, awayFrom: targetNode.presentation.worldPosition)
 		}
 		next()
 	}
@@ -1226,6 +1313,22 @@ extension Script {
 		next()
 	}
 
+	private func getangleactortoactor(_ args: [Argument]) {
+		let observerId = args[0].getValueOrVarValue(vars: vars)
+		let observedId = args[1].getValueOrVarValue(vars: vars)
+		let varId = args[2].getValueOrVarValue(vars: vars)
+		guard let observer = node(forScriptId: observerId),
+			  let observed = node(forScriptId: observedId) else {
+			vars[varId] = 0
+			next()
+			return
+		}
+		let observerNode = liveDistanceNode(forActorId: observerId, actor: observer)
+		let observedNode = liveDistanceNode(forActorId: observedId, actor: observed)
+		vars[varId] = actorViewAngle(from: observerNode, to: observedNode)
+		next()
+	}
+
 	private func getenemyaistate(_ args: [Argument]) {
 		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
 		let varId = args[1].getValueOrVarValue(vars: vars)
@@ -1444,9 +1547,7 @@ extension Script {
 		}
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		if isPlayerActor(actorId) {
-			vars[varId] = scene.game.playerHealth > 0 ? 1 : 0
-		} else if let actor = node(forScriptId: actorId) {
+		if let actor = node(forScriptId: actorId) {
 			vars[varId] = humanEnergy(for: actor) > 0 ? 1 : 0
 		} else {
 			vars[varId] = 0
@@ -1456,10 +1557,12 @@ extension Script {
 
 	private func human_death(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId) {
+			humanNode(for: actor)?.humanEnergy = 0
+		}
 		if isPlayerActor(actorId) {
 			scene.game.setPlayerHealth(0)
 		} else if let actor = node(forScriptId: actorId) {
-			humanNode(for: actor)?.humanEnergy = 0
 			actor.actorState = .off
 			script(forActorId: actorId)?.setActorState(.off)
 		}
@@ -1548,9 +1651,7 @@ extension Script {
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		let property = args[2].getString().lowercased()
 		if property == "energy" {
-			if isPlayerActor(actorId) {
-				vars[varId] = Float(scene.game.playerHealth)
-			} else if let actor = node(forScriptId: actorId) {
+			if let actor = node(forScriptId: actorId) {
 				vars[varId] = humanEnergy(for: actor)
 			} else {
 				vars[varId] = 0
@@ -1598,9 +1699,17 @@ extension Script {
 	}
 
 	private func human_looktoactor(_ args: [Argument]) {
-		if let actor = actors[1] {
-			let targetNode = liveDistanceNode(forActorId: 1, actor: actor)
-			face(node, toward: targetNode.presentation.worldPosition)
+		guard args.count >= 2 else {
+			next()
+			return
+		}
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let targetId = args[1].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId),
+		   let target = node(forScriptId: targetId) {
+			let actorNode = actor.liveTransformNode ?? actor
+			let targetNode = liveDistanceNode(forActorId: targetId, actor: target)
+			face(actorNode, toward: targetNode.presentation.worldPosition)
 		}
 		next()
 	}
@@ -1610,10 +1719,11 @@ extension Script {
 		let value = args[1].getValueOrVarValue(vars: vars)
 		let property = args[2].getString().lowercased()
 		if property == "energy" {
+			if let actor = node(forScriptId: actorId) {
+				humanNode(for: actor)?.humanEnergy = max(0, Float(value))
+			}
 			if isPlayerActor(actorId) {
 				scene.game.setPlayerHealth(value)
-			} else if let actor = node(forScriptId: actorId) {
-				humanNode(for: actor)?.humanEnergy = max(0, Float(value))
 			}
 		}
 		next()
@@ -1732,6 +1842,20 @@ extension Script {
 		} else {
 			vars[varId] = 0
 		}
+		next()
+	}
+
+	private func ispointinarea(_ args: [Argument]) {
+		let pointVarId = args[0].getValueOrVarValue(vars: vars)
+		let frameId = args[1].getValueOrVarValue(vars: vars)
+		let resultVarId = args[2].getValueOrVarValue(vars: vars)
+		guard let frame = node(forScriptId: frameId) else {
+			vars[resultVarId] = 0
+			next()
+			return
+		}
+		let point = vectorVariable(startingAt: pointVarId)
+		vars[resultVarId] = isPoint(point, inAreaFrame: frame) ? 1 : 0
 		next()
 	}
 
@@ -1951,6 +2075,22 @@ extension Script {
 		if symbolId != 0 {
 			print("pm_showsymbol \(symbolId): police symbol HUD is not implemented")
 		}
+		next()
+	}
+
+	private func recaddactor(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let name = args[1].getString()
+		if name.lowercased() == "null" {
+			actors[actorId] = makeScriptNullActorNode()
+		} else {
+			actors[actorId] = findNode(named: name)
+		}
+		next()
+	}
+
+	private func recclear(_ args: [Argument]) {
+		scene.clearActiveRecordPlayback()
 		next()
 	}
 
@@ -2481,7 +2621,13 @@ extension Script {
 		if name.lowercased() == "root" {
 			return node
 		}
-		return scene.node(named: name)
+		if let node = scene.node(named: name) {
+			return node
+		}
+		if name.lowercased() == "tommy" {
+			return scene.playerNode
+		}
+		return nil
 	}
 
 	private func node(forScriptId id: Int) -> SCNNode? {
@@ -2751,8 +2897,77 @@ extension Script {
 		return actor.liveTransformNode ?? actor
 	}
 
+	private func setDialogCamera(speaker: SCNNode, target: SCNNode, side: Int) {
+		let speakerNode = speaker.liveTransformNode ?? speaker
+		let targetNode = target.liveTransformNode ?? target
+		DispatchQueue.main.async {
+			let speakerFocus = self.dialogCameraFocusPosition(for: speakerNode)
+			let targetFocus = self.dialogCameraFocusPosition(for: targetNode)
+			let forward = self.dialogCameraForward(from: speakerFocus, to: targetFocus, fallbackNode: speakerNode)
+			let right = SCNVector3(x: -forward.z, y: 0, z: forward.x).normalized
+			let sideVector = right * (side == 1 ? 1 : -1)
+			let cameraPosition = speakerFocus - forward * 1.15 + sideVector * 0.45 + SCNVector3(x: 0, y: 0.05, z: 0)
+			let direction = targetFocus - cameraPosition
+			let distance = max(SCNFloat(0.0001), SCNFloat(direction.length))
+			let pitch = asin(max(SCNFloat(-1), min(SCNFloat(1), direction.y / distance)))
+			let yaw = atan2(-direction.x, -direction.z)
+
+            guard let game = self.scene.game else { return }
+            game.cameraContainer.removeFromParentNode()
+            game.scnScene.rootNode.addChildNode(game.cameraContainer)
+            game.cameraContainer.position = cameraPosition
+            game.cameraContainer.eulerAngles = SCNVector3(x: pitch, y: yaw, z: 0)
+            game.cameraNode.position = SCNVector3Zero
+            game.cameraNode.eulerAngles = SCNVector3(x: 0, y: .pi, z: .pi)
+            game.isCutsceneCameraActive = true
+		}
+	}
+
+	private func dialogCameraFocusPosition(for node: SCNNode) -> SCNVector3 {
+		let position = node.presentation.worldPosition
+		let bounds = node.presentation.boundingBox
+		let height = bounds.max.y - bounds.min.y
+		let focusHeight = height > 0.1 ? min(max(height * 0.78, 1.2), 1.75) : 1.55
+		return position + SCNVector3(x: 0, y: focusHeight, z: 0)
+	}
+
+	private func dialogCameraForward(from speaker: SCNVector3, to target: SCNVector3, fallbackNode: SCNNode) -> SCNVector3 {
+		let targetDirection = SCNVector3(x: target.x - speaker.x, y: 0, z: target.z - speaker.z)
+		if targetDirection.length > 0.0001 {
+			return targetDirection.normalized
+		}
+		let fallback = fallbackNode.presentation.worldFront
+		let fallbackDirection = SCNVector3(x: fallback.x, y: 0, z: fallback.z)
+		if fallbackDirection.length > 0.0001 {
+			return fallbackDirection.normalized
+		}
+		return SCNVector3(x: 0, y: 0, z: -1)
+	}
+
 	private func formatVector(_ vector: SCNVector3) -> String {
 		return String(format: "(%.1f,%.1f,%.1f)", Double(vector.x), Double(vector.y), Double(vector.z))
+	}
+
+	private func duplicateActorName(from sourceName: String?, actorId: Int) -> String {
+		let baseName = sourceName.flatMap { $0.isEmpty ? nil : $0 } ?? "actor"
+		return "\(baseName)_duplicate_\(actorId)"
+	}
+
+	private func actorState(forDuplicateStateValue value: Int) -> ActorState {
+		return value == 0 ? .active : .inactive
+	}
+
+	private func actorViewAngle(from observer: SCNNode, to observed: SCNNode) -> Float {
+		let forward = observer.presentation.worldFront
+		let observerForward = SCNVector3(x: forward.x, y: 0, z: forward.z).normalized
+		let delta = observed.presentation.worldPosition - observer.presentation.worldPosition
+		let targetDirection = SCNVector3(x: delta.x, y: 0, z: delta.z).normalized
+		guard observerForward.length > 0.0001,
+			  targetDirection.length > 0.0001 else {
+			return 0
+		}
+		let dot = max(SCNFloat(-1), min(SCNFloat(1), observerForward.x * targetDirection.x + observerForward.z * targetDirection.z))
+		return Float(acos(dot) * 180 / .pi)
 	}
 
 	private func face(_ node: SCNNode, toward targetPosition: SCNVector3) {
@@ -2766,6 +2981,16 @@ extension Script {
 		let localForward = node.parent?.presentation.convertVector(worldForward, from: nil) ?? worldForward
 		let localYaw = atan2(-localForward.x, -localForward.z)
 		node.eulerAngles = SCNVector3(x: 0, y: localYaw, z: 0)
+	}
+
+	private func face(_ node: SCNNode, awayFrom targetPosition: SCNVector3) {
+		let position = node.presentation.worldPosition
+		let mirroredTargetPosition = SCNVector3(
+			x: position.x - (targetPosition.x - position.x),
+			y: targetPosition.y,
+			z: position.z - (targetPosition.z - position.z)
+		)
+		face(node, toward: mirroredTargetPosition)
 	}
 
 	private func removePhysicsBodies(from node: SCNNode) {
@@ -2898,6 +3123,33 @@ extension Script {
 			y: SCNFloat(vars[varId + 1] ?? 0),
 			z: SCNFloat(vars[varId + 2] ?? 0)
 		)
+	}
+
+	private func isPoint(_ point: SCNVector3, inAreaFrame frame: SCNNode) -> Bool {
+		let localPoint = frame.presentation.convertPosition(point, from: nil)
+		if let areaBounds = frame.areaBounds {
+			return contains(localPoint, min: areaBounds.min, max: areaBounds.max)
+		}
+
+		let bounds = frame.boundingBox
+		if hasVolume(min: bounds.min, max: bounds.max) {
+			return contains(localPoint, min: bounds.min, max: bounds.max)
+		}
+		return contains(localPoint, min: SCNVector3(x: -0.5, y: -0.5, z: -0.5), max: SCNVector3(x: 0.5, y: 0.5, z: 0.5))
+	}
+
+	private func contains(_ point: SCNVector3, min rawMin: SCNVector3, max rawMax: SCNVector3) -> Bool {
+		let minPoint = SCNVector3(x: min(rawMin.x, rawMax.x), y: min(rawMin.y, rawMax.y), z: min(rawMin.z, rawMax.z))
+		let maxPoint = SCNVector3(x: max(rawMin.x, rawMax.x), y: max(rawMin.y, rawMax.y), z: max(rawMin.z, rawMax.z))
+		return point.x >= minPoint.x && point.x <= maxPoint.x &&
+			point.y >= minPoint.y && point.y <= maxPoint.y &&
+			point.z >= minPoint.z && point.z <= maxPoint.z
+	}
+
+	private func hasVolume(min: SCNVector3, max: SCNVector3) -> Bool {
+		return abs(max.x - min.x) > 0.0001 ||
+			abs(max.y - min.y) > 0.0001 ||
+			abs(max.z - min.z) > 0.0001
 	}
 
 	private func worldScale(of transform: SCNMatrix4) -> SCNVector3 {

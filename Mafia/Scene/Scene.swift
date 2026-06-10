@@ -700,8 +700,9 @@ final class Scene: @unchecked Sendable {
 							try readLight(stream: stream, partSize: partSize, objectNode: objectNode)
 
 						case .music:
-							let _ = try SCNVector3(stream: stream) // min
-							let _ = try SCNVector3(stream: stream) // max
+							let min = try SCNVector3(stream: stream)
+							let max = try SCNVector3(stream: stream)
+							objectNode.areaBounds = AreaBounds(min: min, max: max)
 
 						case .sound:
 							self.sounds[objectNode] = try Sound(scene: self, node: objectNode, stream: stream, partSize: partSize)
@@ -2878,6 +2879,17 @@ final class Scene: @unchecked Sendable {
 		isCutsceneSkipRequested = true
 		stopRecordPlayback()
 		return true
+	}
+
+	func clearActiveRecordPlayback() {
+		guard Thread.isMainThread else {
+			DispatchQueue.main.async {
+				self.clearActiveRecordPlayback()
+			}
+			return
+		}
+
+		stopRecordPlayback()
 	}
 
 	func consumeCutsceneSkipRequest() -> Bool {

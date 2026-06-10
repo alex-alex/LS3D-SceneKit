@@ -288,6 +288,7 @@ final class Game: NSObject, @unchecked Sendable {
 			let playerEnergy = scene.playerNode?.humanEnergy.map { "\($0)" } ?? "<nil>"
 			print("== Player Node from mission: \(playerName), energy=\(playerEnergy)")
 		}
+		syncInitialPlayerHealthFromMission()
 
 		if !isMenuMission, scene.playerNode != nil {
 			PlayerController.preloadAnimations()
@@ -345,8 +346,21 @@ final class Game: NSObject, @unchecked Sendable {
 			playerNode.transform = spawnNode.worldTransform
 		}
 		playerNode.name = "tommy"
+		playerNode.type = .player
+		playerNode.humanEnergy = Float(playerHealth)
 		scene.playerNode = playerNode
 		scnScene.rootNode.addChildNode(playerNode)
+		scene.registerNodeTree(playerNode)
+	}
+
+	private func syncInitialPlayerHealthFromMission() {
+		guard let playerNode = scene.playerNode else { return }
+		playerNode.type = .player
+		if playerNode.humanEnergy == nil {
+			playerNode.humanEnergy = Float(playerHealth)
+		}
+		guard let energy = playerNode.humanEnergy else { return }
+		playerHealth = max(0, Int(round(energy)))
 	}
 
 	private func playerSpawnNode() -> SCNNode? {
@@ -1061,6 +1075,19 @@ final class Game: NSObject, @unchecked Sendable {
 		return nil
 	}
 
+	private func vehicleStealId(for node: SCNNode) -> Int? {
+		for carId in stealEnabledVehicleIds {
+			guard let carNode = stealVehicleNodes[carId],
+				  !stolenVehicleIds.contains(carId) else { continue }
+
+			let hasMatchingName = carNode.name != nil && carNode.name == node.name
+			if carNode === node || hasMatchingName || isNode(node, inside: carNode) || isNode(carNode, inside: node) {
+				return carId
+			}
+		}
+		return nil
+	}
+
 	private func markVehicleStolen(_ vehicle: Vehicle) {
 		stolenVehicleNodeIds.insert(ObjectIdentifier(vehicle.node))
 		stolenVehicleNodeIds.insert(ObjectIdentifier(vehicle.scriptNode))
@@ -1198,9 +1225,11 @@ final class Game: NSObject, @unchecked Sendable {
 			return vehicle
 		}
 
-		return stealVehicleNodes
-			.compactMap { carId, node -> (node: SCNNode, distance: Float)? in
-				guard stolenVehicleIds.contains(carId) else { return nil }
+		return stealableVehicleNodes()
+			.compactMap { node -> (node: SCNNode, distance: Float)? in
+				guard node.actionsEnabledInHierarchy,
+					  !isNodeHiddenInHierarchy(node),
+					  vehicleStealId(for: node) == nil else { return nil }
 				return (node, node.actionSquaredDistance(to: playerPosition))
 			}
 			.filter { $0.distance < actionDistanceSquared }
@@ -1863,6 +1892,7 @@ extension Game: SCNSceneRendererDelegate {
 				normalizedPosition: self.mapReferencePosition(),
 				heading: self.mapReferenceHeading()
 			)
+			hud.updateMapDestination(normalizedPosition: self.mapCompassDestinationPosition())
 		}
 		refreshPlayerStatusHud()
 		updateNPCHealthLabels()
@@ -1913,6 +1943,13 @@ extension Game: SCNSceneRendererDelegate {
 			  let bounds = roadMapBounds else { return nil }
 
 		return bounds.normalizedPoint(for: position)
+	}
+
+	func mapCompassDestinationPosition() -> CGPoint? {
+		guard let node = scene.compassNode,
+			  let bounds = roadMapBounds else { return nil }
+
+		return bounds.normalizedPoint(for: node.presentation.worldPosition)
 	}
 
 	func mapReferenceHeading() -> CGFloat? {
@@ -2968,7 +3005,11 @@ extension Game {
 		guard let humanNode = humanNode(from: node) else { return false }
 
 		let currentEnergy = humanNode.humanEnergy ?? 100
-		humanNode.humanEnergy = max(0, currentEnergy - Float(amount))
+		let newEnergy = max(0, currentEnergy - Float(amount))
+		humanNode.humanEnergy = newEnergy
+		if isNode(humanNode, inside: scene.playerNode) {
+			setPlayerHealth(Int(round(newEnergy)))
+		}
 		return true
 	}
 
@@ -3647,7 +3688,7 @@ extension Game {
 }
 
 private struct RoadMapBounds {
-	private static let artworkCalibrationOffset = CGPoint(x: 0.06, y: -0.14)
+	private static let artworkCalibrationOffset = CGPoint(x: -0.06, y: 0.14)
 
 	let minX: SCNFloat
 	let maxX: SCNFloat
