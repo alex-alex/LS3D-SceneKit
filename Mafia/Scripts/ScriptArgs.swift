@@ -262,6 +262,7 @@ extension Script {
 		case "recwaitforend":			return []
 		case "recunload":				return []
 		case "setcompass":				return getArgs_setcompass(scanner)
+		case "setcitytrafficvisible":	return getArgs_setcitytrafficvisible(scanner)
 		case "setevent":				return getArgs_setevent(scanner)
 		case "setfilmmusic":			return getArgs_setfilmmusic(scanner)
 		case "setnullactor":			return getArgs_setnullactor(scanner)
@@ -448,6 +449,10 @@ extension Script {
 
 	private func getArgs_ctrl_read(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner))]
+	}
+
+	private func getArgs_setcitytrafficvisible(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_debug_text(_ scanner: Scanner) -> [Argument] {

@@ -193,6 +193,7 @@ extension Script {
 		case .returnBang:				`return`(command.args)
 		case .rnd:						rnd(command.args)
 		case .setcompass:				setcompass(command.args)
+		case .setCityTrafficVisible:	setcitytrafficvisible(command.args)
 		case .setevent:					setevent(command.args)
 		case .setnullactor:				setnullactor(command.args)
 		case .setnullframe:				setnullframe(command.args)
@@ -564,6 +565,14 @@ extension Script {
 	private func citymusic_on(_ args: [Argument]) {
 		DispatchQueue.main.async {
 			self.scene.game.setCityMusicEnabled(true)
+		}
+		next()
+	}
+
+	private func setcitytrafficvisible(_ args: [Argument]) {
+		let isVisible = args[0].getValueOrVarValue(vars: vars) != 0
+		DispatchQueue.main.async {
+			self.scene.game.setCityTrafficVisible(isVisible)
 		}
 		next()
 	}

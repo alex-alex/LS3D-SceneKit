@@ -33,10 +33,11 @@ final class Game: NSObject, @unchecked Sendable {
 	var isCutsceneCameraActive = false {
 		didSet {
 			guard oldValue != isCutsceneCameraActive else { return }
-			trafficManager?.isEnabled = !isCutsceneCameraActive
+			updateTrafficVisibility()
 			setCutsceneOverlayVisible(isCutsceneCameraActive)
 		}
 	}
+	private var isCityTrafficVisible = true
 	private let ambientLightNode = SCNNode()
 
 	var mode: Mode = .walk {
@@ -275,7 +276,7 @@ final class Game: NSObject, @unchecked Sendable {
 			roadDebugNode = debugNode
 		}
 		trafficManager = TrafficManager(road: road, trafficSettings: scene.trafficSettings, scene: scnScene)
-		trafficManager?.isEnabled = !isCutsceneCameraActive
+		updateTrafficVisibility()
 		if road != nil {
 			print("== Loaded Road")
 		}
@@ -2043,6 +2044,16 @@ extension Game: SCNSceneRendererDelegate {
 		}
 	}
 
+	func setCityTrafficVisible(_ isVisible: Bool) {
+		guard isCityTrafficVisible != isVisible else { return }
+		isCityTrafficVisible = isVisible
+		updateTrafficVisibility()
+	}
+
+	private func updateTrafficVisibility() {
+		trafficManager?.isEnabled = isCityTrafficVisible && !isCutsceneCameraActive
+	}
+
 	private func updateCityMusic(deltaTime: TimeInterval) {
 		guard isCityMusicEnabled else { return }
 		if cityMusicUpdateTimer >= 0 {
@@ -2400,36 +2411,26 @@ extension Game {
 	}
 
 	private static func roadRouteDebugNode(for road: Road) -> SCNNode? {
-		let samplesPerSegment = 8
 		var vertices: [SCNVector3] = []
 		var indices: [Int32] = []
-		vertices.reserveCapacity(road.waypoints.count * samplesPerSegment * 2)
-		indices.reserveCapacity(road.waypoints.count * samplesPerSegment * 2)
+		var drawnConnections = Set<Int64>()
+		vertices.reserveCapacity(road.waypoints.count * 2)
+		indices.reserveCapacity(road.waypoints.count * 2)
 
 		for (index, waypoint) in road.waypoints.enumerated() {
-			guard let nextIndex = road.nextWaypointIndex(after: index, routeSeed: index),
-				  road.waypoints.indices.contains(nextIndex),
-				  nextIndex != index else { continue }
+			for nextIndex in road.continuationWaypointIndices(from: index)
+				where road.waypoints.indices.contains(nextIndex) && nextIndex != index {
+				let lowIndex = min(index, nextIndex)
+				let highIndex = max(index, nextIndex)
+				let connectionKey = (Int64(lowIndex) << 32) | Int64(highIndex)
+				guard !drawnConnections.contains(connectionKey) else { continue }
 
-			let previousIndex = road.previousWaypointIndex(before: index) ?? index
-			let futureIndex = road.nextWaypointIndex(after: nextIndex, routeSeed: index) ?? nextIndex
-			var previousSample = raisedRoadDebugPosition(waypoint.position)
-
-			for sampleIndex in 1...samplesPerSegment {
-				let progress = Float(sampleIndex) / Float(samplesPerSegment)
-				let sample = raisedRoadDebugPosition(catmullRom(
-					previous: road.waypoints[previousIndex].position,
-					start: waypoint.position,
-					end: road.waypoints[nextIndex].position,
-					future: road.waypoints[futureIndex].position,
-					progress: progress
-				))
+				drawnConnections.insert(connectionKey)
 				let startVertexIndex = Int32(vertices.count)
-				vertices.append(previousSample)
-				vertices.append(sample)
+				vertices.append(raisedRoadDebugPosition(waypoint.position))
+				vertices.append(raisedRoadDebugPosition(road.waypoints[nextIndex].position))
 				indices.append(startVertexIndex)
 				indices.append(startVertexIndex + 1)
-				previousSample = sample
 			}
 		}
 

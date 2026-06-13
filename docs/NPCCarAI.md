@@ -92,6 +92,21 @@ car position, and creates driver actors. It uses `road.bin` waypoint records
 through the loaded road graph, including the waypoint previous/next crosspoint
 fields documented in `RoadTraffic.md`.
 
+The saved decompile shows this setup reading a nearest waypoint from
+`FUN_0055b370`, checking the waypoint references at offsets `0x10` and `0x12`,
+then comparing the car forward vector against the candidate road direction with
+a dot product before calling `FUN_0055b710`. `Road.routePlacement` mirrors the
+confirmed part by projecting a position onto waypoint segments, and its optional
+direction argument chooses forward/backward travel from the nearest waypoint
+using the supplied forward vector.
+Fresh decompilation confirms `FUN_0055b370` is a nearest-waypoint lookup over
+the loaded waypoint array. `FUN_0055b570` follows waypoint references until a
+non-waypoint crossroad reference is reached, and `FUN_0055b5d0` chooses a
+matching direction link from a crossroad. `FUN_0055b710` then builds a route
+action from those crossroad/direction-link results. The current port does not
+yet build that original route action object, but `RoadRoutePlacement` now carries
+whether the placement travels forward or backward through the waypoint chain.
+
 ## Traffic Car Flags
 
 Current LS3D-SceneKit reads each scene traffic car definition as:
@@ -101,7 +116,7 @@ Current LS3D-SceneKit reads each scene traffic car definition as:
 | `modelName` | `char[20]` |
 | `density` | `Float32` |
 | `colors` | `UInt32` |
-| `isPolice` | `UInt16` |
+| `policeFlags` | `UInt16` |
 | `gangsterFlags` | `UInt16` |
 
 The original ambient traffic function copies traffic database bytes into each
@@ -109,12 +124,15 @@ generated entry and branches on them:
 
 | Generated entry offset | Observed use |
 | --- | --- |
-| `0x150` | Nonzero path marks the vehicle at car offset `0x2104`, spawns a police-like driver model path, and uses the police-like debug color. |
-| `0x155` | Nonzero path marks the vehicle at car offset `0x2105` and uses the alternate flagged debug color. |
-| `0x14f` | Copied from the traffic database, but the exact meaning was not mapped. |
+| `0x150` | Low byte of `policeFlags`. Nonzero path marks the vehicle at car offset `0x2104`, spawns a police-like driver model path, and selects ARGB color `0xff009fff`. |
+| `0x155` | Low byte of `gangsterFlags`, but only copied when `0x150` is zero. Nonzero path marks the vehicle at car offset `0x2105` and selects ARGB color `0xffff9f00`. |
+| `0x14f` | High byte of `policeFlags`. Copied from the traffic database, but the exact meaning was not mapped. |
 
-These map plausibly to fields derived from `isPolice` and `gangsterFlags`, but
-the exact byte-level packing is not confirmed in this pass.
+Normal traffic selects ARGB color `0xffb0e0b0`. Fresh decompilation of
+`FUN_005fa510` shows the original stores a `(key, ARGB color)` pair on the car
+object. Current LS3D-SceneKit preserves the exact bytes and exposes the selected
+ARGB value on `TrafficCarDefinition`, but it does not yet apply that color to
+materials because the original key-to-render-target mapping is not named.
 
 ## Scripted Car Actions
 
@@ -167,6 +185,8 @@ The exe also registers lower-level car and police script commands in
 | `POLICEMANAGER_SETSPEED` | Sets police manager speed. |
 | `POLICEMANAGER_FORCEARREST` | Forces police arrest behavior. |
 | `TAXIDRIVER_ENABLE` | Enables/disables taxi driver behavior. |
+| `SETCITYTRAFFICVISIBLE` | Registered by the exe command-name table. Current port maps the command name to ambient traffic visibility through `TrafficManager.isEnabled`, combined with cutscene-camera suppression; the original handler was not mapped in this pass. |
+| `FREERIDE_TRAFFSETUP` | Registered by the exe command-name table. Handler behavior was not mapped in this pass. |
 
 Only the string references were mapped for these commands in this pass. Their
 full handlers should be decompiled separately before treating parameter
@@ -182,16 +202,34 @@ than the original:
 3. Spawn at most `16` generated cars.
 4. Choose model names by traffic density.
 5. Place cars near the player/camera within generation radii.
-6. Move each car by linear interpolation between current and next waypoints.
+6. Resolve placement through `Road.routePlacement(near:routeSeed:)`, which
+   projects onto usable forward road waypoint segments. Direction-aware
+   placements can travel forward or backward through the waypoint chain.
 7. Use `max(10, max(currentWaypoint.speed, nextWaypoint.speed)) * speedScale`.
 8. Offset display position sideways by a fixed lane offset.
-9. Choose the next waypoint with `Road.nextWaypointIndex(after:routeSeed:)`.
-10. Recycle cars when they are outside the active traffic radius.
+9. Choose the next waypoint with
+   `Road.continuationWaypointIndex(from:previousIndex:routeSeed:)` once a car
+   has an incoming segment. The continuation pass considers both endpoint sides
+   of the current waypoint, prefers direct/local waypoint continuations first,
+   and only expands active crossroad direction links as a fallback. Local
+   continuations use the best-aligned candidate rather than seeded variation, so
+   multi-point turns stay on their sampled lane path. It excludes the waypoint
+   the car came from when possible and ranks candidates against the incoming
+   direction. This prevents paired lane records like `988 -> 986 -> 988` from
+   turning into a U-turn loop without letting cars cut across unrelated crossroad
+   exits.
+10. Move/display cars by linear interpolation between sampled waypoints. The
+    route graph carries multi-point turns; traffic rendering does not add extra
+    curve smoothing that can overshoot or loop.
+11. Recycle cars only when they are unplaced or outside the active traffic
+    radius, so nearby visible cars are not re-placed just because the player
+    moved the placement center.
 
 Current implementation does not yet model these original behaviors:
 
 - Traffic driver actors named `trf_car_driver*`.
-- Police/gangster traffic flags beyond storing `isPolice` and `gangsterFlags`.
+- Police/gangster traffic behavior beyond preserving the original traffic flag
+  bytes and selected ARGB value.
 - Original road direction-link and lane selection at intersections.
 - Original `CarMoveTo`, `CarEscape`, or `CarHunt` action queues.
 - Police manager and taxi-driver subsystems.
@@ -227,8 +265,8 @@ For closer original behavior, the next confirmed targets are:
    `0x100d`, and `0x100e`.
 2. Map the road traversal logic used by `0x004baec0`, especially how it chooses
    a next crossroad/direction link from the car's current road segment.
-3. Preserve traffic flags from scene object type `12` through `TrafficManager`
-   placement so police/gangster traffic can branch later.
+3. Map how the original `(key, ARGB color)` pairs created by `FUN_005fa510`
+   affect rendered car materials or debug overlays.
 4. Add driver actor support only after the seat attachment and animation calls
    are mapped well enough to avoid hardcoded placement.
 

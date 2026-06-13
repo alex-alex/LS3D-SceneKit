@@ -243,6 +243,7 @@ enum ScriptCommandName: String {
 	case returnBang = "return!"
 	case rnd
 	case setcompass
+	case setCityTrafficVisible = "setcitytrafficvisible"
 	case setevent
 	case setfilmmusic
 	case setnullactor

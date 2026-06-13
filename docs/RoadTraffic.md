@@ -17,6 +17,10 @@ Ghidra found the mission road loader from the string `missions\%s\road.bin`:
 | `0x005409d0` | Mission load routine. It checks `missions\%s\road.bin` and calls `0x00559e60` only when the file exists. |
 | `0x00559e60` | `road.bin` loader. Reads version, crossroad count, crossroad array, waypoint count, waypoint array. |
 | `0x0055cb00` | Post-load crossroad cleanup. Removes direction links whose lane entries are all empty. |
+| `0x0055b370` | Nearest-waypoint lookup. Searches the loaded waypoint array and returns a waypoint index or `0xffff`. |
+| `0x0055b570` | Resolves a waypoint/crossroad reference by walking waypoint previous/next references until it reaches a non-waypoint road point. |
+| `0x0055b5d0` | Finds the crossroad direction-link index whose `farActiveCrossPoint` matches the requested road point. |
+| `0x0055b710` | Builds an original route/action object from nearest waypoint, terminal road points, and crossroad direction links. |
 
 The scene object named `Traffic` or object type `12` is separate from
 `road.bin`. It supplies traffic generation settings: generation radii, generated
@@ -165,6 +169,37 @@ That matches the observed need for waypoint indexes above 255. Point types below
 or crossroad-side references and require crossroad/direction-link logic for full
 original behavior.
 
+## Route Helper Behavior
+
+Fresh Ghidra extraction after the initial pass mapped the helper chain used by
+ambient traffic driver refresh:
+
+1. `0x0055b370` receives a world position and returns the nearest waypoint index
+   from the road waypoint vector. The implementation uses the waypoint array's
+   x-coordinate ordering to narrow the scan, but the observable result is nearest
+   waypoint by squared 3D distance.
+2. `0x0055b570` receives a packed road point reference. If the reference is
+   already a non-waypoint road point, it returns it. If the reference points to a
+   waypoint, it follows that waypoint's previous reference unless it equals the
+   reference it came from; in that case it follows the next reference. It repeats
+   until it reaches a non-waypoint road point or `0xffff`.
+3. `0x0055b5d0` scans the four direction links on a crossroad and returns the
+   link index whose `farActiveCrossPoint` matches the requested road point. If
+   multiple links match and the caller has a waypoint context, the smallest
+   distance-like direction-link field is preferred.
+4. `0x0055b710` calls the helpers above for both sides of the nearest waypoint,
+   chooses the side aligned with the car forward vector when both are valid, then
+   appends road point references into an action/route object used by the original
+   driver controller.
+
+Current LS3D-SceneKit does not yet have the original route/action object that
+`0x0055b710` writes into. `Road.routePlacement` ports the confirmed placement
+surface that the current mover can represent: nearest waypoint/segment
+attachment, direction-aware selection, and forward/backward travel through the
+waypoint chain. `Road.nearestWaypointIndex(to:)` keeps an X-sorted waypoint
+index cache to mirror the original nearest-waypoint narrowing while preserving
+the same nearest-by-squared-3D-distance result.
+
 ## Traffic Generation Settings
 
 `road.bin` does not contain the car model list. The scene entity of type `12`
@@ -181,7 +216,7 @@ does. Current `Scene.swift` reads that object as:
 | repeated car `modelName` | `char[20]` | Model base name. |
 | repeated car `modelDensity` | `Float32` | Weighted selection value. |
 | repeated car `colors` | `UInt32` | Not mapped here. |
-| repeated car `isPolice` | `UInt16` | Nonzero means police. |
+| repeated car `policeFlags` | `UInt16` | Low byte feeds original generated-entry offset `0x150`; high byte feeds `0x14f`. Nonzero still exposes `isPolice` in the port. |
 | repeated car `gangsterFlags` | `UInt16` | Not mapped here. |
 
 The original exe has a `traffic_element` string referenced from function
@@ -223,11 +258,23 @@ Confirmed matches:
 
 Known gaps:
 
-- Current `Road.nextWaypointIndex(after:)` falls back by scanning waypoints whose
-  previous point matches the current next point. That is a practical route graph,
-  but it does not yet use the four crossroad direction links, lane entries,
-  priorities, semaphore flag, or distance/angle fields that the original file
-  provides.
+- Current movement uses
+  `Road.continuationWaypointIndex(from:previousIndex:routeSeed:)` after a car
+  has an incoming segment. It scans both endpoint sides of the current waypoint,
+  prefers direct/local waypoint continuations, expands active crossroad direction
+  links only as a fallback, excludes the incoming waypoint when possible, and
+  ranks candidates by incoming direction. Local continuations choose the
+  best-aligned candidate deterministically; direct waypoint references are
+  preferred before same-crossroad sibling candidates, and seeded variation is
+  reserved for fallback branching. Traffic display interpolates linearly between
+  sampled waypoints. That is a practical route graph, but it does not yet use
+  lane entries, priorities, semaphore flag, or distance/angle fields with the
+  original policy.
+- The cyan route debug overlay draws the primary local graph only: direct
+  waypoint references first, then local same-point references. It intentionally
+  omits crossroad-link fallback candidates because those are only emergency
+  traversal options and make the diagnostic view look like impossible traffic
+  paths.
 - Direction link `priority` contains multiple value families. The exact policy
   for choosing among outgoing crossroad directions is not confirmed.
 - Lane type meanings beyond `0 == empty/inactive for cleanup` are not confirmed.

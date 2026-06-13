@@ -18,6 +18,7 @@ final class TrafficManager {
 		var currentWaypointIndex: Int
 		var nextWaypointIndex: Int
 		var progress: Float
+		var travelsForward: Bool
 		let speedScale: Float
 		let laneOffset: Float
 		var isPlaced = false
@@ -30,6 +31,7 @@ final class TrafficManager {
 			currentWaypointIndex: Int,
 			nextWaypointIndex: Int,
 			progress: Float,
+			travelsForward: Bool,
 			speedScale: Float,
 			laneOffset: Float
 		) {
@@ -40,6 +42,7 @@ final class TrafficManager {
 			self.currentWaypointIndex = currentWaypointIndex
 			self.nextWaypointIndex = nextWaypointIndex
 			self.progress = progress
+			self.travelsForward = travelsForward
 			self.speedScale = speedScale
 			self.laneOffset = laneOffset
 		}
@@ -112,12 +115,8 @@ final class TrafficManager {
 		if shouldRebalance {
 			lastPlacementCenter = cameraPosition
 			placementSeed += vehicles.count
-			for vehicle in vehicles {
-				place(vehicle: vehicle, near: cameraPosition)
-			}
-		} else {
-			recycleVehiclesIfNeeded(relativeTo: cameraPosition)
 		}
+		recycleVehiclesIfNeeded(relativeTo: cameraPosition)
 	}
 
 	private func spawnVehicles() {
@@ -126,8 +125,7 @@ final class TrafficManager {
 
 		for index in 0..<count {
 			let waypointIndex = evenlySpacedWaypointIndex(for: index, count: count)
-			guard let nextIndex = road.nextWaypointIndex(after: waypointIndex, routeSeed: index),
-				  nextIndex != waypointIndex,
+			guard let placement = road.routePlacement(near: road.waypoints[waypointIndex].position, routeSeed: index),
 				  let definition = trafficCarDefinitionForGeneratedCar(index: index),
 				  let modelPath = resolvedModelPath(for: definition.modelName, variantSeed: index),
 				  let node = try? loadModel(named: modelPath) else { continue }
@@ -142,10 +140,11 @@ final class TrafficManager {
 				id: index,
 				node: node,
 				definition: definition,
-				previousWaypointIndex: road.previousWaypointIndex(before: waypointIndex) ?? waypointIndex,
-				currentWaypointIndex: waypointIndex,
-				nextWaypointIndex: nextIndex,
-				progress: Float(index % 4) * 0.2,
+				previousWaypointIndex: placement.previousWaypointIndex,
+				currentWaypointIndex: placement.currentWaypointIndex,
+				nextWaypointIndex: placement.nextWaypointIndex,
+				progress: placement.progress,
+				travelsForward: placement.travelsForward,
 				speedScale: 0.9 + Float((index * 37) % 25) / 100,
 				laneOffset: defaultLaneOffset + Float(index % 2) * 0.55
 			)
@@ -171,18 +170,26 @@ final class TrafficManager {
 	}
 
 	private func place(vehicle: RoamingVehicle, near playerPosition: SCNVector3) {
-		guard let waypointIndex = waypointIndexNear(playerPosition, offset: vehicle.id + placementSeed),
-			  let nextIndex = road.nextWaypointIndex(after: waypointIndex, routeSeed: vehicle.id + placementSeed),
-			  nextIndex != waypointIndex else { return }
-
+		let routeSeed = vehicle.id + placementSeed
+		guard let placement = routePlacement(near: playerPosition, routeSeed: routeSeed) else { return }
 		placementSeed += 1
-		vehicle.previousWaypointIndex = road.previousWaypointIndex(before: waypointIndex) ?? waypointIndex
-		vehicle.currentWaypointIndex = waypointIndex
-		vehicle.nextWaypointIndex = nextIndex
-		vehicle.progress = 0
+		vehicle.previousWaypointIndex = placement.previousWaypointIndex
+		vehicle.currentWaypointIndex = placement.currentWaypointIndex
+		vehicle.nextWaypointIndex = placement.nextWaypointIndex
+		vehicle.progress = placement.progress
+		vehicle.travelsForward = placement.travelsForward
 		vehicle.node.position = displayPosition(for: vehicle)
 		vehicle.isPlaced = true
 		orient(vehicle: vehicle)
+	}
+
+	private func routePlacement(near playerPosition: SCNVector3, routeSeed: Int) -> RoadRoutePlacement? {
+		if let waypointIndex = waypointIndexNear(playerPosition, offset: routeSeed),
+		   let placement = road.routePlacement(near: road.waypoints[waypointIndex].position, routeSeed: routeSeed) {
+			return placement
+		}
+
+		return road.routePlacement(near: playerPosition, routeSeed: routeSeed)
 	}
 
 	private func waypointIndexNear(_ position: SCNVector3, offset: Int) -> Int? {
@@ -260,11 +267,12 @@ final class TrafficManager {
 			vehicle.progress -= 1
 			vehicle.previousWaypointIndex = vehicle.currentWaypointIndex
 			vehicle.currentWaypointIndex = vehicle.nextWaypointIndex
-			vehicle.nextWaypointIndex =
-				road.nextWaypointIndex(
-					after: vehicle.currentWaypointIndex,
-					routeSeed: vehicle.id + placementSeed
-				) ?? vehicle.currentWaypointIndex
+			vehicle.nextWaypointIndex = routeWaypointIndex(
+				after: vehicle.currentWaypointIndex,
+				previousIndex: vehicle.previousWaypointIndex,
+				travelsForward: vehicle.travelsForward,
+				routeSeed: vehicle.id + placementSeed
+			) ?? vehicle.currentWaypointIndex
 		}
 
 		vehicle.node.position = displayPosition(for: vehicle)
@@ -379,24 +387,16 @@ final class TrafficManager {
 
 	private func routePosition(for vehicle: RoamingVehicle) -> SCNVector3 {
 		let points = routeControlPoints(for: vehicle)
-		return Self.catmullRom(
-			previous: points.previous,
-			start: points.current,
-			end: points.next,
-			future: points.future,
+		return Self.linearPosition(
+			from: points.current,
+			to: points.next,
 			progress: vehicle.progress
 		)
 	}
 
 	private func routeTangent(for vehicle: RoamingVehicle) -> SCNVector3 {
 		let points = routeControlPoints(for: vehicle)
-		return Self.catmullRomTangent(
-			previous: points.previous,
-			start: points.current,
-			end: points.next,
-			future: points.future,
-			progress: vehicle.progress
-		)
+		return points.next - points.current
 	}
 
 	private func routeControlPoints(for vehicle: RoamingVehicle) -> (
@@ -407,13 +407,84 @@ final class TrafficManager {
 	) {
 		let routeSeed = vehicle.id + placementSeed
 		let futureWaypointIndex =
-			road.nextWaypointIndex(after: vehicle.nextWaypointIndex, routeSeed: routeSeed) ??
+			routeWaypointIndex(
+				after: vehicle.nextWaypointIndex,
+				previousIndex: vehicle.currentWaypointIndex,
+				travelsForward: vehicle.travelsForward,
+				routeSeed: routeSeed
+			) ??
 			vehicle.nextWaypointIndex
 		return (
 			road.waypoints[vehicle.previousWaypointIndex].position,
 			road.waypoints[vehicle.currentWaypointIndex].position,
 			road.waypoints[vehicle.nextWaypointIndex].position,
 			road.waypoints[futureWaypointIndex].position
+		)
+	}
+
+	private func routeWaypointIndex(
+		after index: Int,
+		previousIndex: Int? = nil,
+		travelsForward: Bool,
+		routeSeed: Int
+	) -> Int? {
+		let intersectionSeed = routeSeed + index * 31
+		if let previousIndex = previousIndex {
+			return road.continuationWaypointIndex(
+				from: index,
+				previousIndex: previousIndex,
+				routeSeed: intersectionSeed
+			)
+		}
+		if travelsForward {
+			return road.nextWaypointIndex(after: index, routeSeed: intersectionSeed)
+		}
+		return road.previousWaypointIndex(before: index)
+	}
+
+	private func shouldUseLinearRoute(points: (
+		previous: SCNVector3,
+		current: SCNVector3,
+		next: SCNVector3,
+		future: SCNVector3
+	)) -> Bool {
+		let incoming = Self.horizontalDirection(from: points.previous, to: points.current)
+		let outgoing = Self.horizontalDirection(from: points.current, to: points.next)
+		let future = Self.horizontalDirection(from: points.next, to: points.future)
+
+		if let incoming = incoming,
+		   let outgoing = outgoing,
+		   Self.horizontalDot(incoming, outgoing) < 0.25 {
+			return true
+		}
+
+		if let outgoing = outgoing,
+		   let future = future,
+		   Self.horizontalDot(outgoing, future) < 0.25 {
+			return true
+		}
+
+		return false
+	}
+
+	private static func horizontalDirection(from start: SCNVector3, to end: SCNVector3) -> SCNVector3? {
+		let dx = Float(end.x - start.x)
+		let dz = Float(end.z - start.z)
+		let length = sqrt(dx * dx + dz * dz)
+		guard length > 0.001 else { return nil }
+		return SCNVector3(x: SCNFloat(dx / length), y: 0, z: SCNFloat(dz / length))
+	}
+
+	private static func horizontalDot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> Float {
+		return Float(lhs.x * rhs.x + lhs.z * rhs.z)
+	}
+
+	private static func linearPosition(from start: SCNVector3, to end: SCNVector3, progress: Float) -> SCNVector3 {
+		let t = SCNFloat(max(0, min(1, progress)))
+		return SCNVector3(
+			x: start.x + (end.x - start.x) * t,
+			y: start.y + (end.y - start.y) * t,
+			z: start.z + (end.z - start.z) * t
 		)
 	}
 

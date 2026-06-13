@@ -468,8 +468,53 @@ struct TrafficCarDefinition {
 	let modelName: String
 	let density: Float
 	let colors: UInt32
-	let isPolice: Bool
+	let policeFlags: UInt16
 	let gangsterFlags: UInt16
+
+	var isPolice: Bool {
+		return policeFlags != 0
+	}
+
+	var originalPoliceTrafficByte: UInt8 {
+		return UInt8(truncatingIfNeeded: policeFlags)
+	}
+
+	var originalAuxiliaryTrafficByte: UInt8 {
+		return UInt8(truncatingIfNeeded: policeFlags >> 8)
+	}
+
+	var originalAlternateTrafficByte: UInt8 {
+		guard originalPoliceTrafficByte == 0 else { return 0 }
+		return UInt8(truncatingIfNeeded: gangsterFlags)
+	}
+
+	var originalTrafficColorARGB: UInt32 {
+		if originalPoliceTrafficByte != 0 {
+			return 0xff009fff
+		}
+		if originalAlternateTrafficByte != 0 {
+			return 0xffff9f00
+		}
+		return 0xffb0e0b0
+	}
+
+	init(modelName: String, density: Float, colors: UInt32, policeFlags: UInt16, gangsterFlags: UInt16) {
+		self.modelName = modelName
+		self.density = density
+		self.colors = colors
+		self.policeFlags = policeFlags
+		self.gangsterFlags = gangsterFlags
+	}
+
+	init(modelName: String, density: Float, colors: UInt32, isPolice: Bool, gangsterFlags: UInt16) {
+		self.init(
+			modelName: modelName,
+			density: density,
+			colors: colors,
+			policeFlags: isPolice ? 1 : 0,
+			gangsterFlags: gangsterFlags
+		)
+	}
 }
 
 struct TrafficSettings {
@@ -930,7 +975,7 @@ final class Scene: @unchecked Sendable {
 										modelName: modelName,
 										density: modelDensity,
 										colors: colors,
-										isPolice: isPolice > 0,
+										policeFlags: isPolice,
 										gangsterFlags: gangsterFlags
 									))
 								}
