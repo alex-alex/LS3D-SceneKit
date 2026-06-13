@@ -1897,6 +1897,7 @@ final class Scene: @unchecked Sendable {
 		let recordKeyPrefix = "record:\(recordName):"
 		for actionKey in node.actionKeys {
 			guard actionKey.hasPrefix(recordKeyPrefix),
+				  !actionKey.contains(":transform:"),
 				  actionKey != animationKey,
 				  actionKey != animationKey + ":schedule",
 				  !actionKey.hasSuffix(":schedule") else {
