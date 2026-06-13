@@ -838,11 +838,21 @@ private func positionAnimationKey(for animationKey: String?) -> String? {
 }
 
 func removeDefaultAnimationActions(in node: SCNNode) {
+	if !Thread.isMainThread {
+		DispatchQueue.main.sync {
+			removeDefaultAnimationActionsOnMain(in: node)
+		}
+		return
+	}
+	removeDefaultAnimationActionsOnMain(in: node)
+}
+
+private func removeDefaultAnimationActionsOnMain(in node: SCNNode) {
 	for actionKey in node.actionKeys where actionKey.hasPrefix(defaultAnimationActionKeyPrefix) {
 		node.removeAction(forKey: actionKey)
 	}
 	for childNode in node.childNodes {
-		removeDefaultAnimationActions(in: childNode)
+		removeDefaultAnimationActionsOnMain(in: childNode)
 	}
 }
 
