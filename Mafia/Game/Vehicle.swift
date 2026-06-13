@@ -26,7 +26,7 @@ final class Vehicle {
 	private let speedLimiterLimit: CGFloat = 60
 	private let idleBrakeForce: CGFloat = 8
 	private let tractionAssistSpeedLimit: CGFloat = 2
-	private let launchMinimumWheelForceScale: CGFloat = 0.75
+	private let launchMinimumWheelForceScale: CGFloat = 0.35
 	private let reverseLaunchMinimumWheelForceScale: CGFloat = 0.7
 	private let centerOfMassYOffset: SCNFloat = -0.45
 	private let wheelSuspensionRestLength: CGFloat = 0.18
