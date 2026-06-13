@@ -187,6 +187,12 @@ final class Game: NSObject, @unchecked Sendable {
 	private var roadMapBounds: RoadMapBounds?
 	private var environmentSectorNodes: [String: SCNNode] = [:]
 	private var missingEnvironmentSectorNames = Set<String>()
+	private var isCityMusicEnabled = true
+	private var cityMusicUpdateTimer: TimeInterval = -1
+	private var cityMusicStream: ScriptMusicStream?
+	private var cityMusicId: String?
+	private var cityMusicFadingStreams: [ScriptMusicStream] = []
+	private var cityMusicFadeCleanupItems: [UUID: DispatchWorkItem] = [:]
 	private let isMenuMission: Bool
 	private let saveGameCheckpoint: SaveGameCheckpoint?
 	private let transitionFrameName: String?
@@ -1341,6 +1347,7 @@ final class Game: NSObject, @unchecked Sendable {
 		playerController?.stop()
 		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
 		vehicle?.updateAudio(isActive: false)
+		destroyCityMusic()
 		logTearDownStep("stop controllers")
 		scene.tearDown()
 		logTearDownStep("scene")
@@ -1435,6 +1442,7 @@ final class Game: NSObject, @unchecked Sendable {
 			scnScene.isPaused = isPaused
 			scene.setAudioPaused(isPaused)
 			vehicle?.setAudioPaused(isPaused)
+			setCityMusicPaused(isPaused)
 			if isPaused {
 				playPauseMenuOpenSound()
 			}
@@ -1880,6 +1888,7 @@ extension Game: SCNSceneRendererDelegate {
 		}
 		updateSkyboxPosition()
 		updateEnvironment(deltaTime: deltaTime)
+		updateCityMusic(deltaTime: deltaTime)
 		trafficManager?.update(deltaTime: deltaTime, playerPosition: playerReferencePosition())
 
 		#if os(macOS)
@@ -2022,6 +2031,149 @@ extension Game: SCNSceneRendererDelegate {
 		}
 
 		return atan2(-CGFloat(forward.x), CGFloat(forward.z)) + .pi
+	}
+
+	func setCityMusicEnabled(_ isEnabled: Bool) {
+		guard isCityMusicEnabled != isEnabled else { return }
+		isCityMusicEnabled = isEnabled
+		if isEnabled {
+			cityMusicUpdateTimer = -1
+		} else {
+			stopCityMusic(fade: true)
+		}
+	}
+
+	private func updateCityMusic(deltaTime: TimeInterval) {
+		guard isCityMusicEnabled else { return }
+		if cityMusicUpdateTimer >= 0 {
+			cityMusicUpdateTimer -= deltaTime
+			return
+		}
+		cityMusicUpdateTimer = 10
+
+		guard let position = playerReferencePosition(),
+			  let region = cityMusicRegion(containing: position),
+			  region.musicId != cityMusicId else { return }
+		playCityMusic(id: region.musicId)
+	}
+
+	private func cityMusicRegion(containing position: SCNVector3) -> CityMusicRegion? {
+		for region in scene.cityMusicRegions.reversed() where containsCityMusicPosition(position, in: region.node) {
+			return region
+		}
+		return nil
+	}
+
+	private func playCityMusic(id: String) {
+		guard let url = mafiaResourceURL(directory: "sounds", name: "music/city_music_\(id).ogg"),
+			  let stream = ScriptMusicStream(url: url) else {
+			return
+		}
+
+		fadeOutCityMusicStream()
+		cityMusicStream = stream
+		cityMusicId = id
+		stream.play()
+		stream.fadeVolume(from: 0, to: 0.5, duration: 5)
+	}
+
+	private func stopCityMusic(fade: Bool) {
+		cityMusicUpdateTimer = -1
+		cityMusicId = nil
+		guard fade else {
+			destroyCityMusic()
+			return
+		}
+		fadeOutCityMusicStream()
+	}
+
+	private func fadeOutCityMusicStream() {
+		guard let stream = cityMusicStream else { return }
+		cityMusicStream = nil
+		stream.fadeVolume(from: 0.5, to: 0, duration: 5)
+		cityMusicFadingStreams.append(stream)
+
+		let cleanupId = UUID()
+		let cleanup = DispatchWorkItem { [weak self, weak stream] in
+			guard let self = self, let stream = stream else { return }
+			stream.destroy()
+			self.cityMusicFadingStreams.removeAll { $0 === stream }
+			self.cityMusicFadeCleanupItems.removeValue(forKey: cleanupId)
+		}
+		cityMusicFadeCleanupItems[cleanupId] = cleanup
+		DispatchQueue.main.asyncAfter(deadline: .now() + 5, execute: cleanup)
+	}
+
+	private func setCityMusicPaused(_ isPaused: Bool) {
+		cityMusicStream?.setGamePaused(isPaused)
+		for stream in cityMusicFadingStreams {
+			stream.setGamePaused(isPaused)
+		}
+	}
+
+	private func destroyCityMusic() {
+		for cleanup in cityMusicFadeCleanupItems.values {
+			cleanup.cancel()
+		}
+		cityMusicFadeCleanupItems.removeAll()
+		cityMusicStream?.destroy()
+		cityMusicStream = nil
+		cityMusicId = nil
+		for stream in cityMusicFadingStreams {
+			stream.destroy()
+		}
+		cityMusicFadingStreams.removeAll()
+	}
+
+	private func containsCityMusicPosition(_ position: SCNVector3, in node: SCNNode) -> Bool {
+		let localPoint = node.presentation.convertPosition(position, from: nil)
+		guard let areaBounds = node.areaBounds else {
+			return node.containsWorldPosition(position)
+		}
+		guard contains(localPoint, min: areaBounds.min, max: areaBounds.max) else { return false }
+		guard !areaBounds.vertices.isEmpty, !areaBounds.triangles.isEmpty else { return true }
+		return isPointInsideMesh(localPoint, vertices: areaBounds.vertices, triangles: areaBounds.triangles)
+	}
+
+	private func isPointInsideMesh(_ point: SCNVector3, vertices: [SCNVector3], triangles: [(Int, Int, Int)]) -> Bool {
+		let direction = SCNVector3(x: 1, y: 0.00037, z: 0.00019)
+		var intersections = 0
+		for triangle in triangles {
+			guard triangle.0 >= 0, triangle.0 < vertices.count,
+				  triangle.1 >= 0, triangle.1 < vertices.count,
+				  triangle.2 >= 0, triangle.2 < vertices.count,
+				  rayIntersectsTriangle(origin: point, direction: direction, a: vertices[triangle.0], b: vertices[triangle.1], c: vertices[triangle.2]) else {
+				continue
+			}
+			intersections += 1
+		}
+		return intersections % 2 == 1
+	}
+
+	private func rayIntersectsTriangle(origin: SCNVector3, direction: SCNVector3, a: SCNVector3, b: SCNVector3, c: SCNVector3) -> Bool {
+		let epsilon: SCNFloat = 0.000001
+		let edge1 = b - a
+		let edge2 = c - a
+		let h = cross(direction, edge2)
+		let determinant = dot(edge1, h)
+		guard abs(determinant) > epsilon else { return false }
+		let inverseDeterminant = 1 / determinant
+		let s = origin - a
+		let u = inverseDeterminant * dot(s, h)
+		guard u >= -epsilon, u <= 1 + epsilon else { return false }
+		let q = cross(s, edge1)
+		let v = inverseDeterminant * dot(direction, q)
+		guard v >= -epsilon, u + v <= 1 + epsilon else { return false }
+		let t = inverseDeterminant * dot(edge2, q)
+		return t > epsilon
+	}
+
+	private func contains(_ point: SCNVector3, min rawMin: SCNVector3, max rawMax: SCNVector3) -> Bool {
+		let minPoint = SCNVector3(x: min(rawMin.x, rawMax.x), y: min(rawMin.y, rawMax.y), z: min(rawMin.z, rawMax.z))
+		let maxPoint = SCNVector3(x: max(rawMin.x, rawMax.x), y: max(rawMin.y, rawMax.y), z: max(rawMin.z, rawMax.z))
+		return point.x >= minPoint.x && point.x <= maxPoint.x &&
+			point.y >= minPoint.y && point.y <= maxPoint.y &&
+			point.z >= minPoint.z && point.z <= maxPoint.z
 	}
 
 	private func updateDiagnostics(deltaTime: TimeInterval) {

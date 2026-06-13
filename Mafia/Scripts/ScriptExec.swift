@@ -62,6 +62,8 @@ extension Script {
 		case .carSetactlevel:			car_setactlevel(command.args)
 		case .carSetspeed:				car_setspeed(command.args)
 		case .changeMission:			change_mission(command.args)
+		case .citymusicOff:				citymusic_off(command.args)
+		case .citymusicOn:				citymusic_on(command.args)
 		case .cleardifferences:			cleardifferences(command.args)
 		case .commandblock:				commandblock(command.args)
 		case .compareactors:			compareactors(command.args)
@@ -550,6 +552,20 @@ extension Script {
 			self.scene.game.changeMission(folder: folder, frameName: frameName, speed: speed)
 		}
 		end(args)
+	}
+
+	private func citymusic_off(_ args: [Argument]) {
+		DispatchQueue.main.async {
+			self.scene.game.setCityMusicEnabled(false)
+		}
+		next()
+	}
+
+	private func citymusic_on(_ args: [Argument]) {
+		DispatchQueue.main.async {
+			self.scene.game.setCityMusicEnabled(true)
+		}
+		next()
 	}
 
 	private func cleardifferences(_ args: [Argument]) {

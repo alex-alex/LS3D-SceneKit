@@ -144,6 +144,11 @@ struct ScriptEventBinding {
 	let eventId: String
 }
 
+struct CityMusicRegion {
+	let node: SCNNode
+	let musicId: String
+}
+
 private final class ActiveAudioPlayer {
 	let node: SCNNode
 	let player: SCNAudioPlayer
@@ -542,6 +547,7 @@ final class Scene: @unchecked Sendable {
 	private var pendingHumanEnergyByName: [String: Float] = [:]
 	private var pendingPlayerNodeName: String?
 	private var activeAudioPlayers: [ObjectIdentifier: ActiveAudioPlayer] = [:]
+	private(set) var cityMusicRegions: [CityMusicRegion] = []
 	private var loadedDifferenceFiles: [String: DifferenceFile] = [:]
 	private let differenceLoadQueue = DispatchQueue(label: "difference.load", qos: .userInitiated)
 	private var pendingDifferenceLoads: [String: [PendingDifferenceLoad]] = [:]
@@ -644,6 +650,7 @@ final class Scene: @unchecked Sendable {
 
 					let objectNode = SCNNode()
 					var type: ObjectType = .object
+					var pendingMusicAreaBounds: AreaBounds?
 
 					while stream.currentOffset < (objectStartOffset + objSize) {
 						let partSgn = try SceneObjectPart(forcedRawValue: stream.read())
@@ -723,7 +730,9 @@ final class Scene: @unchecked Sendable {
 							stream.currentOffset += partSize - 6
 
 						case .unknown4:
-							stream.currentOffset += partSize - 6
+							if type == .music, let areaBounds = try readAreaBounds(stream: stream, endOffset: partEndOffset) {
+								pendingMusicAreaBounds = areaBounds
+							}
 
 						case .sector:
 							stream.currentOffset += partSize - 6
@@ -769,6 +778,15 @@ final class Scene: @unchecked Sendable {
 							box.firstMaterial?.transparency = 0.2
 							objectNode.geometry = box
 						}
+					}
+
+					if let pendingMusicAreaBounds {
+						objectNode.areaBounds = pendingMusicAreaBounds
+					}
+					if type == .music,
+					   let musicId = Self.cityMusicId(from: objectNode.name),
+					   objectNode.areaBounds != nil {
+						cityMusicRegions.append(CityMusicRegion(node: objectNode, musicId: musicId))
 					}
 
 					objectNode.recordSourcePosition = objectNode.position
@@ -1099,6 +1117,55 @@ final class Scene: @unchecked Sendable {
 			far: far,
 			sectorName: sectorName
 		)
+	}
+
+	private func readAreaBounds(stream: InputStream, endOffset: Int) throws -> AreaBounds? {
+		guard endOffset - stream.currentOffset >= 4 else { return nil }
+		let vertexCount: UInt32 = try stream.read()
+		guard vertexCount > 0 else { return nil }
+		let vertexBytes = Int(vertexCount) * 12
+		guard endOffset - stream.currentOffset >= vertexBytes else { return nil }
+
+		var vertices: [SCNVector3] = []
+		vertices.reserveCapacity(Int(vertexCount))
+		for _ in 0..<vertexCount {
+			vertices.append(try SCNVector3(stream: stream))
+		}
+
+		var triangles: [(Int, Int, Int)] = []
+		if endOffset - stream.currentOffset >= 4 {
+			let triangleCount: UInt32 = try stream.read()
+			let triangleBytes = Int(triangleCount) * 6
+			if triangleCount > 0, endOffset - stream.currentOffset >= triangleBytes {
+				triangles.reserveCapacity(Int(triangleCount))
+				for _ in 0..<triangleCount {
+					let first: UInt16 = try stream.read()
+					let second: UInt16 = try stream.read()
+					let third: UInt16 = try stream.read()
+					triangles.append((Int(first), Int(second), Int(third)))
+				}
+			}
+		}
+
+		let minPoint = SCNVector3(
+			x: vertices.map(\.x).min() ?? 0,
+			y: vertices.map(\.y).min() ?? 0,
+			z: vertices.map(\.z).min() ?? 0
+		)
+		let maxPoint = SCNVector3(
+			x: vertices.map(\.x).max() ?? 0,
+			y: vertices.map(\.y).max() ?? 0,
+			z: vertices.map(\.z).max() ?? 0
+		)
+		return AreaBounds(min: minPoint, max: maxPoint, vertices: vertices, triangles: triangles)
+	}
+
+	private static func cityMusicId(from name: String?) -> String? {
+		guard let name else { return nil }
+		let prefix = "city_music_"
+		guard name.lowercased().hasPrefix(prefix) else { return nil }
+		let suffix = String(name.dropFirst(prefix.count).prefix(2))
+		return suffix.isEmpty ? nil : suffix
 	}
 
 	func resolvePendingDoors(in rootNode: SCNNode) {

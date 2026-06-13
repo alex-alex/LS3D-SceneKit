@@ -136,6 +136,8 @@ extension Script {
 		case "car_setactlevel":			return getArgs_car_setactlevel(scanner)
 		case "car_setspeed":			return getArgs_car_setspeed(scanner)
 		case "change_mission":			return getArgs_change_mission(scanner)
+		case "citymusic_off":			return []
+		case "citymusic_on":			return []
 		case "cleardifferences":		return []
 		case "commandblock":			return getArgs_commandblock(scanner)
 		case "compareactors":			return getArgs_compareactors(scanner)

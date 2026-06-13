@@ -480,10 +480,14 @@ enum ActorState: String {
 final class AreaBounds: @unchecked Sendable {
 	let min: SCNVector3
 	let max: SCNVector3
+	let vertices: [SCNVector3]
+	let triangles: [(Int, Int, Int)]
 
-	init(min: SCNVector3, max: SCNVector3) {
+	init(min: SCNVector3, max: SCNVector3, vertices: [SCNVector3] = [], triangles: [(Int, Int, Int)] = []) {
 		self.min = min
 		self.max = max
+		self.vertices = vertices
+		self.triangles = triangles
 	}
 }
 
