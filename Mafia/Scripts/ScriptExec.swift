@@ -40,12 +40,16 @@ extension Script {
 		case .actorSetdir:				actor_setdir(command.args)
 		case .actorSetpos:				actor_setplacement(command.args)
 		case .actorSetplacement:		actor_setplacement(command.args)
+		case .actorUpdateplacement:		actorupdateplacement(command.args)
 		case .blockEnd:					noop()
 		case .blockStart:				noop()
 		case .cameraGetfov:				camera_getfov(command.args)
+		case .cameraLock:				camera_lock(command.args)
 		case .cameraSetfov:				camera_setfov(command.args)
 		case .cameraSetrange:			camera_setrange(command.args)
+		case .cameraUnlock:			camera_unlock(command.args)
 		case .carBreakmotor:			car_breakmotor(command.args)
+		case .carCalm:					car_calm(command.args)
 		case .carEnableus:				car_enableus(command.args)
 		case .carForcestop:				car_forcestop(command.args)
 		case .carGetactlevel:			car_getactlevel(command.args)
@@ -182,6 +186,7 @@ extension Script {
 		case .playerLockcontrols:		player_lockcontrols(command.args)
 		case .playsound:				playsound(command.args)
 		case .playsoundstop:			playsoundstop(command.args)
+		case .policeitchforplayer:		policeitchforplayer(command.args)
 		case .pmShowsymbol:				pm_showsymbol(command.args)
 		case .recaddactor:				recaddactor(command.args)
 		case .recclear:					recclear(command.args)
@@ -368,6 +373,15 @@ extension Script {
 			} else {
 				actor.transform = transform
 			}
+			updateActorLivePlacement(actor)
+		}
+		next()
+	}
+
+	private func actorupdateplacement(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId) {
+			updateActorLivePlacement(actor)
 		}
 		next()
 	}
@@ -381,6 +395,25 @@ extension Script {
 				self.next()
 			}
 		}
+	}
+
+	private func camera_lock(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		guard let frame = node(forScriptId: frameId) else {
+			next()
+			return
+		}
+
+		DispatchQueue.main.async {
+			let game = self.scene.game
+			game.cameraContainer.removeFromParentNode()
+			game.scnScene.rootNode.addChildNode(game.cameraContainer)
+			game.cameraContainer.transform = frame.presentation.worldTransform
+			game.cameraNode.position = SCNVector3Zero
+			game.cameraNode.eulerAngles = SCNVector3(x: 0, y: 0, z: .pi)
+			game.isCutsceneCameraActive = true
+		}
+		next()
 	}
 
 	private func camera_setfov(_ args: [Argument]) {
@@ -397,6 +430,14 @@ extension Script {
 		DispatchQueue.main.async {
 			self.scene.game.cameraNode.camera?.zNear = Double(near)
 			self.scene.game.cameraNode.camera?.zFar = Double(far)
+		}
+		next()
+	}
+
+	private func camera_unlock(_ args: [Argument]) {
+		DispatchQueue.main.async {
+			self.scene.game.isCutsceneCameraActive = false
+			self.scene.game.restoreGameplayCamera()
 		}
 		next()
 	}
@@ -448,6 +489,12 @@ extension Script {
 		if isBroken {
 			stopCarPhysics(carId: carId, brakeCurrentVehicle: true)
 		}
+		next()
+	}
+
+	private func car_calm(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		calmCarPhysics(carId: carId, brakeCurrentVehicle: true)
 		next()
 	}
 
@@ -1410,6 +1457,10 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		vars[varId] = Float(policeItchForPlayerState())
 		next()
+	}
+
+	private func policeitchforplayer(_ args: [Argument]) {
+		vlvp(args)
 	}
 
 	private func policeItchForPlayerState() -> Int {
@@ -3029,15 +3080,34 @@ extension Script {
 		}
 	}
 
-	private func stopCarPhysics(carId: Int, brakeCurrentVehicle: Bool) {
-		if brakeCurrentVehicle, playerOwnerMatches(carId: carId) {
-			scene.game.vehicle?.updateControls(throttle: 0, brake: true, steering: 0)
-			scene.game.vehicle?.node.physicsBody?.velocity = SCNVector3Zero
-			scene.game.vehicle?.node.physicsBody?.angularVelocity = SCNVector4Zero
+	private func updateActorLivePlacement(_ actor: SCNNode) {
+		guard let liveTransformNode = actor.liveTransformNode else { return }
+		let transform = actor.presentation.worldTransform
+		if let parent = liveTransformNode.parent {
+			liveTransformNode.transform = parent.convertTransform(transform, from: nil)
+		} else {
+			liveTransformNode.transform = transform
+		}
+	}
+
+	private func calmCarPhysics(carId: Int, brakeCurrentVehicle: Bool) {
+		if brakeCurrentVehicle, playerOwnerMatches(carId: carId), let vehicle = scene.game.vehicle {
+			vehicle.updateControls(throttle: 0, brake: true, steering: 0)
+			calmPhysicsBody(vehicle.node.physicsBody)
 			return
 		}
-		node(forScriptId: carId)?.physicsBody?.velocity = SCNVector3Zero
-		node(forScriptId: carId)?.physicsBody?.angularVelocity = SCNVector4Zero
+		guard let car = node(forScriptId: carId) else { return }
+		calmPhysicsBody(carBodyNode(for: car).physicsBody ?? car.physicsBody)
+	}
+
+	private func calmPhysicsBody(_ physicsBody: SCNPhysicsBody?) {
+		physicsBody?.clearAllForces()
+		physicsBody?.velocity = SCNVector3Zero
+		physicsBody?.angularVelocity = SCNVector4Zero
+	}
+
+	private func stopCarPhysics(carId: Int, brakeCurrentVehicle: Bool) {
+		calmCarPhysics(carId: carId, brakeCurrentVehicle: brakeCurrentVehicle)
 	}
 
 	private func isPlayerActor(_ actorId: Int) -> Bool {

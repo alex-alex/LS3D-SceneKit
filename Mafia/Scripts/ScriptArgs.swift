@@ -116,10 +116,14 @@ extension Script {
 		case "actor_setdir":			return getArgs_actor_setdir(scanner)
 		case "actor_setpos":			return getArgs_actor_setplacement(scanner)
 		case "actor_setplacement":		return getArgs_actor_setplacement(scanner)
+		case "actorupdateplacement":	return getArgs_actorupdateplacement(scanner)
 		case "camera_getfov":			return getArgs_camera_getfov(scanner)
+		case "camera_lock":				return getArgs_camera_lock(scanner)
 		case "camera_setfov":			return getArgs_camera_setfov(scanner)
 		case "camera_setrange":			return getArgs_camera_setrange(scanner)
+		case "camera_unlock":			return []
 		case "car_breakmotor":			return getArgs_car_breakmotor(scanner)
+		case "car_calm":				return getArgs_car_calm(scanner)
 		case "car_enableus":			return getArgs_car_enableus(scanner)
 		case "car_forcestop":			return getArgs_car_forcestop(scanner)
 		case "car_getactlevel":			return getArgs_car_getactlevel(scanner)
@@ -253,6 +257,7 @@ extension Script {
 		case "player_lockcontrols":		return getArgs_player_lockcontrols(scanner)
 		case "playsound":				return getArgs_playsound(scanner)
 		case "playsoundstop":			return getArgs_playsoundstop(scanner)
+		case "policeitchforplayer":		return getArgs_policeitchforplayer(scanner)
 		case "pm_showsymbol":			return getArgs_pm_showsymbol(scanner)
 		case "recaddactor":				return getArgs_recaddactor(scanner)
 		case "recclear":				return []
@@ -326,7 +331,15 @@ extension Script {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_actorupdateplacement(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_camera_getfov(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_camera_lock(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
 
@@ -356,6 +369,10 @@ extension Script {
 
 	private func getArgs_car_breakmotor(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_car_calm(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_car_forcestop(_ scanner: Scanner) -> [Argument] {
@@ -925,6 +942,10 @@ extension Script {
 	}
 
 	private func getArgs_playsoundstop(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_policeitchforplayer(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
 

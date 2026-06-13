@@ -175,7 +175,7 @@ The exe also registers lower-level car and police script commands in
 
 | Command | Confirmed role from name/reference |
 | --- | --- |
-| `CAR_CALM` | Car state command. Runtime behavior not mapped. |
+| `CAR_CALM` | Clears car motion/forces after scripted placement. |
 | `CAR_FORCESTOP` | Forces a car to stop. |
 | `CAR_SETSPEED` | Sets a car speed value. |
 | `POLICE_SPEED_FACTOR` | Police speed scaling command. |

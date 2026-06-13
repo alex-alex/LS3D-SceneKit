@@ -89,12 +89,16 @@ enum ScriptCommandName: String {
 	case actorSetdir = "actor_setdir"
 	case actorSetpos = "actor_setpos"
 	case actorSetplacement = "actor_setplacement"
+	case actorUpdateplacement = "actorupdateplacement"
 	case blockEnd = "}"
 	case blockStart = "{"
 	case cameraGetfov = "camera_getfov"
+	case cameraLock = "camera_lock"
 	case cameraSetfov = "camera_setfov"
 	case cameraSetrange = "camera_setrange"
+	case cameraUnlock = "camera_unlock"
 	case carBreakmotor = "car_breakmotor"
+	case carCalm = "car_calm"
 	case carGetspeed = "car_getspeed"
 	case carEnableus = "car_enableus"
 	case carForcestop = "car_forcestop"
@@ -232,6 +236,7 @@ enum ScriptCommandName: String {
 	case playerLockcontrols = "player_lockcontrols"
 	case playsound
 	case playsoundstop
+	case policeitchforplayer
 	case pmShowsymbol = "pm_showsymbol"
 	case recaddactor
 	case recclear
