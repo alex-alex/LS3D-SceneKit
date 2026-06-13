@@ -390,15 +390,20 @@ final class Game: NSObject, @unchecked Sendable {
 			return scene.node(named: frameName) ?? scnScene.rootNode.mafiaChildNode(named: frameName, recursively: true)
 		}
 
-		if let speed = transitionVehicleSpeed, let vehicle = vehicle {
-			if let placementNode = placementNode {
-				let transform = placementNode.presentation.worldTransform
-				vehicle.node.transform = vehicle.node.parent?.convertTransform(transform, from: nil) ?? transform
+		if let speed = transitionVehicleSpeed {
+			if let transitionVehicle = vehicle ?? placementNode.flatMap({ scriptedVehicle(for: $0) }) {
+				if let placementNode = placementNode {
+					let transform = placementNode.presentation.worldTransform
+					transitionVehicle.node.transform = transitionVehicle.node.parent?.convertTransform(transform, from: nil) ?? transform
+				}
+				mode = .car
+				syncPlayerToVehicle()
+				setVehicleSpeed(transitionVehicle, kilometersPerHour: speed)
+				return
 			}
-			mode = .car
-			syncPlayerToVehicle()
-			setVehicleSpeed(vehicle, kilometersPerHour: speed)
-		} else if let placementNode = placementNode, let playerNode = scene.playerNode {
+		}
+
+		if let placementNode = placementNode, let playerNode = scene.playerNode {
 			let transform = placementNode.presentation.worldTransform
 			playerNode.transform = playerNode.parent?.convertTransform(transform, from: nil) ?? transform
 		}
