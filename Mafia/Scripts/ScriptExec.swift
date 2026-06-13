@@ -1189,7 +1189,6 @@ extension Script {
 		let setOn = args[1].getValueOrVarValue(vars: vars) == 1
 		if let frame = frames[frmId] {
 			frame.isHidden = !setOn
-			frame.isPaused = !setOn
 			if setOn, let sound = scene.sounds[frame] {
 				sound.play()
 			}

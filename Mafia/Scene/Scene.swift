@@ -1771,7 +1771,7 @@ final class Scene: @unchecked Sendable {
 		)
 		for binding in record.modelBindings where !binding.transformEvents.isEmpty {
 			guard let node = recordBindingTransformTargetNode(
-				named: binding.sourceName,
+				for: binding,
 				differenceRoots: differenceRoots
 			) else {
 				continue
@@ -1928,16 +1928,24 @@ final class Scene: @unchecked Sendable {
 	}
 
 	private func recordBindingTransformTargetNode(
-		named name: String,
+		for binding: RecordModelBinding,
 		differenceRoots: [SCNNode]
 	) -> SCNNode? {
+		let name = binding.sourceName
 		if let differenceNode = recordNode(named: name, in: differenceRoots) {
 			return differenceNode
 		}
 		if let renderNode = recordNode(named: name, in: [game.scnScene.rootNode], excluding: rootNode) {
 			return renderNode
 		}
-		return recordNode(named: name, in: [rootNode])
+		if let sceneNode = recordNode(named: name, in: [rootNode]) {
+			return sceneNode
+		}
+		if binding.targetName.lowercased().hasPrefix("car"),
+		   let vehicle = game.vehicle {
+			return vehicle.scriptNode.liveTransformNode ?? vehicle.node
+		}
+		return nil
 	}
 
 	private func recordNode(
