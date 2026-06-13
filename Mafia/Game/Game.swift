@@ -140,6 +140,9 @@ final class Game: NSObject, @unchecked Sendable {
 	private var reloadingWeaponUUID: NSUUID?
 	private var weaponReloadEndTime: TimeInterval = 0
 	private var didEndMission = false
+	var hasEndedMission: Bool {
+		return didEndMission
+	}
 	private var activeBatChargeStartedAt: TimeInterval?
 	private let batChargeDuration: TimeInterval = 1.3
 	private let batRange: SCNFloat = 2.4
@@ -1431,6 +1434,7 @@ final class Game: NSObject, @unchecked Sendable {
 		guard !didEndMission else { return }
 		didEndMission = true
 
+		scene.clearActiveRecordPlayback()
 		updateHud { hud in
 			hud.showMissionEndText(message)
 			hud.setScriptBlackoutVisible(true, immediate: false)

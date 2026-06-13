@@ -2153,8 +2153,13 @@ extension Script {
 		let interval: TimeInterval = 0.1
 		queue.asyncAfter(deadline: .now() + interval) { [weak self] in
 			guard let self = self else { return }
+			guard self.isRunning,
+				  let game = self.scene.game,
+				  !game.hasEndedMission else {
+				return
+			}
 			let now = Date.timeIntervalSinceReferenceDate
-			let elapsed = self.scene.game.isGamePaused ? 0 : now - lastTick
+			let elapsed = game.isGamePaused ? 0 : now - lastTick
 			let remaining = secondsRemaining - elapsed
 			guard remaining > 0, !self.scene.consumeCutsceneSkipRequest() else {
 				self.scene.setCutsceneScriptsPaused(false)
