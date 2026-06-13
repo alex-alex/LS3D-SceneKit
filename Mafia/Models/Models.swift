@@ -339,6 +339,8 @@ func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
 		let _: Float = try stream.read() // ambientB
 		material.ambient.contents = SKColor.white
 
+		var diffuseTextureURL: URL?
+
 		let diffuseR: Float = try stream.read()
 		let diffuseG: Float = try stream.read()
 		let diffuseB: Float = try stream.read()
@@ -388,6 +390,7 @@ func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
 			textureNames.append(textureName)
 			if let url = mafiaMapURL(named: textureName),
 			   let data = try? Data(contentsOf: url) {
+					diffuseTextureURL = url
 					#if os(macOS)
 					if flags.contains(.colorKey), data.count > 56 {
 						let b = CGFloat(data[54])/255
@@ -438,9 +441,18 @@ func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
 			textureNames.append(textureName)
 			let url = mafiaMapURL(named: textureName)
 			material.transparencyMode = .rgbZero
-			material.blendMode = flags.contains(.additiveBlend) ? .add : .alpha
+			material.blendMode = flags.contains(.additiveBlend) || flags.contains(.addedEffect) ? .add : .alpha
 			#if os(macOS)
-				material.transparent.contents = url.flatMap { NSImage(contentsOf: $0)?.inversed }
+				if let diffuseTextureURL,
+				   let opacityTextureURL = url,
+				   let diffuseImage = NSImage(contentsOf: diffuseTextureURL),
+				   let opacityImage = NSImage(contentsOf: opacityTextureURL),
+				   let image = diffuseImage.applyingAlphaMask(opacityImage) {
+					material.diffuse.contents = image
+					material.transparencyMode = .aOne
+				} else {
+					material.transparent.contents = url.flatMap { NSImage(contentsOf: $0) }
+				}
 			#elseif os(iOS)
 				material.transparent.contents = url.flatMap { UIImage(contentsOfFile: $0.path) }
 			#endif

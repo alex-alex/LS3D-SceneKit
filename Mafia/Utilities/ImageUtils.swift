@@ -52,6 +52,53 @@ extension CGImage {
 #if os(macOS)
 
 	extension NSImage {
+		func applyingAlphaMask(_ maskImage: NSImage) -> NSImage? {
+			var baseRect = CGRect(origin: .zero, size: size)
+			var maskRect = CGRect(origin: .zero, size: maskImage.size)
+			guard let baseImage = cgImage(forProposedRect: &baseRect, context: nil, hints: nil),
+				  let maskImage = maskImage.cgImage(forProposedRect: &maskRect, context: nil, hints: nil),
+				  let context = CGContext(
+					data: nil,
+					width: baseImage.width,
+					height: baseImage.height,
+					bitsPerComponent: 8,
+					bytesPerRow: baseImage.width * 4,
+					space: CGColorSpaceCreateDeviceRGB(),
+					bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+				  ),
+				  let maskContext = CGContext(
+					data: nil,
+					width: baseImage.width,
+					height: baseImage.height,
+					bitsPerComponent: 8,
+					bytesPerRow: baseImage.width * 4,
+					space: CGColorSpaceCreateDeviceRGB(),
+					bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+				  ),
+				  let data = context.data,
+				  let maskData = maskContext.data else {
+				return nil
+			}
+
+			let bounds = CGRect(x: 0, y: 0, width: baseImage.width, height: baseImage.height)
+			context.draw(baseImage, in: bounds)
+			maskContext.interpolationQuality = .high
+			maskContext.draw(maskImage, in: bounds)
+
+			let pixels = data.bindMemory(to: UInt8.self, capacity: baseImage.width * baseImage.height * 4)
+			let maskPixels = maskData.bindMemory(to: UInt8.self, capacity: baseImage.width * baseImage.height * 4)
+			for offset in stride(from: 0, to: baseImage.width * baseImage.height * 4, by: 4) {
+				let alpha = Swift.max(maskPixels[offset], Swift.max(maskPixels[offset + 1], maskPixels[offset + 2]))
+				pixels[offset] = UInt8((UInt16(pixels[offset]) * UInt16(alpha)) / 255)
+				pixels[offset + 1] = UInt8((UInt16(pixels[offset + 1]) * UInt16(alpha)) / 255)
+				pixels[offset + 2] = UInt8((UInt16(pixels[offset + 2]) * UInt16(alpha)) / 255)
+				pixels[offset + 3] = alpha
+			}
+
+			guard let cgImage = context.makeImage() else { return nil }
+			return NSImage(cgImage: cgImage, size: size)
+		}
+
 		var inversed: NSImage? {
 			guard let representation = representations.first as? NSBitmapImageRep,
 				  let startingCIImage = CIImage(bitmapImageRep: representation),
