@@ -73,6 +73,15 @@ private final class SceneNodeLookup {
 	}
 }
 
+private struct VehicleRaycastGroundPatch {
+	let center: SCNVector3
+	let tangent: SCNVector3
+	let normal: SCNVector3
+	let bitangent: SCNVector3
+	let width: SCNFloat
+	let length: SCNFloat
+}
+
 final class Collisions {
 
 	enum Error: Swift.Error {
@@ -82,6 +91,8 @@ final class Collisions {
 	let node = SCNNode()
 	let rootNode: SCNNode
 	private let nodeLookup: SceneNodeLookup
+	private let vehicleRaycastGroundThickness: SCNFloat = 0.08
+	private let vehicleRaycastGroundMargin: SCNFloat = 0.8
 	//var names: [(Int, String)] = []
 	var nodes: [Int: SCNNode] = [:]
 
@@ -244,7 +255,7 @@ final class Collisions {
 		stream.currentOffset += 4
 
 		var faceVertices: [SCNVector3] = []
-		var vehicleRaycastGroundVertices: [SCNVector3] = []
+		var vehicleRaycastGroundPatches: [VehicleRaycastGroundPatch] = []
 		print("=== numFaces:", numFaces)
 
 		for _ in 0 ..< numFaces {
@@ -252,8 +263,8 @@ final class Collisions {
 				let face = try Triangle(stream: stream)
 				if let vertices = face.getWorldVertices(treeKlz: self) {
 					faceVertices.append(contentsOf: vertices)
-					if isVehicleRaycastGroundFace(vertices) {
-						vehicleRaycastGroundVertices.append(contentsOf: vertices)
+					if let patch = vehicleRaycastGroundPatch(for: vertices) {
+						vehicleRaycastGroundPatches.append(patch)
 					}
 				}
 			}
@@ -285,7 +296,7 @@ final class Collisions {
 				self.node.addChildNode(facesNode)
 			}
 		}
-		addVehicleRaycastGround(from: vehicleRaycastGroundVertices)
+		addVehicleRaycastGround(from: vehicleRaycastGroundPatches)
 
 		print("=== Loaded Scene Collision Faces")
 
@@ -348,42 +359,86 @@ final class Collisions {
 		stream.close()
 	}
 
-	private func isVehicleRaycastGroundFace(_ vertices: [SCNVector3]) -> Bool {
-		guard vertices.count == 3 else { return false }
+	private func vehicleRaycastGroundPatch(for vertices: [SCNVector3]) -> VehicleRaycastGroundPatch? {
+		guard vertices.count == 3 else { return nil }
 
 		let firstEdge = vertices[1] - vertices[0]
 		let secondEdge = vertices[2] - vertices[0]
 		var normal = firstEdge.cross(secondEdge).normalized
+		guard abs(normal.y) > 0.35 else { return nil }
 		if normal.y < 0 {
 			normal = SCNVector3(x: -normal.x, y: -normal.y, z: -normal.z)
 		}
-		guard normal.y > 0.65 else { return false }
 
 		let tangent = firstEdge.normalized
-		return tangent.length > 0.0001
+		guard tangent.length > 0.0001 else { return nil }
+
+		let bitangent = normal.cross(tangent).normalized
+		let centroid = SCNVector3(
+			x: (vertices[0].x + vertices[1].x + vertices[2].x) / 3,
+			y: (vertices[0].y + vertices[1].y + vertices[2].y) / 3,
+			z: (vertices[0].z + vertices[1].z + vertices[2].z) / 3
+		)
+
+		let projected = vertices.map { vertex -> (u: SCNFloat, v: SCNFloat) in
+			let offset = vertex - centroid
+			return (dot(offset, tangent), dot(offset, bitangent))
+		}
+		guard let minU = projected.map({ $0.u }).min(),
+			  let maxU = projected.map({ $0.u }).max(),
+			  let minV = projected.map({ $0.v }).min(),
+			  let maxV = projected.map({ $0.v }).max() else { return nil }
+
+		let center = centroid +
+			tangent * ((minU + maxU) / 2) +
+			bitangent * ((minV + maxV) / 2)
+
+		return VehicleRaycastGroundPatch(
+			center: center,
+			tangent: tangent,
+			normal: normal,
+			bitangent: bitangent,
+			width: max(maxU - minU + vehicleRaycastGroundMargin, vehicleRaycastGroundMargin),
+			length: max(maxV - minV + vehicleRaycastGroundMargin, vehicleRaycastGroundMargin)
+		)
 	}
 
-	private func addVehicleRaycastGround(from vertices: [SCNVector3]) {
-		guard !vertices.isEmpty else { return }
+	private func addVehicleRaycastGround(from patches: [VehicleRaycastGroundPatch]) {
+		guard !patches.isEmpty else { return }
 
 		let groundNode = SCNNode()
 		groundNode.name = "__vehicle_raycast_ground__"
 
-		let verticesSource = SCNGeometrySource(vertices: vertices)
-		var indices: [Int32] = []
-		for i in 0 ..< Int32(vertices.count) {
-			indices.append(i)
+		var shapes: [SCNPhysicsShape] = []
+		var transforms: [NSValue] = []
+		shapes.reserveCapacity(patches.count)
+		transforms.reserveCapacity(patches.count)
+
+		for patch in patches {
+			let box = SCNBox(
+				width: CGFloat(patch.width),
+				height: CGFloat(vehicleRaycastGroundThickness),
+				length: CGFloat(patch.length),
+				chamferRadius: 0
+			)
+			shapes.append(SCNPhysicsShape(geometry: box, options: nil))
+			let transform = SCNMatrix4(
+				m11: patch.tangent.x, m12: patch.tangent.y, m13: patch.tangent.z, m14: 0,
+				m21: patch.normal.x, m22: patch.normal.y, m23: patch.normal.z, m24: 0,
+				m31: patch.bitangent.x, m32: patch.bitangent.y, m33: patch.bitangent.z, m34: 0,
+				m41: patch.center.x, m42: patch.center.y, m43: patch.center.z, m44: 1
+			)
+			transforms.append(NSValue(scnMatrix4: transform))
+
+			let debugNode = SCNNode(geometry: box)
+			debugNode.transform = transform
+			debugNode.geometry?.firstMaterial = vehicleRaycastGroundDebugMaterial()
+			groundNode.addChildNode(debugNode)
 		}
-		let element = SCNGeometryElement(indices: indices, primitiveType: .triangles)
-		let geometry = SCNGeometry(sources: [verticesSource], elements: [element])
-		geometry.firstMaterial = vehicleRaycastGroundDebugMaterial()
-		groundNode.geometry = geometry
 
 		groundNode.physicsBody = SCNPhysicsBody(
 			type: .static,
-			shape: SCNPhysicsShape(geometry: geometry, options: [
-				.type: SCNPhysicsShape.ShapeType.concavePolyhedron
-			])
+			shape: SCNPhysicsShape(shapes: shapes, transforms: transforms)
 		)
 		groundNode.physicsBody?.configureAsVehicleRaycastGroundCollider()
 		groundNode.physicsBody?.friction = 0
@@ -391,7 +446,11 @@ final class Collisions {
 		groundNode.physicsBody?.rollingFriction = 0
 		node.addChildNode(groundNode)
 
-		print("=== Loaded Vehicle Raycast Ground Triangles:", vertices.count / 3)
+		print("=== Loaded Vehicle Raycast Ground Patches:", patches.count)
+	}
+
+	private func dot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> SCNFloat {
+		return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z
 	}
 
 	private func vehicleRaycastGroundDebugMaterial() -> SCNMaterial {
