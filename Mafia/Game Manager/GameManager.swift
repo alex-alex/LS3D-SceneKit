@@ -133,6 +133,7 @@ class GameManager: @unchecked Sendable {
 		textId: Int,
 		imageName: String,
 		folder: String,
+		saveGameCheckpoint: SaveGameCheckpoint? = nil,
 		transitionFrameName: String? = nil,
 		transitionVehicleSpeed: CGFloat? = nil
 	) {
@@ -148,6 +149,7 @@ class GameManager: @unchecked Sendable {
 			do {
 				let game = try Game(
 					missionName: folder,
+					saveGameCheckpoint: saveGameCheckpoint,
 					transitionFrameName: transitionFrameName,
 					transitionVehicleSpeed: transitionVehicleSpeed
 				) { progress in
@@ -200,7 +202,12 @@ class GameManager: @unchecked Sendable {
 			return
 		}
 
-		loadMission(textId: saveGame.textId, imageName: saveGame.imageName, folder: folder)
+		loadMission(
+			textId: saveGame.textId,
+			imageName: saveGame.imageName,
+			folder: folder,
+			saveGameCheckpoint: saveGame.checkpoint
+		)
 	}
 
 	private func releaseCurrentGame() {

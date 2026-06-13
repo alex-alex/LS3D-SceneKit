@@ -81,6 +81,14 @@ struct SaveGameCheckpoint {
 
 	let missionFolder: String
 
+	var activePlayerVehicleEntity: SaveGameEntity? {
+		return entities.first {
+			$0.objectType == .car &&
+				$0.playerSlot >= 0 &&
+				(($0.payloadPrefix?.stateA ?? 0) & 0x00008000) != 0
+		}
+	}
+
 	init(
 		innerSignature: UInt32,
 		version: UInt32,

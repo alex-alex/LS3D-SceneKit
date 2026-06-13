@@ -1560,7 +1560,7 @@ extension Script {
 			humanNode(for: actor)?.humanEnergy = 0
 		}
 		if isPlayerActor(actorId) {
-			scene.game.setPlayerHealth(0)
+			scene.game.updatePlayerHealthFromEnergy()
 		} else if let actor = node(forScriptId: actorId) {
 			actor.actorState = .off
 			script(forActorId: actorId)?.setActorState(.off)
@@ -1722,7 +1722,7 @@ extension Script {
 				humanNode(for: actor)?.humanEnergy = max(0, Float(value))
 			}
 			if isPlayerActor(actorId) {
-				scene.game.setPlayerHealth(value)
+				scene.game.updatePlayerHealthFromEnergy()
 			}
 		}
 		next()

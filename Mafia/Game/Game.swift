@@ -93,6 +93,7 @@ final class Game: NSObject, @unchecked Sendable {
 	var elevation: SCNFloat = 0
 	var lastControl: Control?
 	var playerHealth = 100
+	private var playerMaxEnergy: Float = 100
 	private var activeControls: Set<Control> = []
 	private let pendingLookLock = NSLock()
 	private var pendingLookDeltaX: SCNFloat = 0
@@ -187,16 +188,19 @@ final class Game: NSObject, @unchecked Sendable {
 	private var environmentSectorNodes: [String: SCNNode] = [:]
 	private var missingEnvironmentSectorNames = Set<String>()
 	private let isMenuMission: Bool
+	private let saveGameCheckpoint: SaveGameCheckpoint?
 	private let transitionFrameName: String?
 	private let transitionVehicleSpeed: CGFloat?
 
 	init(
 		missionName: String,
+		saveGameCheckpoint: SaveGameCheckpoint? = nil,
 		transitionFrameName: String? = nil,
 		transitionVehicleSpeed: CGFloat? = nil,
 		progressHandler: ((CGFloat) -> Void)? = nil
 	) throws {
 		isMenuMission = missionName.lowercased() == "00menu"
+		self.saveGameCheckpoint = saveGameCheckpoint
 		self.transitionFrameName = transitionFrameName
 		self.transitionVehicleSpeed = transitionVehicleSpeed
 		progressHandler?(0.05)
@@ -311,6 +315,7 @@ final class Game: NSObject, @unchecked Sendable {
 
 		// -----
 
+		restoreSaveGameCheckpointIfNeeded()
 		applyMissionTransition()
 
 		// -----
@@ -350,7 +355,7 @@ final class Game: NSObject, @unchecked Sendable {
 		}
 		playerNode.name = "tommy"
 		playerNode.type = .player
-		playerNode.humanEnergy = Float(playerHealth)
+		playerNode.humanEnergy = playerMaxEnergy
 		scene.playerNode = playerNode
 		scnScene.rootNode.addChildNode(playerNode)
 		scene.registerNodeTree(playerNode)
@@ -360,10 +365,11 @@ final class Game: NSObject, @unchecked Sendable {
 		guard let playerNode = scene.playerNode else { return }
 		playerNode.type = .player
 		if playerNode.humanEnergy == nil {
-			playerNode.humanEnergy = Float(playerHealth)
+			playerNode.humanEnergy = playerMaxEnergy
 		}
 		guard let energy = playerNode.humanEnergy else { return }
-		playerHealth = max(0, Int(round(energy)))
+		playerMaxEnergy = max(1, energy)
+		updatePlayerHealthFromEnergy()
 	}
 
 	private func playerSpawnNode() -> SCNNode? {
@@ -407,6 +413,39 @@ final class Game: NSObject, @unchecked Sendable {
 			let transform = placementNode.presentation.worldTransform
 			playerNode.transform = playerNode.parent?.convertTransform(transform, from: nil) ?? transform
 		}
+	}
+
+	private func restoreSaveGameCheckpointIfNeeded() {
+		guard let checkpoint = saveGameCheckpoint else { return }
+
+		restoreSaveGamePlayerHealth(from: checkpoint)
+		restoreSaveGameVehicleIfNeeded(from: checkpoint)
+	}
+
+	private func restoreSaveGamePlayerHealth(from checkpoint: SaveGameCheckpoint) {
+		let healthPercent = max(0, Int(checkpoint.summary.healthPercent))
+		let restoredEnergy = playerMaxEnergy * Float(healthPercent) / 100
+		scene.playerNode?.humanEnergy = restoredEnergy
+		updatePlayerHealthFromEnergy()
+	}
+
+	private func restoreSaveGameVehicleIfNeeded(from checkpoint: SaveGameCheckpoint) {
+		guard transitionVehicleSpeed == nil,
+			  let entity = checkpoint.activePlayerVehicleEntity else { return }
+
+		guard let carNode = scene.node(named: entity.name) ?? scnScene.rootNode.mafiaChildNode(named: entity.name, recursively: true) else {
+			print("== Savegame vehicle '\(entity.name)' not found in mission scene")
+			return
+		}
+
+		guard scriptedVehicle(for: carNode) != nil else {
+			print("== Savegame vehicle '\(entity.name)' is not usable as a vehicle")
+			return
+		}
+
+		mode = .car
+		syncPlayerToVehicle()
+		print("== Savegame vehicle restored: \(entity.name)")
 	}
 
 	private func setVehicleSpeed(_ vehicle: Vehicle, kilometersPerHour speed: CGFloat) {
@@ -2587,6 +2626,19 @@ extension Game {
 		}
 	}
 
+	func updatePlayerHealthFromEnergy() {
+		guard let energy = scene.playerNode?.humanEnergy else {
+			setPlayerHealth(100)
+			return
+		}
+		setPlayerHealth(playerHealthPercent(forEnergy: energy))
+	}
+
+	private func playerHealthPercent(forEnergy energy: Float) -> Int {
+		let percent = Int((max(0, energy) / max(1, playerMaxEnergy) * 100).rounded(.towardZero))
+		return energy > 0 && percent == 0 ? 1 : percent
+	}
+
 	func playSiderollAnimation(direction: SiderollDirection) {
 		guard mode == .walk,
 			  scene.playerNode != nil else { return }
@@ -3017,7 +3069,7 @@ extension Game {
 		let newEnergy = max(0, currentEnergy - Float(amount))
 		humanNode.humanEnergy = newEnergy
 		if isNode(humanNode, inside: scene.playerNode) {
-			setPlayerHealth(Int(round(newEnergy)))
+			updatePlayerHealthFromEnergy()
 		}
 		return true
 	}
