@@ -13,6 +13,16 @@ import SpriteKit
 
 struct SceneError: Error { }
 
+private func isNumberedSceneNodeName(_ candidateName: String, forBaseName baseName: String) -> Bool {
+	let lowercasedCandidateName = candidateName.lowercased()
+	guard lowercasedCandidateName.hasPrefix(baseName),
+		  lowercasedCandidateName.count > baseName.count else {
+		return false
+	}
+	let suffix = lowercasedCandidateName.dropFirst(baseName.count)
+	return suffix.unicodeScalars.allSatisfy { CharacterSet.decimalDigits.contains($0) }
+}
+
 struct EnemyGroupMember {
 	let actorId: Int
 	weak var actor: SCNNode?
@@ -411,6 +421,14 @@ private final class RecordAnimationLookup {
 		let lowercasedName = name.lowercased()
 		if let caseInsensitiveNode = candidates.first(where: { $0.name?.lowercased() == lowercasedName }) {
 			return caseInsensitiveNode
+		}
+
+		let numberedMatches = candidates.filter { node in
+			guard let nodeName = node.name else { return false }
+			return isNumberedSceneNodeName(nodeName, forBaseName: lowercasedName)
+		}
+		if numberedMatches.count == 1 {
+			return numberedMatches[0]
 		}
 
 		guard name.count >= 16 else { return nil }
@@ -3698,6 +3716,9 @@ final class Scene: @unchecked Sendable {
 		if let indexedNode = nodesByName[name] ?? nodesByName[lowercasedName] {
 			return indexedNode
 		}
+		if let numberedNode = lockedNumberedNode(forBaseName: lowercasedName) {
+			return numberedNode
+		}
 		guard name.count >= 16 else { return nil }
 
 		var visitedNodeIds = Set<ObjectIdentifier>()
@@ -3710,6 +3731,22 @@ final class Scene: @unchecked Sendable {
 			}
 		}
 		return nil
+	}
+
+	private func lockedNumberedNode(forBaseName baseName: String) -> SCNNode? {
+		var match: SCNNode?
+		var visitedNodeIds = Set<ObjectIdentifier>()
+		for node in nodesByName.values {
+			let nodeId = ObjectIdentifier(node)
+			guard visitedNodeIds.insert(nodeId).inserted,
+				  let nodeName = node.name,
+				  isNumberedSceneNodeName(nodeName, forBaseName: baseName) else {
+				continue
+			}
+			guard match == nil else { return nil }
+			match = node
+		}
+		return match
 	}
 
 	func registerNodeName(_ node: SCNNode) {
