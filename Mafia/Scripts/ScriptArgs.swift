@@ -172,6 +172,10 @@ extension Script {
 		case "door_open":				return getArgs_door_open(scanner)
 		case "endofmission":			return getArgs_endofmission(scanner)
 		case "enemy_action_fire":		return getArgs_enemy_action_fire(scanner)
+		case "enemy_action_follow":		return getArgs_enemy_action_follow(scanner)
+		case "enemy_actionsclear":		return []
+		case "enemy_brainwash":			return []
+		case "enemy_forcescript":		return getArgs_enemy_forcescript(scanner)
 		case "enemy_group_add":			return getArgs_enemy_group_add(scanner)
 		case "enemy_group_addcar":		return getArgs_enemy_group_addcar(scanner)
 		case "enemy_group_chcipni_hajzle": return getArgs_enemy_group_chcipni_hajzle(scanner)
@@ -558,6 +562,18 @@ extension Script {
 			args.append(attackDistance)
 		}
 		return args
+	}
+
+	private func getArgs_enemy_action_follow(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+		while let option = scanParamOptional(scanner) {
+			args.append(.label(option))
+		}
+		return args
+	}
+
+	private func getArgs_enemy_forcescript(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_enemy_group_add(_ scanner: Scanner) -> [Argument] {

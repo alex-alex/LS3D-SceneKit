@@ -163,6 +163,24 @@ final class Game: NSObject, @unchecked Sendable {
 	private let npcMeleeDamage: SCNFloat = 5
 	private let npcMeleeInterval: TimeInterval = 0.9
 	private let npcMoveSpeed: SCNFloat = 2.2
+	private let npcGroundProbeLift: SCNFloat = 1.2
+	private let npcGroundProbeDrop: SCNFloat = 2.4
+	private let npcGroundProbeRadius: SCNFloat = 0.24
+	private let npcMaxStepUp: SCNFloat = 1.05
+	private let npcMaxStepDown: SCNFloat = 2.0
+	private let npcMinGroundNormalY: SCNFloat = 0.55
+	private let npcVerticalSteeringThreshold: SCNFloat = 0.65
+	private let npcSteeringLookAheadDistance: SCNFloat = 1.8
+	private let npcSteeringSideStepPenalty: SCNFloat = 0.12
+	private let npcSteeringAngles: [SCNFloat] = [
+		0,
+		SCNFloat.pi / 6,
+		-SCNFloat.pi / 6,
+		SCNFloat.pi / 3,
+		-SCNFloat.pi / 3,
+		SCNFloat.pi / 2,
+		-SCNFloat.pi / 2
+	]
 	private var npcHealthLabelNodes: [ObjectIdentifier: SCNNode] = [:]
 	private let npcHealthLabelNodeNamePrefix = "__npc_health_label_"
 	private let playerVehicleAnimationKey = "__player_vehicle__"
@@ -2988,8 +3006,18 @@ extension Game {
 			let npcId = ObjectIdentifier(npc)
 			activeNPCIds.insert(npcId)
 			guard npc.actorState.canRunScript,
-				  humanHealth(for: npc) > 0,
-				  let target = npc.enemyHostileTargetNode,
+				  humanHealth(for: npc) > 0 else {
+				npc.enemyHostileTargetNode = nil
+				npc.enemyFollowState = nil
+				continue
+			}
+
+			if npc.enemyHostileTargetNode == nil,
+			   updateFollowingNPC(npc, deltaTime: dt) {
+				continue
+			}
+
+			guard let target = npc.enemyHostileTargetNode,
 				  humanHealth(for: target) > 0,
 				  !isNodeHiddenInHierarchy(target) else {
 				npc.enemyHostileTargetNode = nil
@@ -3031,6 +3059,46 @@ extension Game {
 		for staleId in Array(npcLastAttackTimes.keys) where !activeNPCIds.contains(staleId) {
 			npcLastAttackTimes[staleId] = nil
 		}
+	}
+
+	private func updateFollowingNPC(_ npc: SCNNode, deltaTime: SCNFloat) -> Bool {
+		guard let followState = npc.enemyFollowState else { return false }
+		guard let target = followState.targetNode,
+			  !isNodeHiddenInHierarchy(target),
+			  humanHealth(for: target) > 0 else {
+			npc.enemyFollowState = nil
+			return false
+		}
+
+		let npcPosition = npc.presentation.worldPosition
+		let targetPosition = npcFollowTargetPosition(for: target)
+		let distance = horizontalDistance(from: npcPosition, to: targetPosition)
+		let desiredDistance = SCNFloat(max(0, followState.distance))
+		faceNPC(npc, toward: targetPosition)
+
+		if distance > max(0.1, desiredDistance) {
+			moveNPC(npc, toward: targetPosition, deltaTime: deltaTime)
+		}
+
+		if distance <= desiredDistance,
+		   let script = followState.returnScript {
+			followState.returnScript = nil
+			script.completeActionWait()
+		}
+
+		return true
+	}
+
+	private func npcFollowTargetPosition(for target: SCNNode) -> SCNVector3 {
+		if target === scene.playerNode,
+		   mode == .car,
+		   let vehicle = vehicle {
+			return vehicle.node.presentation.worldPosition
+		}
+		if let owner = scene.humanVehicleOwners[ObjectIdentifier(target)] {
+			return owner.presentation.worldPosition
+		}
+		return target.presentation.worldPosition
 	}
 
 	private func collectNPCHumanNodes(in node: SCNNode, nodes: inout [SCNNode]) {
@@ -3076,14 +3144,10 @@ extension Game {
 	private func moveNPC(_ npc: SCNNode, toward targetPosition: SCNVector3, deltaTime: SCNFloat) {
 		guard scene.humanVehicleOwners[ObjectIdentifier(npc)] == nil else { return }
 		let position = npc.presentation.worldPosition
-		let direction = normalizedHorizontalVector(targetPosition - position, fallback: SCNVector3Zero)
+		let preferredDirection = normalizedHorizontalVector(targetPosition - position, fallback: SCNVector3Zero)
+		let direction = npcSteeredDirection(for: npc, preferredDirection: preferredDirection, targetPosition: targetPosition)
 		guard direction.length > 0.0001 else { return }
-		let movement = direction * (npcMoveSpeed * deltaTime)
-		if let physicsBody = npc.physicsBody, physicsBody.type == .dynamic {
-			physicsBody.velocity = SCNVector3(x: direction.x * npcMoveSpeed, y: physicsBody.velocity.y, z: direction.z * npcMoveSpeed)
-		} else {
-			npc.position = npc.position + movement
-		}
+		applyNPCMovement(npc, direction: direction, deltaTime: deltaTime)
 	}
 
 	private func moveNPC(_ npc: SCNNode, awayFrom targetPosition: SCNVector3, deltaTime: SCNFloat) {
@@ -3091,12 +3155,175 @@ extension Game {
 		let position = npc.presentation.worldPosition
 		let direction = normalizedHorizontalVector(position - targetPosition, fallback: SCNVector3Zero)
 		guard direction.length > 0.0001 else { return }
+		applyNPCMovement(npc, direction: direction, deltaTime: deltaTime)
+	}
+
+	private func applyNPCMovement(_ npc: SCNNode, direction: SCNVector3, deltaTime: SCNFloat) {
+		let position = npc.presentation.worldPosition
 		let movement = direction * (npcMoveSpeed * deltaTime)
+		let nextWorldPosition = npcGroundAdjustedPosition(for: npc, movement: movement)
 		if let physicsBody = npc.physicsBody, physicsBody.type == .dynamic {
 			physicsBody.velocity = SCNVector3(x: direction.x * npcMoveSpeed, y: physicsBody.velocity.y, z: direction.z * npcMoveSpeed)
+			if abs(nextWorldPosition.y - position.y) > 0.001 {
+				npc.worldPosition = nextWorldPosition
+			}
 		} else {
-			npc.position = npc.position + movement
+			npc.worldPosition = nextWorldPosition
 		}
+	}
+
+	private func npcSteeredDirection(for npc: SCNNode, preferredDirection: SCNVector3, targetPosition: SCNVector3) -> SCNVector3 {
+		guard preferredDirection.length > 0.0001 else { return preferredDirection }
+
+		let currentPosition = npc.presentation.worldPosition
+		let currentDistance = horizontalDistance(from: currentPosition, to: targetPosition)
+		let targetVerticalDelta = targetPosition.y - currentPosition.y
+		let shouldSeekHeightChange = abs(targetVerticalDelta) >= npcVerticalSteeringThreshold
+		var bestDirection = preferredDirection
+		var bestScore = -SCNFloat.greatestFiniteMagnitude
+
+		for angle in npcSteeringAngles {
+			let direction = rotateHorizontalVector(preferredDirection, by: angle)
+			let nextPosition = npcLookAheadGroundPosition(
+				for: npc,
+				direction: direction,
+				distance: min(npcMoveSpeed, npcSteeringLookAheadDistance)
+			)
+			let lookAheadPosition = npcLookAheadGroundPosition(
+				for: npc,
+				direction: direction,
+				distance: npcSteeringLookAheadDistance
+			)
+			let distanceGain = currentDistance - horizontalDistance(from: nextPosition, to: targetPosition)
+			let sidePenalty = abs(angle) * npcSteeringSideStepPenalty
+			var score = distanceGain - sidePenalty
+
+			if shouldSeekHeightChange {
+				let nextRise = nextPosition.y - currentPosition.y
+				let lookAheadRise = lookAheadPosition.y - currentPosition.y
+				if targetVerticalDelta > 0 {
+					score += max(nextRise, lookAheadRise) * 3
+				} else {
+					score += max(-nextRise, -lookAheadRise) * 3
+				}
+			}
+
+			if score > bestScore {
+				bestScore = score
+				bestDirection = direction
+			}
+		}
+
+		return bestDirection
+	}
+
+	private func rotateHorizontalVector(_ vector: SCNVector3, by angle: SCNFloat) -> SCNVector3 {
+		let cosine = cos(angle)
+		let sine = sin(angle)
+		return SCNVector3(
+			x: vector.x * cosine - vector.z * sine,
+			y: 0,
+			z: vector.x * sine + vector.z * cosine
+		)
+	}
+
+	private func npcGroundAdjustedPosition(for npc: SCNNode, movement: SCNVector3) -> SCNVector3 {
+		let currentPosition = npc.presentation.worldPosition
+		return npcGroundAdjustedPosition(from: currentPosition, excluding: npc, movement: movement)
+	}
+
+	private func npcLookAheadGroundPosition(for npc: SCNNode, direction: SCNVector3, distance: SCNFloat) -> SCNVector3 {
+		var position = npc.presentation.worldPosition
+		var remainingDistance = distance
+		let stepDistance = max(0.15, npcGroundProbeRadius * 1.5)
+
+		while remainingDistance > 0 {
+			let step = min(stepDistance, remainingDistance)
+			position = npcGroundAdjustedPosition(from: position, excluding: npc, movement: direction * step)
+			remainingDistance -= step
+		}
+
+		return position
+	}
+
+	private func npcGroundAdjustedPosition(from currentPosition: SCNVector3, excluding npc: SCNNode, movement: SCNVector3) -> SCNVector3 {
+		var nextPosition = SCNVector3(
+			x: currentPosition.x + movement.x,
+			y: currentPosition.y,
+			z: currentPosition.z + movement.z
+		)
+		guard let groundY = npcGroundWorldY(at: nextPosition, excluding: npc) else {
+			return nextPosition
+		}
+
+		let deltaY = groundY - currentPosition.y
+		if deltaY <= npcMaxStepUp && deltaY >= -npcMaxStepDown {
+			nextPosition.y = groundY
+		}
+		return nextPosition
+	}
+
+	private func npcGroundWorldY(at worldPosition: SCNVector3, excluding npc: SCNNode) -> SCNFloat? {
+		let probeOffsets = [
+			SCNVector3Zero,
+			SCNVector3(x: npcGroundProbeRadius, y: 0, z: 0),
+			SCNVector3(x: -npcGroundProbeRadius, y: 0, z: 0),
+			SCNVector3(x: 0, y: 0, z: npcGroundProbeRadius),
+			SCNVector3(x: 0, y: 0, z: -npcGroundProbeRadius)
+		]
+		var highestGroundY: SCNFloat?
+
+		for offset in probeOffsets {
+			let probePosition = worldPosition + offset
+			let from = SCNVector3(x: probePosition.x, y: probePosition.y + npcGroundProbeLift, z: probePosition.z)
+			let to = SCNVector3(x: probePosition.x, y: probePosition.y - npcGroundProbeDrop, z: probePosition.z)
+			let physicsHits = scnScene.physicsWorld.rayTestWithSegment(from: from, to: to, options: [
+				SCNPhysicsWorld.TestOption.collisionBitMask: PhysicsCategory.playerBlocking,
+				SCNPhysicsWorld.TestOption.searchMode: SCNPhysicsWorld.TestSearchMode.all
+			])
+			for hit in physicsHits where isNPCGroundHit(hit, excluding: npc) {
+				if highestGroundY == nil || hit.worldCoordinates.y > highestGroundY! {
+					highestGroundY = hit.worldCoordinates.y
+				}
+			}
+
+			let visualHits = scnScene.rootNode.hitTestWithSegment(
+				from: from,
+				to: to,
+				options: [
+					SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
+					SCNHitTestOption.backFaceCulling.rawValue: false,
+					SCNHitTestOption.searchMode.rawValue: SCNHitTestSearchMode.all.rawValue
+				]
+			)
+			for hit in visualHits where isNPCGroundHit(hit, excluding: npc) {
+				if highestGroundY == nil || hit.worldCoordinates.y > highestGroundY! {
+					highestGroundY = hit.worldCoordinates.y
+				}
+			}
+		}
+
+		return highestGroundY
+	}
+
+	private func isNPCGroundHit(_ hit: SCNHitTestResult, excluding npc: SCNNode) -> Bool {
+		guard hit.worldNormal.y >= npcMinGroundNormalY else { return false }
+		guard !isNode(hit.node, inside: npc),
+			  !isCollisionDebugNode(hit.node) else { return false }
+		return true
+	}
+
+	private func isCollisionDebugNode(_ node: SCNNode) -> Bool {
+		var current: SCNNode? = node
+		while let candidate = current {
+			if candidate.name == "__collisions__" ||
+			   candidate.name == "__player_debug__" ||
+			   candidate.name?.hasPrefix("__vehicle_collision_debug__") == true {
+				return true
+			}
+			current = candidate.parent
+		}
+		return false
 	}
 
 	private func faceNPC(_ npc: SCNNode, toward targetPosition: SCNVector3) {
@@ -3185,7 +3412,17 @@ extension Game {
 	}
 
 	private func humanHealth(for node: SCNNode) -> Float {
-		return humanNode(from: node)?.humanEnergy ?? 0
+		if isNode(node, inside: scene.playerNode) {
+			return scene.playerNode?.humanEnergy ?? Float(playerHealth)
+		}
+		if let humanNode = humanNode(from: node) {
+			return humanNode.humanEnergy ?? 0
+		}
+		if node.enemyFollowState != nil || node.enemyHostileTargetNode != nil {
+			node.humanEnergy = 100
+			return 100
+		}
+		return 0
 	}
 
 	private func horizontalDistance(from lhs: SCNVector3, to rhs: SCNVector3) -> SCNFloat {
@@ -3195,8 +3432,9 @@ extension Game {
 	}
 
 	private func isNPCHumanNode(_ node: SCNNode) -> Bool {
+		let hasEnemyAI = node.enemyFollowState != nil || node.enemyHostileTargetNode != nil
 		guard !isNPCHealthLabelNode(node),
-			  node.humanEnergy != nil || node.type.hasDefaultHumanEnergy,
+			  node.humanEnergy != nil || node.type.hasDefaultHumanEnergy || hasEnemyAI,
 			  !isNode(node, inside: scene.playerNode),
 			  !isNodeHiddenInHierarchy(node) else {
 			return false

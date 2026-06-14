@@ -14,6 +14,22 @@ extension SCNNode: @retroactive @unchecked Sendable {}
 extension SCNAudioPlayer: @retroactive @unchecked Sendable {}
 extension SCNAudioSource: @retroactive @unchecked Sendable {}
 
+final class EnemyFollowState {
+	weak var targetNode: SCNNode?
+	let targetActorId: Int
+	let distance: Float
+	let options: Set<String>
+	weak var returnScript: Script?
+
+	init(targetNode: SCNNode, targetActorId: Int, distance: Float, options: Set<String>, returnScript: Script?) {
+		self.targetNode = targetNode
+		self.targetActorId = targetActorId
+		self.distance = distance
+		self.options = options
+		self.returnScript = returnScript
+	}
+}
+
 #if os(macOS)
 	typealias SCNFloat = CGFloat
 #elseif os(iOS)
@@ -442,6 +458,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 	let actorState = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let actionsEnabled = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let enemyAIState = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let enemyFollowState = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let enemyHostileAttackDistance = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let enemyHostileTargetNode = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let enemyPodvadimJakTretera = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
@@ -460,6 +477,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 		actorState.initialize(to: 0)
 		actionsEnabled.initialize(to: 0)
 		enemyAIState.initialize(to: 0)
+		enemyFollowState.initialize(to: 0)
 		enemyHostileAttackDistance.initialize(to: 0)
 		enemyHostileTargetNode.initialize(to: 0)
 		enemyPodvadimJakTretera.initialize(to: 0)
@@ -723,6 +741,19 @@ extension SCNNode {
 				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyAIState, newValue, .OBJC_ASSOCIATION_RETAIN)
 			} else {
 				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyAIState, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
+		}
+	}
+
+	var enemyFollowState: EnemyFollowState? {
+		get {
+			return objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyFollowState) as? EnemyFollowState
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyFollowState, newValue, .OBJC_ASSOCIATION_RETAIN)
+			} else {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyFollowState, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
 	}

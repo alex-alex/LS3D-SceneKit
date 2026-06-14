@@ -149,6 +149,10 @@ enum ScriptCommandName: String {
 	case endBang = "end!"
 	case endofmission
 	case enemyActionFire = "enemy_action_fire"
+	case enemyActionFollow = "enemy_action_follow"
+	case enemyActionsclear = "enemy_actionsclear"
+	case enemyBrainwash = "enemy_brainwash"
+	case enemyForcescript = "enemy_forcescript"
 	case enemyGroupAdd = "enemy_group_add"
 	case enemyGroupAddcar = "enemy_group_addcar"
 	case enemyGroupChcipniHajzle = "enemy_group_chcipni_hajzle"

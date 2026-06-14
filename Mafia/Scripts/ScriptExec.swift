@@ -100,6 +100,10 @@ extension Script {
 		case .endBang:					end(command.args)
 		case .endofmission:				endofmission(command.args)
 		case .enemyActionFire:			enemy_action_fire(command.args)
+		case .enemyActionFollow:		enemy_action_follow(command.args)
+		case .enemyActionsclear:		enemy_actionsclear(command.args)
+		case .enemyBrainwash:			enemy_brainwash(command.args)
+		case .enemyForcescript:		enemy_forcescript(command.args)
 		case .enemyGroupAdd:			enemy_group_add(command.args)
 		case .enemyGroupAddcar:			enemy_group_addcar(command.args)
 		case .enemyGroupChcipniHajzle:	enemy_group_chcipni_hajzle(command.args)
@@ -812,9 +816,9 @@ extension Script {
 				scene.game.vehicle?.node.presentation.worldPosition,
 				scene.game.vehicle?.scriptNode.presentation.worldPosition
 			].compactMap { $0 }
-			vars[varId] = positions.contains { node.squaredDistance(to: $0) <= squaredDistance } ? 2 : 0
+			vars[varId] = positions.contains { detectorSquaredDistance(to: $0) <= squaredDistance } ? 2 : 0
 		} else if let playerPosition = scene.game.playerReferencePosition() {
-			vars[varId] = node.squaredDistance(to: playerPosition) <= squaredDistance ? 1 : 0
+			vars[varId] = detectorSquaredDistance(to: playerPosition) <= squaredDistance ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}
@@ -1010,6 +1014,60 @@ extension Script {
 		let attackDistance = args.count > 1 ? args[1].getValueOrVarValueFloat(vars: vars) : 0
 		setEnemyHostileTarget(targetActorId: targetActorId, attackDistance: attackDistance)
 		end(args)
+	}
+
+	private func enemy_action_follow(_ args: [Argument]) {
+		let targetActorId = args[0].getValueOrVarValue(vars: vars)
+		let followDistance = args[1].getValueOrVarValueFloat(vars: vars)
+		let options = Set(args.dropFirst(2).map { normalizedEnemyActionOption($0.getString()) })
+		guard let target = node(forScriptId: targetActorId) else {
+			if options.contains("nonext") {
+				end(args)
+			} else {
+				next()
+			}
+			return
+		}
+
+		node.enemyHostileTargetNode = nil
+		node.enemyFollowState = EnemyFollowState(
+			targetNode: target,
+			targetActorId: targetActorId,
+			distance: max(0, followDistance),
+			options: options,
+			returnScript: options.contains("return") ? self : nil
+		)
+		node.actorState = .active
+		let targetNode = liveDistanceNode(forActorId: targetActorId, actor: target)
+		face(node, toward: targetNode.presentation.worldPosition)
+
+		if options.contains("return") {
+			return
+		}
+		if options.contains("nonext") {
+			end(args)
+		} else {
+			next()
+		}
+	}
+
+	private func enemy_actionsclear(_ args: [Argument]) {
+		clearEnemyActions(for: node, clearLockedState: false)
+		next()
+	}
+
+	private func enemy_brainwash(_ args: [Argument]) {
+		clearEnemyActions(for: node, clearLockedState: true)
+		next()
+	}
+
+	private func enemy_forcescript(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let actor = node(forScriptId: actorId) {
+			actor.actorState = .active
+		}
+		script(forActorId: actorId)?.setActorState(.active)
+		next()
 	}
 
 	private func enemy_group_add(_ args: [Argument]) {
@@ -1531,7 +1589,8 @@ extension Script {
 	private func getenemyaistate(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		vars[varId] = node(forScriptId: actorId)?.enemyHostileTargetNode == nil ? 0 : 1
+		let actor = node(forScriptId: actorId)
+		vars[varId] = Float(actor.map(enemyAIStateValue(for:)) ?? 0)
 		next()
 	}
 
@@ -3199,13 +3258,73 @@ extension Script {
 	private func setEnemyHostileTarget(for enemy: SCNNode, target: SCNNode, targetActorId: Int, attackDistance: Float) {
 		enemy.enemyHostileTargetNode = target
 		enemy.enemyHostileAttackDistance = attackDistance
+		enemy.enemyFollowState = nil
 		enemy.actorState = .active
 		let targetNode = liveDistanceNode(forActorId: targetActorId, actor: target)
 		face(enemy, toward: targetNode.presentation.worldPosition)
 	}
 
+	private func clearEnemyActions(for enemy: SCNNode, clearLockedState: Bool) {
+		enemy.enemyHostileTargetNode = nil
+		enemy.enemyHostileAttackDistance = 0
+		enemy.enemyFollowState = nil
+		if clearLockedState {
+			enemy.enemyAIState = nil
+			enemy.enemyPodvadimJakTretera = false
+		}
+	}
+
+	private func detectorSquaredDistance(to position: SCNVector3) -> Float {
+		if let distance = node.nearestGeometryBoundsDistance(to: position) {
+			return Float(distance * distance)
+		}
+		if let distance = node.nearestPhysicsBodyDistance(to: position) {
+			return Float(distance * distance)
+		}
+
+		let nodePosition = node.presentation.worldPosition
+		let dx = Float(nodePosition.x - position.x)
+		let dz = Float(nodePosition.z - position.z)
+		return dx * dx + dz * dz
+	}
+
+	private func enemyAIStateValue(for actor: SCNNode) -> Int {
+		if let state = actor.enemyAIState {
+			switch state {
+			case "afraid", "panic", "panics", "panikar", "panika":
+				return 4
+			case "hostile_search", "search", "fight_search":
+				return 2
+			case "hostile", "hostile_hostile", "fight", "fire", "attack", "fight_guard":
+				return 3
+			case "arrest", "arresting", "zatykani":
+				return 6
+			case "fight_guard_nohostile", "no_reaction", "nohostile":
+				return 1
+			default:
+				break
+			}
+		}
+
+		if actor.enemyHostileTargetNode != nil {
+			return 3
+		}
+		if actor.enemyFollowState != nil {
+			return 1
+		}
+		return 0
+	}
+
 	private func normalizedEnemyAIState(_ state: String) -> String {
 		return state
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+			.replacingOccurrences(of: " ", with: "_")
+			.replacingOccurrences(of: "-", with: "_")
+			.lowercased()
+	}
+
+	private func normalizedEnemyActionOption(_ option: String) -> String {
+		return option
 			.trimmingCharacters(in: .whitespacesAndNewlines)
 			.replacingOccurrences(of: " ", with: "_")
 			.replacingOccurrences(of: "-", with: "_")
