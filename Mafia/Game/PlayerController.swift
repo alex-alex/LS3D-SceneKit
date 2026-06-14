@@ -61,6 +61,7 @@ final class PlayerController: @unchecked Sendable {
 	private let debugControllerMarker = PlayerController.debugMarker(color: .blue)
 	private let debugVisualMinMarker = PlayerController.debugMarker(color: .red)
 	private let debugControllerGroundLine = SCNNode()
+	private let visualLocalBounds: (min: SCNVector3, max: SCNVector3)?
 
 	private var movement = SCNVector3Zero
 	private var turn: SCNFloat = 0
@@ -163,6 +164,7 @@ final class PlayerController: @unchecked Sendable {
 		self.node = node
 		self.scene = scene
 		baseHeading = PlayerController.worldYaw(for: node)
+		visualLocalBounds = PlayerController.visualLocalBounds(for: node)
 		standingY = node.presentation.position.y
 		targetStandingY = standingY
 		configurePhysics()
@@ -1142,32 +1144,29 @@ final class PlayerController: @unchecked Sendable {
 		return material
 	}
 
-	private func visualWorldYBounds() -> (min: SCNFloat, max: SCNFloat)? {
-		var bounds: (min: SCNFloat, max: SCNFloat)?
-		collectVisualWorldYBounds(in: node, bounds: &bounds)
+	private static func visualLocalBounds(for node: SCNNode) -> (min: SCNVector3, max: SCNVector3)? {
+		let bounds = node.boundingBox
+		guard bounds.max.x > bounds.min.x || bounds.max.y > bounds.min.y || bounds.max.z > bounds.min.z else {
+			return nil
+		}
 		return bounds
 	}
 
-	private func collectVisualWorldYBounds(in currentNode: SCNNode, bounds: inout (min: SCNFloat, max: SCNFloat)?) {
-		if currentNode.geometry != nil {
-			let localBounds = currentNode.presentation.boundingBox
-			for x in [localBounds.min.x, localBounds.max.x] {
-				for y in [localBounds.min.y, localBounds.max.y] {
-					for z in [localBounds.min.z, localBounds.max.z] {
-						let worldY = currentNode.presentation.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil).y
-						if let existingBounds = bounds {
-							bounds = (min(existingBounds.min, worldY), max(existingBounds.max, worldY))
-						} else {
-							bounds = (worldY, worldY)
-						}
-					}
+	private func visualWorldYBounds() -> (min: SCNFloat, max: SCNFloat)? {
+		guard let localBounds = visualLocalBounds else { return nil }
+
+		var minY = SCNFloat.greatestFiniteMagnitude
+		var maxY = -SCNFloat.greatestFiniteMagnitude
+		for x in [localBounds.min.x, localBounds.max.x] {
+			for y in [localBounds.min.y, localBounds.max.y] {
+				for z in [localBounds.min.z, localBounds.max.z] {
+					let worldY = node.presentation.convertPosition(SCNVector3(x: x, y: y, z: z), to: nil).y
+					minY = min(minY, worldY)
+					maxY = max(maxY, worldY)
 				}
 			}
 		}
-
-		for child in currentNode.childNodes {
-			collectVisualWorldYBounds(in: child, bounds: &bounds)
-		}
+		return (minY, maxY)
 	}
 
 }
