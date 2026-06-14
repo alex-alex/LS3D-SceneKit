@@ -628,6 +628,7 @@ final class Scene: @unchecked Sendable {
 	private var pendingRecordLoads: [String: [PendingRecordLoad]] = [:]
 	private var activeRecordNames = Set<String>()
 	private var activeRecordPlaybacks: [String: ActiveRecordPlayback] = [:]
+	private var activeRecordPropNodes: [SCNNode] = []
 	private var activeRecordEventSchedules: [ScheduledRecordEvent] = []
 	private var activeRecordEventScriptNames = Set<String>()
 	private let filmMusicStreamsLock = NSLock()
@@ -1720,7 +1721,9 @@ final class Scene: @unchecked Sendable {
 		}
 
 		let differenceRoots = loadedDifferenceFiles.values.map { $0.rootNode }
-		let recordRoots = differenceRoots + [rootNode, game.scnScene.rootNode]
+		let existingRecordRoots = differenceRoots + [rootNode, game.scnScene.rootNode]
+		let recordPropNodes = createRecordPropNodes(for: record, existingRoots: existingRecordRoots)
+		let recordRoots = differenceRoots + recordPropNodes + [rootNode, game.scnScene.rootNode]
 		let animationLookup = RecordAnimationLookup(record: record, recordRoots: recordRoots)
 
 		print("== Playing Record: \(record.name) full=\(full)")
@@ -2085,6 +2088,48 @@ final class Scene: @unchecked Sendable {
 			return vehicle.scriptNode.liveTransformNode ?? vehicle.node
 		}
 		return nil
+	}
+
+	private func createRecordPropNodes(for record: Record, existingRoots: [SCNNode]) -> [SCNNode] {
+		var createdNodes: [SCNNode] = []
+		var createdNames = Set<String>()
+		for binding in record.modelBindings {
+			let sourceName = binding.sourceName.trimmingCharacters(in: .whitespacesAndNewlines)
+			guard !sourceName.isEmpty else { continue }
+			let lowercasedName = sourceName.lowercased()
+			guard createdNames.insert(lowercasedName).inserted else { continue }
+			guard recordNode(named: sourceName, in: existingRoots + createdNodes) == nil else { continue }
+			guard let modelPath = recordPropModelPath(for: sourceName) else { continue }
+
+			let propNode = SCNNode()
+			propNode.name = sourceName
+			do {
+				try loadModel(named: modelPath, node: propNode)
+				guard propNode.hasModelContent else { continue }
+				propNode.disablePhysicsInHierarchy()
+				rootNode.addChildNode(propNode)
+				registerNodeTree(propNode)
+				activeRecordPropNodes.append(propNode)
+				createdNodes.append(propNode)
+				print("== Record Prop created: \(sourceName) model=\(modelPath)")
+			} catch {
+				print("== Record Prop failed: \(sourceName) model=\(modelPath) \(error)")
+			}
+		}
+		return createdNodes
+	}
+
+	private func recordPropModelPath(for name: String) -> String? {
+		let normalizedName = name
+			.replacingOccurrences(of: "\\", with: "/")
+			.replacingOccurrences(of: ".i3d", with: "", options: [.caseInsensitive])
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		guard !normalizedName.isEmpty else { return nil }
+
+		let modelPath = normalizedName.contains("/") ? normalizedName : "models/" + normalizedName
+		let url = mainDirectory.appendingPathComponent(modelPath.lowercased() + ".4ds")
+		guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+		return modelPath
 	}
 
 	private func recordNode(
@@ -3217,6 +3262,11 @@ final class Scene: @unchecked Sendable {
 			playback.workItem?.cancel()
 		}
 		activeRecordPlaybacks.removeAll()
+		for propNode in activeRecordPropNodes {
+			unregisterNodeTree(propNode)
+			propNode.removeFromParentNode()
+		}
+		activeRecordPropNodes.removeAll()
 		game?.cameraContainer.removeAllActions()
 		game?.isCutsceneCameraActive = false
 		if let restore = recordCameraRestore,
