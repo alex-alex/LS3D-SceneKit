@@ -2125,11 +2125,10 @@ extension Game {
 		guard let door = node.doorData else { return }
 		guard node.action(forKey: "door") == nil else { return }
 
-		#warning("Lock doors")
-		/*if door.isLocked {
+		if door.isLocked {
 			playDoorSound(door.lockedSound, on: node)
 			return
-		}*/
+		}
 
 		let currentEulerAngles = node.eulerAngles
 		if door.closedEulerAngles == nil {
