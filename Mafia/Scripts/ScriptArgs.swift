@@ -156,6 +156,7 @@ extension Script {
 		case "detector_inrange":		return getArgs_detector_inrange(scanner)
 		case "detector_issignal":		return getArgs_detector_issignal(scanner)
 		case "detector_setsignal":		return getArgs_detector_setsignal(scanner)
+		case "detector_waitforhit":		return []
 		case "detector_waitforuse":		return getArgs_detector_waitforuse(scanner)
 		case "dialog_begin":			return getArgs_dialog_begin(scanner)
 		case "dialog_camswitch":		return getArgs_dialog_camswitch(scanner)
@@ -170,14 +171,24 @@ extension Script {
 		case "door_lock":				return getArgs_door_lock(scanner)
 		case "door_open":				return getArgs_door_open(scanner)
 		case "endofmission":			return getArgs_endofmission(scanner)
+		case "enemy_action_fire":		return getArgs_enemy_action_fire(scanner)
+		case "enemy_group_add":			return getArgs_enemy_group_add(scanner)
+		case "enemy_group_addcar":		return getArgs_enemy_group_addcar(scanner)
+		case "enemy_group_chcipni_hajzle": return getArgs_enemy_group_chcipni_hajzle(scanner)
+		case "enemy_group_del":			return getArgs_enemy_group_del(scanner)
+		case "enemy_group_new":			return getArgs_enemy_group_new(scanner)
+		case "enemy_lockstate":			return getArgs_enemy_lockstate(scanner)
 		case "enemy_look":				return getArgs_enemy_look(scanner)
 		case "enemy_lookto":			return getArgs_enemy_look(scanner)
 		case "enemy_move":				return getArgs_enemy_move(scanner)
 		case "enemy_move_to_car":		return getArgs_enemy_move_to_car(scanner)
+		case "enemy_naserse":			return getArgs_enemy_naserse(scanner)
+		case "enemy_podvadim_jak":		return getArgs_enemy_podvadim_jak(scanner)
 		case "enemy_playanim":			return getArgs_enemy_playanim(scanner)
 		case "enemy_shut_up":			return []
 		case "enemy_stopanim":			return []
 		case "enemy_talk":				return getArgs_enemy_talk(scanner)
+		case "enemy_use_detector":		return getArgs_enemy_use_detector(scanner)
 		case "enemy_usecar":			return getArgs_enemy_usecar(scanner)
 		case "enemy_vidim":				return []
 		case "enemy_wait":				return []
@@ -222,6 +233,7 @@ extension Script {
 		case "human_candie":			return getArgs_human_candie(scanner)
 		case "human_death":				return getArgs_human_death(scanner)
 		case "human_delweapon":			return getArgs_human_delweapon(scanner)
+		case "human_fromcar":			return getArgs_human_fromcar(scanner)
 		case "human_force_settocar":	return getArgs_human_force_settocar(scanner)
 		case "human_getactanimid":		return getArgs_human_getactanimid(scanner)
 		case "human_getiteminrhand":		return getArgs_human_getiteminrhand(scanner)
@@ -540,6 +552,50 @@ extension Script {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_enemy_action_fire(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner)]
+		if let attackDistance = scanVarOrValueOptional(scanner) {
+			args.append(attackDistance)
+		}
+		return args
+	}
+
+	private func getArgs_enemy_group_add(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+		if let role = scanParamOptional(scanner) {
+			args.append(parseVarOrNumberToken(role) ?? .label(role))
+		}
+		return args
+	}
+
+	private func getArgs_enemy_group_addcar(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+		if let value = scanVarOrValueOptional(scanner) {
+			args.append(value)
+		}
+		return args
+	}
+
+	private func getArgs_enemy_group_chcipni_hajzle(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_enemy_group_del(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner)]
+		if let value = scanVarOrValueOptional(scanner) {
+			args.append(value)
+		}
+		return args
+	}
+
+	private func getArgs_enemy_group_new(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_enemy_lockstate(_ scanner: Scanner) -> [Argument] {
+		return [.string(scanString(scanner) ?? scanParam(scanner))]
+	}
+
 	private func getArgs_enemy_playanim(_ scanner: Scanner) -> [Argument] {
 		guard let animName = scanString(scanner) else { scriptArgumentFatalError("Expected animation name") }
 		return [.string(animName)]
@@ -565,6 +621,19 @@ extension Script {
 		return args
 	}
 
+	private func getArgs_enemy_naserse(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner)]
+		if let attackDistance = scanVarOrValueOptional(scanner) {
+			args.append(attackDistance)
+		}
+		return args
+	}
+
+	private func getArgs_enemy_podvadim_jak(_ scanner: Scanner) -> [Argument] {
+		guard let value = scanParamOptional(scanner) else { return [.integer(1)] }
+		return [.label(value)]
+	}
+
 	private func getArgs_enemy_usecar(_ scanner: Scanner) -> [Argument] {
 		guard let carId = scanVarOrValueOptional(scanner) else { return [] }
 		return [carId, scanVarOrValue(scanner)]
@@ -577,6 +646,10 @@ extension Script {
 		}
 		guard !args.isEmpty else { scriptArgumentFatalError("Expected at least one enemy_talk argument") }
 		return args
+	}
+
+	private func getArgs_enemy_use_detector(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_event_use_cb(_ scanner: Scanner) -> [Argument] {
@@ -741,6 +814,10 @@ extension Script {
 
 	private func getArgs_human_force_settocar(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_human_fromcar(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_human_getactanimid(_ scanner: Scanner) -> [Argument] {

@@ -13,6 +13,29 @@ import SpriteKit
 
 struct SceneError: Error { }
 
+struct EnemyGroupMember {
+	let actorId: Int
+	weak var actor: SCNNode?
+	var role: String?
+}
+
+struct EnemyGroup {
+	var members: [EnemyGroupMember] = []
+	weak var car: SCNNode?
+	var carId: Int?
+	var carParameter: Float?
+}
+
+final class DetectorHitWait {
+	weak var script: Script?
+	weak var node: SCNNode?
+
+	init(script: Script, node: SCNNode) {
+		self.script = script
+		self.node = node
+	}
+}
+
 enum SceneSection: UInt16 {
 	case objects		= 0x4000
 	case objDefs		= 0xae20
@@ -535,6 +558,8 @@ final class Scene: @unchecked Sendable {
 	var scripts: [String: Script] = [:]
 
 	var sounds: [SCNNode: Sound] = [:]
+	var enemyGroups: [Int: EnemyGroup] = [:]
+	var detectorHitWaits: [DetectorHitWait] = []
 	var humanVehicleOwners: [ObjectIdentifier: SCNNode] = [:]
 	var unusableCarIds = Set<ObjectIdentifier>()
 	var actions: [Action] = []
@@ -1339,6 +1364,8 @@ final class Scene: @unchecked Sendable {
 		initScripts.removeAll()
 		scripts.removeAll()
 		sounds.removeAll()
+		enemyGroups.removeAll()
+		detectorHitWaits.removeAll()
 		humanVehicleOwners.removeAll()
 		actions.removeAll()
 		environmentLights.removeAll()

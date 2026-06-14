@@ -82,6 +82,7 @@ extension Script {
 		case .detectorInrange:			detector_inrange(command.args)
 		case .detectorIssignal:			detector_issignal(command.args)
 		case .detectorSetsignal:			detector_setsignal(command.args)
+		case .detectorWaitforhit:		detector_waitforhit(command.args)
 		case .detectorWaitforuse:		detector_waitforuse(command.args)
 		case .dialogBegin:				dialog_begin(command.args)
 		case .dialogCamswitch:			dialog_camswitch(command.args)
@@ -98,14 +99,24 @@ extension Script {
 		case .end:						end(command.args)
 		case .endBang:					end(command.args)
 		case .endofmission:				endofmission(command.args)
+		case .enemyActionFire:			enemy_action_fire(command.args)
+		case .enemyGroupAdd:			enemy_group_add(command.args)
+		case .enemyGroupAddcar:			enemy_group_addcar(command.args)
+		case .enemyGroupChcipniHajzle:	enemy_group_chcipni_hajzle(command.args)
+		case .enemyGroupDel:			enemy_group_del(command.args)
+		case .enemyGroupNew:			enemy_group_new(command.args)
+		case .enemyLockstate:			enemy_lockstate(command.args)
 		case .enemyLook:				enemy_look(command.args)
 		case .enemyLookto:				enemy_lookto(command.args)
 		case .enemyMove:				enemy_move(command.args)
 		case .enemyMoveToCar:			enemy_move_to_car(command.args)
+		case .enemyNaserse:				enemy_naserse(command.args)
+		case .enemyPodvadimJak:		enemy_podvadim_jak(command.args)
 		case .enemyPlayanim:			enemy_playanim(command.args)
 		case .enemyShutUp:				noop()
 		case .enemyStopanim:			enemy_stopanim(command.args)
 		case .enemyTalk:				enemy_talk(command.args)
+		case .enemyUseDetector:			enemy_use_detector(command.args)
 		case .enemyUsecar:				enemy_usecar(command.args)
 		case .enemyVidim:				noop()
 		case .enemyWait:				enemy_wait(command.args)
@@ -150,6 +161,7 @@ extension Script {
 		case .humanCandie:				human_candie(command.args)
 		case .humanDeath:				human_death(command.args)
 		case .humanDelweapon:			human_delweapon(command.args)
+		case .humanFromcar:				human_fromcar(command.args)
 		case .humanForceSettocar:		human_force_settocar(command.args)
 		case .humanGetactanimid:		human_getactanimid(command.args)
 		case .humanGetiteminrhand:		human_getiteminrhand(command.args)
@@ -405,7 +417,7 @@ extension Script {
 		}
 
 		DispatchQueue.main.async {
-			let game = self.scene.game
+			guard let game = self.scene.game else { return }
 			game.cameraContainer.removeFromParentNode()
 			game.scnScene.rootNode.addChildNode(game.cameraContainer)
 			game.cameraContainer.transform = frame.presentation.worldTransform
@@ -834,6 +846,18 @@ extension Script {
 		next()
 	}
 
+	private func detector_waitforhit(_ args: [Argument]) {
+		let waitsForCommandBlock = beginCommandBlockAsyncOperation()
+		scene.detectorHitWaits.removeAll { wait in
+			guard let script = wait.script else { return true }
+			return script.uuid == self.uuid
+		}
+		scene.detectorHitWaits.append(DetectorHitWait(script: self, node: node))
+		if waitsForCommandBlock {
+			next()
+		}
+	}
+
 	private func detector_waitforuse(_ args: [Argument]) {
 		let waitsForCommandBlock = beginCommandBlockAsyncOperation()
 		if args.count > 0 {
@@ -979,6 +1003,89 @@ extension Script {
 			self.scene.game.endMission(returnsToMainMenu: returnsToMainMenu, message: text)
 		}
 		end(args)
+	}
+
+	private func enemy_action_fire(_ args: [Argument]) {
+		let targetActorId = args[0].getValueOrVarValue(vars: vars)
+		let attackDistance = args.count > 1 ? args[1].getValueOrVarValueFloat(vars: vars) : 0
+		setEnemyHostileTarget(targetActorId: targetActorId, attackDistance: attackDistance)
+		end(args)
+	}
+
+	private func enemy_group_add(_ args: [Argument]) {
+		let groupId = args[0].getValueOrVarValue(vars: vars)
+		let actorId = args[1].getValueOrVarValue(vars: vars)
+		let role = args.count > 2 ? normalizedEnemyGroupRole(args[2]) : nil
+		guard let actor = node(forScriptId: actorId) else {
+			next()
+			return
+		}
+
+		var group = scene.enemyGroups[groupId] ?? EnemyGroup()
+		group.members.removeAll { member in
+			member.actorId == actorId || member.actor === actor
+		}
+		group.members.append(EnemyGroupMember(actorId: actorId, actor: actor, role: role))
+		scene.enemyGroups[groupId] = group
+		next()
+	}
+
+	private func enemy_group_addcar(_ args: [Argument]) {
+		let groupId = args[0].getValueOrVarValue(vars: vars)
+		let carId = args[1].getValueOrVarValue(vars: vars)
+		var group = scene.enemyGroups[groupId] ?? EnemyGroup()
+		group.car = node(forScriptId: carId)
+		group.carId = carId
+		group.carParameter = args.count > 2 ? args[2].getValueOrVarValueFloat(vars: vars) : nil
+		scene.enemyGroups[groupId] = group
+		next()
+	}
+
+	private func enemy_group_chcipni_hajzle(_ args: [Argument]) {
+		let groupId = args[0].getValueOrVarValue(vars: vars)
+		let targetActorId = args[1].getValueOrVarValue(vars: vars)
+		guard let target = node(forScriptId: targetActorId),
+			  var group = scene.enemyGroups[groupId] else {
+			next()
+			return
+		}
+
+		group.members.removeAll { $0.actor == nil }
+		for member in group.members {
+			guard let actor = member.actor else { continue }
+			setEnemyHostileTarget(for: actor, target: target, targetActorId: targetActorId, attackDistance: 0)
+		}
+		scene.enemyGroups[groupId] = group
+		end(args)
+	}
+
+	private func enemy_group_del(_ args: [Argument]) {
+		let groupId = args[0].getValueOrVarValue(vars: vars)
+		scene.enemyGroups[groupId] = nil
+		next()
+	}
+
+	private func enemy_group_new(_ args: [Argument]) {
+		let groupId = args[0].getValueOrVarValue(vars: vars)
+		scene.enemyGroups[groupId] = EnemyGroup()
+		next()
+	}
+
+	private func enemy_lockstate(_ args: [Argument]) {
+		node.enemyAIState = normalizedEnemyAIState(args[0].getString())
+		next()
+	}
+
+	private func enemy_naserse(_ args: [Argument]) {
+		let targetActorId = args[0].getValueOrVarValue(vars: vars)
+		let attackDistance = args.count > 1 ? args[1].getValueOrVarValueFloat(vars: vars) : 0
+		setEnemyHostileTarget(targetActorId: targetActorId, attackDistance: attackDistance)
+		end(args)
+	}
+
+	private func enemy_podvadim_jak(_ args: [Argument]) {
+		node.enemyPodvadimJakTretera = args.first.map(enemyPodvadimJakTreteraEnabled) ?? true
+		next()
 	}
 
 	private func enemy_playanim(_ args: [Argument]) {
@@ -1177,6 +1284,27 @@ extension Script {
 		} else {
 			talkOperation.waiters.append(next)
 		}
+	}
+
+	private func enemy_use_detector(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		guard let script = script(forActorId: actorId) else {
+			next()
+			return
+		}
+
+		var didFindAction = false
+		for index in scene.actions.indices.reversed() {
+			if case .action(let actionScript, _) = scene.actions[index],
+			   actionScript.uuid == script.uuid {
+				scene.actions.remove(at: index)
+				didFindAction = true
+			}
+		}
+		if didFindAction {
+			script.completeActionWait()
+		}
+		next()
 	}
 
 	private func event(_ args: [Argument]) {
@@ -1401,9 +1529,9 @@ extension Script {
 	}
 
 	private func getenemyaistate(_ args: [Argument]) {
-		let _ = args[0].getValueOrVarValue(vars: vars) // actorId
+		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
-		vars[varId] = 0
+		vars[varId] = node(forScriptId: actorId)?.enemyHostileTargetNode == nil ? 0 : 1
 		next()
 	}
 
@@ -1652,6 +1780,32 @@ extension Script {
 				weapons.removeAll { $0.id == weaponId }
 			}
 			refreshPlayerWeaponHudIfNeeded(for: actor)
+		}
+		next()
+	}
+
+	private func human_fromcar(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		let carId = args[1].getValueOrVarValue(vars: vars)
+		guard let actor = node(forScriptId: actorId),
+			  let car = node(forScriptId: carId) else {
+			next()
+			return
+		}
+
+		let seatId = inferredVehicleSeatId(for: actor, inCar: car)
+		scene.humanVehicleOwners[ObjectIdentifier(actor)] = nil
+		removeDefaultAnimationActions(in: actor)
+		placeHumanOutsideCar(actor, car: car, seatId: seatId)
+
+		if isPlayerActor(actorId) {
+			let position = actor.worldPosition
+			let yaw = actor.eulerAngles.y
+			DispatchQueue.main.async {
+				self.scene.game.completeScriptedPlayerVehicleExit(position: position, yaw: yaw)
+			}
+		} else {
+			playDefaultHumanIdleAnimation(in: actor)
 		}
 		next()
 	}
@@ -3037,9 +3191,67 @@ extension Script {
 		return value == 0 ? .active : .inactive
 	}
 
+	private func setEnemyHostileTarget(targetActorId: Int, attackDistance: Float) {
+		guard let target = node(forScriptId: targetActorId) else { return }
+		setEnemyHostileTarget(for: node, target: target, targetActorId: targetActorId, attackDistance: attackDistance)
+	}
+
+	private func setEnemyHostileTarget(for enemy: SCNNode, target: SCNNode, targetActorId: Int, attackDistance: Float) {
+		enemy.enemyHostileTargetNode = target
+		enemy.enemyHostileAttackDistance = attackDistance
+		enemy.actorState = .active
+		let targetNode = liveDistanceNode(forActorId: targetActorId, actor: target)
+		face(enemy, toward: targetNode.presentation.worldPosition)
+	}
+
+	private func normalizedEnemyAIState(_ state: String) -> String {
+		return state
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+			.replacingOccurrences(of: " ", with: "_")
+			.replacingOccurrences(of: "-", with: "_")
+			.lowercased()
+	}
+
+	private func normalizedEnemyGroupRole(_ argument: Argument) -> String {
+		let role: String
+		switch argument {
+		case .integer(let value):
+			role = String(value)
+		case .number(let value):
+			role = String(format: "%g", value)
+		case .variable(let varId):
+			role = String(format: "%g", vars[varId] ?? 0)
+		case .label(let value), .string(let value):
+			role = value
+		}
+		let normalized = role
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+			.replacingOccurrences(of: " ", with: "_")
+			.replacingOccurrences(of: "-", with: "_")
+			.lowercased()
+		return normalized == "recieve" ? "receive" : normalized
+	}
+
+	private func enemyPodvadimJakTreteraEnabled(_ argument: Argument) -> Bool {
+		switch argument {
+		case .integer(let value):
+			return value != 0
+		case .number(let value):
+			return value != 0
+		case .variable(let varId):
+			return vars[varId] != 0
+		case .label(let value), .string(let value):
+			let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+			if let numericValue = Float(normalized) {
+				return numericValue != 0
+			}
+			return normalized == "tretera" || normalized == "pavel_tretera" || normalized == "pavel"
+		}
+	}
+
 	private func actorViewAngle(from observer: SCNNode, to observed: SCNNode) -> Float {
 		let forward = observer.presentation.worldFront
-		let observerForward = SCNVector3(x: forward.x, y: 0, z: forward.z).normalized
+		let observerForward = SCNVector3(x: -forward.x, y: 0, z: -forward.z).normalized
 		let delta = observed.presentation.worldPosition - observer.presentation.worldPosition
 		let targetDirection = SCNVector3(x: delta.x, y: 0, z: delta.z).normalized
 		guard observerForward.length > 0.0001,
@@ -3056,8 +3268,8 @@ extension Script {
 		let dz = targetPosition.z - position.z
 		guard abs(dx) > 0.001 || abs(dz) > 0.001 else { return }
 
-		let worldYaw = atan2(-dx, -dz)
-		let worldForward = SCNVector3(x: -sin(worldYaw), y: 0, z: -cos(worldYaw))
+		let length = sqrt(dx * dx + dz * dz)
+		let worldForward = SCNVector3(x: -dx / length, y: 0, z: -dz / length)
 		let localForward = node.parent?.presentation.convertVector(worldForward, from: nil) ?? worldForward
 		let localYaw = atan2(-localForward.x, -localForward.z)
 		node.eulerAngles = SCNVector3(x: 0, y: localYaw, z: 0)

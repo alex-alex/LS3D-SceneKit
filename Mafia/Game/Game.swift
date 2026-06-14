@@ -157,6 +157,12 @@ final class Game: NSObject, @unchecked Sendable {
 	private var heldWeaponNode: SCNNode?
 	private var heldWeaponUUID: NSUUID?
 	private let heldWeaponNodeNamePrefix = "__held_weapon_"
+	private var npcLastAttackTimes: [ObjectIdentifier: TimeInterval] = [:]
+	private let npcDefaultAttackDistance: SCNFloat = 20
+	private let npcMeleeAttackDistance: SCNFloat = 2.2
+	private let npcMeleeDamage: SCNFloat = 5
+	private let npcMeleeInterval: TimeInterval = 0.9
+	private let npcMoveSpeed: SCNFloat = 2.2
 	private var npcHealthLabelNodes: [ObjectIdentifier: SCNNode] = [:]
 	private let npcHealthLabelNodeNamePrefix = "__npc_health_label_"
 	private let playerVehicleAnimationKey = "__player_vehicle__"
@@ -1297,6 +1303,29 @@ final class Game: NSObject, @unchecked Sendable {
 		}
 	}
 
+	func completeScriptedPlayerVehicleExit(position: SCNVector3, yaw: SCNFloat) {
+		guard let playerNode = scene.playerNode else { return }
+
+		stopPlayerVehicleAnimation()
+		if playerNode.parent !== scene.rootNode {
+			scene.rootNode.addChildNode(playerNode)
+		}
+		if playerNode.physicsBody == nil,
+		   let playerPhysicsBodyBeforeVehicle = playerPhysicsBodyBeforeVehicle {
+			playerNode.physicsBody = playerPhysicsBodyBeforeVehicle
+			self.playerPhysicsBodyBeforeVehicle = nil
+		}
+		clearPlayerVehicleOwner(for: playerNode)
+		playerNode.isHidden = false
+		playerNode.setHiddenInHierarchy(false)
+		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
+		vehicle?.applyForces()
+		vehicle?.updateAudio(isActive: false)
+		vehicle = nil
+		mode = .walk
+		playerController?.teleport(to: position, yaw: yaw)
+	}
+
 	@MainActor func setup(in view: SCNView) {
 		renderView = view
 		setRenderLoopActive(true)
@@ -1891,6 +1920,7 @@ extension Game: SCNSceneRendererDelegate {
 		updateEnvironment(deltaTime: deltaTime)
 		updateCityMusic(deltaTime: deltaTime)
 		trafficManager?.update(deltaTime: deltaTime, playerPosition: playerReferencePosition())
+		updateHostileNPCs(deltaTime: deltaTime, time: time)
 
 		#if os(macOS)
 
@@ -2950,6 +2980,59 @@ extension Game {
 		return nodes
 	}
 
+	private func updateHostileNPCs(deltaTime: TimeInterval, time: TimeInterval) {
+		let dt = SCNFloat(max(0, min(deltaTime, 1.0 / 20.0)))
+		var activeNPCIds = Set<ObjectIdentifier>()
+
+		for npc in npcHumanNodes() {
+			let npcId = ObjectIdentifier(npc)
+			activeNPCIds.insert(npcId)
+			guard npc.actorState.canRunScript,
+				  humanHealth(for: npc) > 0,
+				  let target = npc.enemyHostileTargetNode,
+				  humanHealth(for: target) > 0,
+				  !isNodeHiddenInHierarchy(target) else {
+				npc.enemyHostileTargetNode = nil
+				continue
+			}
+
+			let npcPosition = npc.presentation.worldPosition
+			let targetPosition = target.presentation.worldPosition
+			faceNPC(npc, toward: targetPosition)
+
+			if npcEnemyStateIsAfraid(npc) {
+				moveNPC(npc, awayFrom: targetPosition, deltaTime: dt)
+				continue
+			}
+
+			if npcEnemyStateSuppressesHostility(npc) {
+				continue
+			}
+
+			let distance = horizontalDistance(from: npcPosition, to: targetPosition)
+			let equippedWeapon = npcEquippedFirearm(for: npc)
+			let attackDistance = npcAttackDistance(for: npc, weapon: equippedWeapon)
+			if distance > attackDistance * 0.85 {
+				moveNPC(npc, toward: targetPosition, deltaTime: dt)
+			}
+
+			if distance <= attackDistance,
+			   npcCanAttack(npc, at: time, weapon: equippedWeapon) {
+				if let weapon = equippedWeapon, let profile = weapon.profile {
+					npcLastAttackTimes[npcId] = time
+					npcFireWeapon(weapon, profile: profile, from: npc, at: target)
+				} else if distance <= npcMeleeAttackDistance {
+					npcLastAttackTimes[npcId] = time
+					applyHumanDamage(to: target, amount: npcMeleeDamage)
+				}
+			}
+		}
+
+		for staleId in Array(npcLastAttackTimes.keys) where !activeNPCIds.contains(staleId) {
+			npcLastAttackTimes[staleId] = nil
+		}
+	}
+
 	private func collectNPCHumanNodes(in node: SCNNode, nodes: inout [SCNNode]) {
 		if isNPCHumanNode(node) {
 			nodes.append(node)
@@ -2958,6 +3041,157 @@ extension Game {
 		for child in node.childNodes {
 			collectNPCHumanNodes(in: child, nodes: &nodes)
 		}
+	}
+
+	private func npcEquippedFirearm(for npc: SCNNode) -> Weapon? {
+		let weapons = scene.weapons(for: npc)
+		return weapons.first { $0.position == .hand && $0.isFirearm } ??
+			weapons.first { $0.isFirearm }
+	}
+
+	private func npcAttackDistance(for npc: SCNNode, weapon: Weapon?) -> SCNFloat {
+		if npc.enemyHostileAttackDistance > 0 {
+			return SCNFloat(npc.enemyHostileAttackDistance)
+		}
+		if let range = weapon?.profile?.range {
+			return max(8, min(range * 0.55, npcDefaultAttackDistance))
+		}
+		return npcMeleeAttackDistance
+	}
+
+	private func npcCanAttack(_ npc: SCNNode, at time: TimeInterval, weapon: Weapon?) -> Bool {
+		let interval = weapon?.profile?.shotInterval ?? npcMeleeInterval
+		return time - (npcLastAttackTimes[ObjectIdentifier(npc)] ?? 0) >= interval
+	}
+
+	private func npcEnemyStateIsAfraid(_ npc: SCNNode) -> Bool {
+		return npc.enemyAIState == "afraid"
+	}
+
+	private func npcEnemyStateSuppressesHostility(_ npc: SCNNode) -> Bool {
+		guard let state = npc.enemyAIState else { return false }
+		return state == "fight_guard_nohostile" || state == "no_reaction" || state == "nohostile"
+	}
+
+	private func moveNPC(_ npc: SCNNode, toward targetPosition: SCNVector3, deltaTime: SCNFloat) {
+		guard scene.humanVehicleOwners[ObjectIdentifier(npc)] == nil else { return }
+		let position = npc.presentation.worldPosition
+		let direction = normalizedHorizontalVector(targetPosition - position, fallback: SCNVector3Zero)
+		guard direction.length > 0.0001 else { return }
+		let movement = direction * (npcMoveSpeed * deltaTime)
+		if let physicsBody = npc.physicsBody, physicsBody.type == .dynamic {
+			physicsBody.velocity = SCNVector3(x: direction.x * npcMoveSpeed, y: physicsBody.velocity.y, z: direction.z * npcMoveSpeed)
+		} else {
+			npc.position = npc.position + movement
+		}
+	}
+
+	private func moveNPC(_ npc: SCNNode, awayFrom targetPosition: SCNVector3, deltaTime: SCNFloat) {
+		guard scene.humanVehicleOwners[ObjectIdentifier(npc)] == nil else { return }
+		let position = npc.presentation.worldPosition
+		let direction = normalizedHorizontalVector(position - targetPosition, fallback: SCNVector3Zero)
+		guard direction.length > 0.0001 else { return }
+		let movement = direction * (npcMoveSpeed * deltaTime)
+		if let physicsBody = npc.physicsBody, physicsBody.type == .dynamic {
+			physicsBody.velocity = SCNVector3(x: direction.x * npcMoveSpeed, y: physicsBody.velocity.y, z: direction.z * npcMoveSpeed)
+		} else {
+			npc.position = npc.position + movement
+		}
+	}
+
+	private func faceNPC(_ npc: SCNNode, toward targetPosition: SCNVector3) {
+		let position = npc.presentation.worldPosition
+		let dx = targetPosition.x - position.x
+		let dz = targetPosition.z - position.z
+		guard abs(dx) > 0.001 || abs(dz) > 0.001 else { return }
+
+		let length = sqrt(dx * dx + dz * dz)
+		let worldForward = SCNVector3(x: -dx / length, y: 0, z: -dz / length)
+		let localForward = npc.parent?.presentation.convertVector(worldForward, from: nil) ?? worldForward
+		let localYaw = atan2(-localForward.x, -localForward.z)
+		npc.eulerAngles = SCNVector3(x: 0, y: localYaw, z: 0)
+	}
+
+	private func npcFireWeapon(_ weapon: Weapon, profile: Weapon.Profile, from npc: SCNNode, at target: SCNNode) {
+		if !weapon.hasAmmoLoaded {
+			guard weapon.canReload else { return }
+			let loadedAmmo = min(profile.clipSize, weapon.restAmmo)
+			weapon.clipAmmo = loadedAmmo
+			weapon.restAmmo -= loadedAmmo
+		}
+
+		let origin = npcMuzzlePosition(for: npc)
+		let targetPosition = npcAimPosition(for: target)
+		let direction = spreadDirection(from: targetPosition - origin, spread: profile.spread * 0.45)
+		let end = origin + direction * profile.range
+		let hits = scnScene.rootNode.hitTestWithSegment(
+			from: origin,
+			to: end,
+			options: [
+				SCNHitTestOption.ignoreHiddenNodes.rawValue: true,
+				SCNHitTestOption.backFaceCulling.rawValue: false
+			]
+		)
+
+		var tracerEnd = end
+		for hit in hits {
+			if isIgnoredCombatHitNode(hit.node) ||
+			   isNode(hit.node, inside: npc) {
+				continue
+			}
+
+			tracerEnd = hit.worldCoordinates
+			notifyDetectorHit(for: hit.node)
+			if let hitNode = shootableNode(from: hit.node) {
+				let damagedHuman = applyHumanDamage(to: hit.node, amount: profile.impulse)
+				if let body = hitNode.physicsBody {
+					applyShotImpact(to: body, node: hitNode, at: hit.worldCoordinates, direction: direction, impulse: profile.impulse)
+				} else if !damagedHuman {
+					hitNode.position += SCNVector3(x: direction.x * 1.2, y: 0.2, z: direction.z * 1.2)
+				}
+			}
+			showImpact(at: hit.worldCoordinates, normal: hit.worldNormal)
+			break
+		}
+
+		showTracer(from: origin, to: tracerEnd)
+		playWeaponSound(profile.fireSoundName, on: npc)
+		if weapon.clipAmmo > 0 {
+			weapon.clipAmmo -= 1
+		}
+		if !weapon.hasAmmoLoaded, weapon.canReload {
+			weapon.clipAmmo = min(profile.clipSize, weapon.restAmmo)
+			weapon.restAmmo -= weapon.clipAmmo
+		}
+	}
+
+	private func npcMuzzlePosition(for npc: SCNNode) -> SCNVector3 {
+		let position = npc.presentation.worldPosition
+		let bounds = npc.presentation.boundingBox
+		let height = bounds.max.y > bounds.min.y ? bounds.max.y - bounds.min.y : 1.7
+		let forward = npc.presentation.worldFront
+		return SCNVector3(
+			x: position.x - forward.x * 0.45,
+			y: position.y + min(max(height * 0.72, 1.1), 1.55),
+			z: position.z - forward.z * 0.45
+		)
+	}
+
+	private func npcAimPosition(for target: SCNNode) -> SCNVector3 {
+		let position = target.presentation.worldPosition
+		let bounds = target.presentation.boundingBox
+		let height = bounds.max.y > bounds.min.y ? bounds.max.y - bounds.min.y : 1.7
+		return SCNVector3(x: position.x, y: position.y + min(max(height * 0.65, 1.0), 1.45), z: position.z)
+	}
+
+	private func humanHealth(for node: SCNNode) -> Float {
+		return humanNode(from: node)?.humanEnergy ?? 0
+	}
+
+	private func horizontalDistance(from lhs: SCNVector3, to rhs: SCNVector3) -> SCNFloat {
+		let dx = lhs.x - rhs.x
+		let dz = lhs.z - rhs.z
+		return sqrt(dx * dx + dz * dz)
 	}
 
 	private func isNPCHumanNode(_ node: SCNNode) -> Bool {
@@ -3144,6 +3378,7 @@ extension Game {
 			}
 
 			tracerEnd = hit.worldCoordinates
+			notifyDetectorHit(for: hit.node)
 			if let hitNode = shootableNode(from: hit.node) {
 				let damagedHuman = applyHumanDamage(to: hit.node, amount: profile.impulse)
 				if let body = hitNode.physicsBody {
@@ -3463,7 +3698,7 @@ extension Game {
 		]))
 	}
 
-	private func playWeaponSound(_ soundName: String?) {
+	private func playWeaponSound(_ soundName: String?, on node: SCNNode? = nil) {
 		guard let soundName = soundName, !soundName.isEmpty else { return }
 
 		let normalizedName = soundName.lowercased()
@@ -3477,7 +3712,7 @@ extension Game {
 			weaponAudioSources[normalizedName] = loadedSource
 			source = loadedSource
 		}
-		scene.playAudio(source, on: cameraNode)
+		scene.playAudio(source, on: node ?? cameraNode)
 	}
 
 	@discardableResult
@@ -3745,6 +3980,29 @@ extension Game {
 			current = candidate.parent
 		}
 		return nil
+	}
+
+	private func notifyDetectorHit(for hitNode: SCNNode) {
+		guard !scene.detectorHitWaits.isEmpty else { return }
+
+		var completedScripts: [Script] = []
+		scene.detectorHitWaits.removeAll { wait in
+			guard let script = wait.script,
+				  let detectorNode = wait.node else {
+				return true
+			}
+			let matches = hitNode === detectorNode ||
+				isNode(hitNode, inside: detectorNode) ||
+				isNode(detectorNode, inside: hitNode)
+			if matches {
+				completedScripts.append(script)
+				return true
+			}
+			return false
+		}
+		for script in completedScripts {
+			script.completeActionWait()
+		}
 	}
 
 	private func isShotEffectNode(_ node: SCNNode) -> Bool {

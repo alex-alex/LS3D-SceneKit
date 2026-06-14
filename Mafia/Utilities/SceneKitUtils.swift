@@ -441,6 +441,10 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 	let doorData = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let actorState = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let actionsEnabled = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let enemyAIState = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let enemyHostileAttackDistance = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let enemyHostileTargetNode = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let enemyPodvadimJakTretera = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let humanEnergy = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let vehicleModelName = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let trafficCarDefinition = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
@@ -455,6 +459,10 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 		doorData.initialize(to: 0)
 		actorState.initialize(to: 0)
 		actionsEnabled.initialize(to: 0)
+		enemyAIState.initialize(to: 0)
+		enemyHostileAttackDistance.initialize(to: 0)
+		enemyHostileTargetNode.initialize(to: 0)
+		enemyPodvadimJakTretera.initialize(to: 0)
 		humanEnergy.initialize(to: 0)
 		vehicleModelName.initialize(to: 0)
 		trafficCarDefinition.initialize(to: 0)
@@ -704,6 +712,56 @@ extension SCNNode {
 			current = node.parent
 		}
 		return true
+	}
+
+	var enemyAIState: String? {
+		get {
+			return objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyAIState) as? String
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyAIState, newValue, .OBJC_ASSOCIATION_RETAIN)
+			} else {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyAIState, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
+		}
+	}
+
+	var enemyHostileAttackDistance: Float {
+		get {
+			let value: NSNumber = associatedObject(self, key: scnNodeAssociatedObjectKeys.enemyHostileAttackDistance) {
+				return NSNumber(value: 0)
+			}
+			return value.floatValue
+		}
+		set {
+			associateObject(self, key: scnNodeAssociatedObjectKeys.enemyHostileAttackDistance, value: NSNumber(value: newValue))
+		}
+	}
+
+	var enemyHostileTargetNode: SCNNode? {
+		get {
+			return objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyHostileTargetNode) as? SCNNode
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyHostileTargetNode, newValue, .OBJC_ASSOCIATION_RETAIN)
+			} else {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.enemyHostileTargetNode, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
+		}
+	}
+
+	var enemyPodvadimJakTretera: Bool {
+		get {
+			let value: NSNumber = associatedObject(self, key: scnNodeAssociatedObjectKeys.enemyPodvadimJakTretera) {
+				return NSNumber(value: false)
+			}
+			return value.boolValue
+		}
+		set {
+			associateObject(self, key: scnNodeAssociatedObjectKeys.enemyPodvadimJakTretera, value: NSNumber(value: newValue))
+		}
 	}
 
 	var actorState: ActorState {
