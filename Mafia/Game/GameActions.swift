@@ -583,7 +583,7 @@ extension Game {
 		refreshPlayerStatusHud()
 
 		for _ in 0..<profile.pelletCount {
-			shootFromCamera(profile: profile)
+			shootFromPlayer(profile: profile)
 		}
 		if let fireAnimationName = playWeaponAnimation(weapon: weapon, profile: profile, action: "fire") {
 			scheduleShotgunPumpAnimationIfNeeded(weapon: weapon, afterFireAnimation: fireAnimationName)
@@ -1366,8 +1366,10 @@ extension Game {
 		playPlayerActionAnimation(named: animationName, animationKey: "__bat_swing__")
 	}
 
-	func shootFromCamera(profile: Weapon.Profile) {
-		let origin = cameraNode.presentation.worldPosition
+	func shootFromPlayer(profile: Weapon.Profile) {
+		guard let playerNode = scene.playerNode else { return }
+
+		let origin = playerShotOrigin(for: playerNode)
 		let cameraForward = cameraNode.presentation.worldFront
 		let direction = spreadDirection(
 			from: SCNVector3(x: -cameraForward.x, y: -cameraForward.y, z: -cameraForward.z),
@@ -1391,7 +1393,8 @@ extension Game {
 		for hit in hits {
 			if isIgnoredCombatHitNode(hit.node) ||
 			   isNode(hit.node, inside: scene.playerNode) ||
-			   isNode(hit.node, inside: vehicle?.node) {
+			   isNode(hit.node, inside: vehicle?.node) ||
+			   isNode(hit.node, inside: heldWeaponNode) {
 				continue
 			}
 
@@ -1416,6 +1419,23 @@ extension Game {
 			return
 		}
 		showTracer(from: origin, to: tracerEnd)
+	}
+
+	func playerShotOrigin(for playerNode: SCNNode) -> SCNVector3 {
+		if let heldWeaponNode = heldWeaponNode,
+		   heldWeaponNode.parent != nil {
+			return heldWeaponNode.presentation.worldPosition
+		}
+
+		let position = playerNode.presentation.worldPosition
+		let bounds = playerNode.presentation.boundingBox
+		let height = bounds.max.y > bounds.min.y ? bounds.max.y - bounds.min.y : 1.7
+		let forward = playerNode.presentation.worldFront
+		return SCNVector3(
+			x: position.x - forward.x * 0.35,
+			y: position.y + min(max(height * 0.62, 0.95), 1.45),
+			z: position.z - forward.z * 0.35
+		)
 	}
 
 	func applyShotImpact(to body: SCNPhysicsBody, node: SCNNode, at hitPosition: SCNVector3, direction: SCNVector3, impulse: SCNFloat) {
