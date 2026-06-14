@@ -92,13 +92,18 @@ extension Game {
 		restoreSaveGamePlayerPosition(from: checkpoint)
 		restoreSaveGamePlayerHealth(from: checkpoint)
 		restoreSaveGameVehicleIfNeeded(from: checkpoint)
+		scene.restoreSaveGameScriptStates(from: checkpoint)
 	}
 
 	func restoreSaveGamePlayerPosition(from checkpoint: SaveGameCheckpoint) {
 		guard let position = checkpoint.playerEntity?.position,
 			  let playerNode = scene.playerNode else { return }
 
-		setWorldPosition(position.scnVector3, for: playerNode)
+		if let playerController = playerController {
+			playerController.teleport(to: position.scnVector3, yaw: worldYaw(of: playerNode))
+		} else {
+			setWorldPosition(position.scnVector3, for: playerNode)
+		}
 		print("== Savegame player position restored: \(position.x), \(position.y), \(position.z)")
 	}
 
@@ -134,6 +139,11 @@ extension Game {
 
 	func setWorldPosition(_ position: SCNVector3, for node: SCNNode) {
 		node.position = node.parent?.convertPosition(position, from: nil) ?? position
+	}
+
+	func worldYaw(of node: SCNNode) -> SCNFloat {
+		let forward = node.presentation.worldFront
+		return atan2(-forward.x, -forward.z)
 	}
 
 	func setVehicleSpeed(_ vehicle: Vehicle, kilometersPerHour speed: CGFloat) {
@@ -1191,6 +1201,13 @@ extension Game {
 		guard !didEndMission else { return }
 		didEndMission = true
 
+		if returnsToMainMenu {
+			DispatchQueue.main.async { [weak self] in
+				self?.onMissionEnded?()
+			}
+			return
+		}
+
 		scene.clearActiveRecordPlayback()
 		updateHud { hud in
 			hud.showMissionEndText(message)
@@ -1199,11 +1216,6 @@ extension Game {
 		setPaused(true, showsPauseScreen: false)
 		playerController?.stop()
 		vehicle?.updateControls(throttle: 0, brake: false, steering: 0)
-		if returnsToMainMenu {
-			DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
-				self?.onMissionEnded?()
-			}
-		}
 	}
 
 	func changeMission(folder: String, frameName: String, speed: Float) {

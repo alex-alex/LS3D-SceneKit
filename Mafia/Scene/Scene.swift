@@ -1328,6 +1328,14 @@ final class Scene: @unchecked Sendable {
 		}
 	}
 
+	func restoreSaveGameScriptStates(from checkpoint: SaveGameCheckpoint) {
+		for entity in checkpoint.entities {
+			guard let state = entity.scriptActorState,
+				  let script = scripts[entity.name] else { continue }
+			script.node.actorState = state
+		}
+	}
+
 	func tearDown() {
 		guard Thread.isMainThread else {
 			DispatchQueue.main.async {

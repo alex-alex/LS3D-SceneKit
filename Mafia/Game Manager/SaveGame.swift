@@ -203,6 +203,22 @@ struct SaveGameEntity {
 	var objectType: ObjectDefinitionType? {
 		return ObjectDefinitionType(rawValue: objectTypeRawValue)
 	}
+
+	var scriptActorState: ActorState? {
+		guard objectType == .script,
+			  let group = payloadPrefix?.group else { return nil }
+
+		switch group {
+		case 0:
+			return .active
+		case 1:
+			return .inactive
+		case 2:
+			return .off
+		default:
+			return nil
+		}
+	}
 }
 
 struct SaveGameEntityPayloadPrefix {
