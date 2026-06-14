@@ -175,6 +175,7 @@ extension Script {
 		case "enemy_action_follow":		return getArgs_enemy_action_follow(scanner)
 		case "enemy_actionsclear":		return []
 		case "enemy_brainwash":			return []
+		case "enemy_car_moveto":		return getArgs_enemy_car_moveto(scanner)
 		case "enemy_forcescript":		return getArgs_enemy_forcescript(scanner)
 		case "enemy_group_add":			return getArgs_enemy_group_add(scanner)
 		case "enemy_group_addcar":		return getArgs_enemy_group_addcar(scanner)
@@ -574,6 +575,14 @@ extension Script {
 
 	private func getArgs_enemy_forcescript(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_enemy_car_moveto(_ scanner: Scanner) -> [Argument] {
+		var args = [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+		if let movementMode = scanParamOptional(scanner) {
+			args.append(.label(movementMode))
+		}
+		return args
 	}
 
 	private func getArgs_enemy_group_add(_ scanner: Scanner) -> [Argument] {

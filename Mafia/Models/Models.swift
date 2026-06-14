@@ -92,10 +92,70 @@ private final class ModelImageCache: @unchecked Sendable {
 private let imageCache = ModelImageCache()
 #endif
 
-final class ModelLoader {
+final class ModelLoader: @unchecked Sendable {
+	private let lock = NSLock()
+	private var cachedNodesByURL: [URL: SCNNode] = [:]
+
 	@discardableResult
 	func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode {
-		return try ModelLoadParser().loadModel(named: name, node: node)
+		guard let url = resolvedModelURL(named: name) else { return node }
+		if let cachedNode = cachedNode(for: url) {
+			return copyModelContents(from: cachedNode.clone(), to: node)
+		}
+
+		let loadedNode = try ModelLoadParser().loadModel(at: url, named: name, node: SCNNode())
+		storeCachedNode(loadedNode, for: url)
+		return copyModelContents(from: loadedNode.clone(), to: node)
+	}
+
+	private func cachedNode(for url: URL) -> SCNNode? {
+		lock.lock()
+		defer { lock.unlock() }
+		return cachedNodesByURL[url]
+	}
+
+	private func storeCachedNode(_ node: SCNNode, for url: URL) {
+		lock.lock()
+		defer { lock.unlock() }
+		if cachedNodesByURL[url] == nil {
+			cachedNodesByURL[url] = node
+		}
+	}
+
+	private func copyModelContents(from sourceNode: SCNNode, to targetNode: SCNNode) -> SCNNode {
+		targetNode.geometry = sourceNode.geometry
+		targetNode.morpher = sourceNode.morpher
+		targetNode.skinner = sourceNode.skinner
+		for childNode in sourceNode.childNodes {
+			childNode.removeFromParentNode()
+			targetNode.addChildNode(childNode)
+		}
+		for animationKey in sourceNode.animationKeys {
+			if let animation = sourceNode.animation(forKey: animationKey) {
+				targetNode.addAnimation(animation, forKey: animationKey)
+			}
+		}
+		return targetNode
+	}
+
+	private func resolvedModelURL(named name: String) -> URL? {
+		var url = mainDirectory.appendingPathComponent(name + ".4ds")
+		if (try? url.checkResourceIsReachable()) == true {
+			return url
+		}
+
+		var comps = name.components(separatedBy: "/")
+		if comps.count > 0 {
+			comps[comps.count - 1] = comps[comps.count - 1].uppercased()
+		}
+
+		url = mainDirectory.appendingPathComponent(comps.joined(separator: "/").lowercased() + ".4ds")
+		if (try? url.checkResourceIsReachable()) == true {
+			return url
+		}
+
+		print("!!! ERROR:", url.path)
+		return nil
 	}
 }
 
@@ -106,8 +166,10 @@ final class ModelLoadParser {
 
 @discardableResult
 func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode {
-	return try ModelLoader().loadModel(named: name, node: node)
+	return try sharedModelLoader.loadModel(named: name, node: node)
 }
+
+private let sharedModelLoader = ModelLoader()
 
 private extension ModelLoadParser {
 
@@ -259,29 +321,11 @@ func readJoint(stream: InputStream) throws -> (SCNMatrix4, Int) {
 
 @discardableResult
 // swiftlint:disable:next function_body_length
-func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
+func loadModel(at url: URL, named name: String, node: SCNNode) throws -> SCNNode {
 
 //	print("-- loadModel:", name)
 
 	let mainNode = node
-
-	var url = mainDirectory.appendingPathComponent(name + ".4ds")
-
-	if (try? url.checkResourceIsReachable()) != true {
-
-		var comps = name.components(separatedBy: "/")
-		if comps.count > 0 {
-			comps[comps.count-1] = comps[comps.count-1].uppercased()
-		}
-
-		url = mainDirectory.appendingPathComponent(comps.joined(separator: "/").lowercased() + ".4ds")
-
-		if (try? url.checkResourceIsReachable()) != true {
-			print("!!! ERROR:", url.path)
-			return node
-		}
-
-	}
 
 	guard let stream = InputStream(url: url) else {
 		throw ModelError.invalidFile("Could not open model '\(name)' at \(url.path)")

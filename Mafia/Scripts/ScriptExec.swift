@@ -103,6 +103,7 @@ extension Script {
 		case .enemyActionFollow:		enemy_action_follow(command.args)
 		case .enemyActionsclear:		enemy_actionsclear(command.args)
 		case .enemyBrainwash:			enemy_brainwash(command.args)
+		case .enemyCarMoveto:			enemy_car_moveto(command.args)
 		case .enemyForcescript:		enemy_forcescript(command.args)
 		case .enemyGroupAdd:			enemy_group_add(command.args)
 		case .enemyGroupAddcar:			enemy_group_addcar(command.args)
@@ -343,6 +344,7 @@ extension Script {
 	private func actor_delete(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		actors[actorId] = nil
+		actorNames[actorId] = nil
 		next()
 	}
 
@@ -365,6 +367,7 @@ extension Script {
 		}
 		scene.registerNodeTree(duplicatedActor)
 		actors[targetActorId] = duplicatedActor
+		actorNames[targetActorId] = nil
 		next()
 	}
 
@@ -704,14 +707,24 @@ extension Script {
 		let label2 = args[3].getString()
 		let humanMatches: Bool
 		let playerMatches: Bool
+		var carIdForLog: Int?
 		if args[1].isNullLabel {
 			humanMatches = node(forScriptId: actorId) != nil && ownerNode(forActorId: actorId) == nil
 			playerMatches = isPlayerActor(actorId) && (scene.game.mode != .car || scene.game.vehicle == nil)
 		} else {
 			let carId = args[1].getValueOrVarValue(vars: vars)
+			carIdForLog = carId
 			humanMatches = humanOwnerMatches(actorId: actorId, carId: carId)
 			playerMatches = isPlayerActor(actorId) && playerOwnerMatches(carId: carId)
 		}
+		logDetectorVstupOwnerCheck(
+			actorId: actorId,
+			carId: carIdForLog,
+			humanMatches: humanMatches,
+			playerMatches: playerMatches,
+			label1: label1,
+			label2: label2
+		)
 		if humanMatches || playerMatches {
 			goto(label: label1)
 		} else {
@@ -816,11 +829,14 @@ extension Script {
 				scene.game.vehicle?.node.presentation.worldPosition,
 				scene.game.vehicle?.scriptNode.presentation.worldPosition
 			].compactMap { $0 }
-			vars[varId] = positions.contains { node.squaredDistance(to: $0) <= squaredDistance } ? 2 : 0
+			vars[varId] = positions.contains { detectorSquaredDistance(to: $0) <= squaredDistance } ? 2 : 0
+			logDetectorVstupRange(varId: varId, distance: distance, result: vars[varId] ?? 0, positions: positions)
 		} else if let playerPosition = scene.game.playerReferencePosition() {
-			vars[varId] = node.squaredDistance(to: playerPosition) <= squaredDistance ? 1 : 0
+			vars[varId] = detectorSquaredDistance(to: playerPosition) <= squaredDistance ? 1 : 0
+			logDetectorVstupRange(varId: varId, distance: distance, result: vars[varId] ?? 0, positions: [playerPosition])
 		} else {
 			vars[varId] = 0
+			logDetectorVstupRange(varId: varId, distance: distance, result: 0, positions: [])
 		}
 		next()
 	}
@@ -835,6 +851,13 @@ extension Script {
 			return
 		}
 
+		if name == "detector_vstup" {
+			print(
+				"== detector_vstup signal: actorId=\(actorId) " +
+				"script=\(script.name) signal=\(script.signal) " +
+				"labels=\(label1)/\(label2)"
+			)
+		}
 		if script.signal {
 			goto(label: label1)
 		} else {
@@ -1059,6 +1082,39 @@ extension Script {
 	private func enemy_brainwash(_ args: [Argument]) {
 		clearEnemyActions(for: node, clearLockedState: true)
 		next()
+	}
+
+	private func enemy_car_moveto(_ args: [Argument]) {
+		let carId = args[0].getValueOrVarValue(vars: vars)
+		let frameId = args[1].getValueOrVarValue(vars: vars)
+		guard let car = node(forScriptId: carId),
+			  let frame = frames[frameId] else {
+			next()
+			return
+		}
+
+		let carBody = carBodyNode(for: car)
+		let targetPosition = frame.presentation.worldPosition
+		let startPosition = car.presentation.worldPosition
+		let targetLocalPosition = car.parent?.convertPosition(targetPosition, from: nil) ?? targetPosition
+		let distance = max(Float(0), (targetPosition - startPosition).length)
+		let speed = Float(11)
+		let duration = TimeInterval(min(max(distance / speed, 0.1), 30))
+		let shouldStop = args.count < 3 || args[2].getString().lowercased() == "stop"
+
+		face(car, toward: targetPosition)
+		calmPhysicsBody(carBody.physicsBody ?? car.physicsBody)
+		DispatchQueue.main.async {
+			let move = SCNAction.move(to: targetLocalPosition, duration: duration)
+			move.timingMode = .linear
+			let finish = SCNAction.run { _ in
+				if shouldStop {
+					self.calmPhysicsBody(carBody.physicsBody ?? car.physicsBody)
+				}
+				self.next()
+			}
+			car.runAction(.sequence([move, finish]), forKey: "__script_enemy_car_moveto__")
+		}
 	}
 
 	private func enemy_forcescript(_ args: [Argument]) {
@@ -1383,10 +1439,12 @@ extension Script {
 	private func findactor(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
-				let name = args[1].getString()
-				if name.lowercased() == "null" {
-					actors[actorId] = makeScriptNullActorNode()
-				} else if let node = findNode(named: name) {
+			let name = args[1].getString()
+			actorNames[actorId] = name
+			actors[actorId] = nil
+			if name.lowercased() == "null" {
+				actors[actorId] = makeScriptNullActorNode()
+			} else if let node = findNode(named: name) {
 				actors[actorId] = node
 			}
 			if name.lowercased() == "tommy" {
@@ -1397,6 +1455,7 @@ extension Script {
 				print("== Script findactor Tommy: script=\(self.name), actorId=\(actorId), found=\(actor?.name ?? "<nil>"), isPlayer=\(actor === player), actorEnergy=\(actorEnergy), player=\(player?.name ?? "<nil>"), playerEnergy=\(playerEnergy), playerHealth=\(scene.game.playerHealth)")
 			}
 		} else {
+			actorNames[actorId] = nil
 			actors[actorId] = self.node
 		}
 		next()
@@ -1429,6 +1488,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if let playerNode = scene.playerNode {
 			actors[actorId] = playerNode
+			actorNames[actorId] = nil
 		}
 		next()
 	}
@@ -1660,6 +1720,7 @@ extension Script {
 		let remoteSourceActorId = args[2].getValueOrVarValue(vars: vars)
 		guard let remoteScript = script(forActorId: remoteActorId) else {
 			actors[localActorId] = nil
+			actorNames[localActorId] = nil
 			next()
 			return
 		}
@@ -1667,6 +1728,7 @@ extension Script {
 			remoteScript.actors[remoteSourceActorId]
 		} completion: { actor in
 			self.actors[localActorId] = actor
+			self.actorNames[localActorId] = nil
 			self.next()
 		}
 	}
@@ -1923,12 +1985,14 @@ extension Script {
 		guard node(forScriptId: actorId) != nil,
 			  let owner = ownerNode(forActorId: actorId) else {
 			actors[varId] = nil
+			actorNames[varId] = nil
 			frames[varId] = nil
 			vars[varId] = -1
 			next()
 			return
 		}
 		actors[varId] = owner
+		actorNames[varId] = nil
 		frames[varId] = nil
 		vars[varId] = Float(varId)
 		next()
@@ -2237,6 +2301,7 @@ extension Script {
 			scene.rootNode.addChildNode(model)
 			scene.registerNodeTree(model)
 			actors[actorId] = model
+			actorNames[actorId] = nil
 		} catch {
 			print("Failed to create model '\(modelName)':", error)
 		}
@@ -2247,6 +2312,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		actors[actorId]?.removeFromParentNode()
 		actors[actorId] = nil
+		actorNames[actorId] = nil
 		next()
 	}
 
@@ -2370,8 +2436,10 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let name = args[1].getString()
 		if name.lowercased() == "null" {
+			actorNames[actorId] = name
 			actors[actorId] = makeScriptNullActorNode()
 		} else {
+			actorNames[actorId] = name
 			actors[actorId] = findNode(named: name)
 		}
 		next()
@@ -2512,6 +2580,7 @@ extension Script {
 	private func setnullactor(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		actors[actorId] = nil
+		actorNames[actorId] = nil
 		next()
 	}
 
@@ -2927,7 +2996,16 @@ extension Script {
 		if id == -1 {
 			return node
 		}
-		return actors[id] ?? frames[id]
+		if let actor = actors[id] {
+			return actor
+		}
+		if let actorName = actorNames[id],
+		   actorName.lowercased() != "null",
+		   let actor = findNode(named: actorName) {
+			actors[id] = actor
+			return actor
+		}
+		return frames[id]
 	}
 
 	private func weaponOwnerNode(forScriptId id: Int) -> SCNNode? {
@@ -3272,6 +3350,64 @@ extension Script {
 			enemy.enemyAIState = nil
 			enemy.enemyPodvadimJakTretera = false
 		}
+	}
+
+	private func detectorSquaredDistance(to position: SCNVector3) -> Float {
+		if let bounds = node.nearestGeometryBounds(to: position) {
+			let verticalDistance: SCNFloat
+			if position.y < bounds.minY {
+				verticalDistance = bounds.minY - position.y
+			} else if position.y > bounds.maxY {
+				verticalDistance = position.y - bounds.maxY
+			} else {
+				verticalDistance = 0
+			}
+			let horizontalDistance = bounds.horizontalDistance
+			let distanceSquared = horizontalDistance * horizontalDistance + verticalDistance * verticalDistance
+			return Float(distanceSquared)
+		}
+		if let distance = node.nearestPhysicsBodyDistance(to: position) {
+			return Float(distance * distance)
+		}
+		return node.squaredDistance(to: position)
+	}
+
+	private func logDetectorVstupRange(varId: Int, distance: Float, result: Float, positions: [SCNVector3]) {
+		guard name == "detector_vstup" else { return }
+		let detectorPosition = node.presentation.worldPosition
+		let positionDescription = positions.map { position -> String in
+			let squared = detectorSquaredDistance(to: position)
+			return "\(formatVector(position)) d=\(String(format: "%.2f", sqrt(squared)))"
+		}.joined(separator: " | ")
+		print(
+			"== detector_vstup range: var=\(varId) limit=\(distance) result=\(result) " +
+			"mode=\(scene.game.mode) detector=\(formatVector(detectorPosition)) " +
+			"positions=[\(positionDescription)]"
+		)
+	}
+
+	private func logDetectorVstupOwnerCheck(
+		actorId: Int,
+		carId: Int?,
+		humanMatches: Bool,
+		playerMatches: Bool,
+		label1: String,
+		label2: String
+	) {
+		guard name == "detector_vstup" else { return }
+		let actor = node(forScriptId: actorId)
+		let car = carId.flatMap { node(forScriptId: $0) }
+		let owner = ownerNode(forActorId: actorId)
+		let vehicle = scene.game.vehicle
+		print(
+			"== detector_vstup owner: actorId=\(actorId) actor=\(actor?.name ?? "<nil>") " +
+			"actorPos=\(actor.map { formatVector($0.presentation.worldPosition) } ?? "<nil>") " +
+			"carId=\(carId.map(String.init) ?? "<null>") car=\(car?.name ?? "<nil>") " +
+			"carPos=\(car.map { formatVector($0.presentation.worldPosition) } ?? "<nil>") " +
+			"owner=\(owner?.name ?? "<nil>") mode=\(scene.game.mode) " +
+			"vehicle=\(vehicle?.node.name ?? "<nil>") scriptVehicle=\(vehicle?.scriptNode.name ?? "<nil>") " +
+			"humanMatches=\(humanMatches) playerMatches=\(playerMatches) labels=\(label1)/\(label2)"
+		)
 	}
 
 	private func enemyAIStateValue(for actor: SCNNode) -> Int {

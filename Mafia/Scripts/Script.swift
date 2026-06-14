@@ -152,6 +152,7 @@ enum ScriptCommandName: String {
 	case enemyActionFollow = "enemy_action_follow"
 	case enemyActionsclear = "enemy_actionsclear"
 	case enemyBrainwash = "enemy_brainwash"
+	case enemyCarMoveto = "enemy_car_moveto"
 	case enemyForcescript = "enemy_forcescript"
 	case enemyGroupAdd = "enemy_group_add"
 	case enemyGroupAddcar = "enemy_group_addcar"
@@ -389,6 +390,7 @@ final class Script: @unchecked Sendable {
 
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
+	var actorNames: [Int: String] = [:]
 	var vars: [Int: Float] = [:]
 	var carActLevels: [Int: Float] = [:]
 	var disabledCarSeatIds: [Int: Set<Int>] = [:]

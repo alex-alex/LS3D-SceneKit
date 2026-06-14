@@ -647,6 +647,7 @@ final class Scene: @unchecked Sendable {
 	private var activeRecordNames = Set<String>()
 	private var activeRecordPlaybacks: [String: ActiveRecordPlayback] = [:]
 	private var activeRecordPropNodes: [SCNNode] = []
+	private var activeRecordTransformRestores: [ObjectIdentifier: (node: SCNNode, transform: SCNMatrix4)] = [:]
 	private var activeRecordEventSchedules: [ScheduledRecordEvent] = []
 	private var activeRecordEventScriptNames = Set<String>()
 	private let filmMusicStreamsLock = NSLock()
@@ -2030,6 +2031,7 @@ final class Scene: @unchecked Sendable {
 		animationKey: String,
 		after delay: TimeInterval
 	) {
+		rememberRecordTransform(for: node)
 		guard delay > 0 else {
 			node.removeAction(forKey: animationKey)
 			do {
@@ -2218,10 +2220,17 @@ final class Scene: @unchecked Sendable {
 		to playbacks: inout [ObjectIdentifier: RecordTransformPlayback]
 	) {
 		guard !events.isEmpty else { return }
+		rememberRecordTransform(for: targetNode)
 		let targetIdentifier = ObjectIdentifier(targetNode)
 		let playback = playbacks[targetIdentifier] ?? RecordTransformPlayback(targetNode: targetNode)
 		playback.append(events: events, source: source)
 		playbacks[targetIdentifier] = playback
+	}
+
+	private func rememberRecordTransform(for node: SCNNode) {
+		let identifier = ObjectIdentifier(node)
+		guard activeRecordTransformRestores[identifier] == nil else { return }
+		activeRecordTransformRestores[identifier] = (node, node.transform)
 	}
 
 	private func playRecordTransform(
@@ -3267,6 +3276,8 @@ final class Scene: @unchecked Sendable {
 		for differenceFile in loadedDifferenceFiles.values {
 			differenceFile.rootNode.removeAllActionsRecursively()
 		}
+		rootNode.removeRecordActionsRecursively()
+		game?.scnScene.rootNode.removeRecordActionsRecursively()
 		for scheduledSound in activeRecordSoundSchedules {
 			scheduledSound.workItem?.cancel()
 		}
@@ -3293,6 +3304,10 @@ final class Scene: @unchecked Sendable {
 			propNode.removeFromParentNode()
 		}
 		activeRecordPropNodes.removeAll()
+		for restore in activeRecordTransformRestores.values {
+			restore.node.transform = restore.transform
+		}
+		activeRecordTransformRestores.removeAll()
 		game?.cameraContainer.removeAllActions()
 		game?.isCutsceneCameraActive = false
 		if let restore = recordCameraRestore,
@@ -4077,6 +4092,15 @@ private extension SCNNode {
 		removeAllActions()
 		for childNode in childNodes {
 			childNode.removeAllActionsRecursively()
+		}
+	}
+
+	func removeRecordActionsRecursively() {
+		for key in actionKeys where key.hasPrefix("record:") {
+			removeAction(forKey: key)
+		}
+		for childNode in childNodes {
+			childNode.removeRecordActionsRecursively()
 		}
 	}
 
