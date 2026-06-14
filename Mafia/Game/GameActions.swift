@@ -75,7 +75,7 @@ extension Game {
 	}
 
 	func playerDidFire() {
-		guard !isGamePaused else { return }
+		guard !isGamePaused, !isCutsceneCameraActive else { return }
 
 		pressControl(.FIRE)
 		if equippedPlayerWeapon()?.isBaseballBat == true {
@@ -559,6 +559,7 @@ extension Game {
 
 	func firePlayerWeapon() -> Bool {
 		guard !isGamePaused,
+			  !isCutsceneCameraActive,
 			  mode == .walk || mode == .car,
 			  let weapon = equippedPlayerWeapon(),
 			  weapon.isFirearm,
@@ -612,7 +613,8 @@ extension Game {
 	}
 
 	func beginBatCharge() {
-		guard mode == .walk,
+		guard !isCutsceneCameraActive,
+			  mode == .walk,
 			  activeBatChargeStartedAt == nil,
 			  equippedPlayerWeapon()?.isBaseballBat == true else { return }
 
@@ -645,7 +647,8 @@ extension Game {
 	updateHud { hud in
 		hud.updateVehicleStealProgress(0, isVisible: false)
 	}
-		guard mode == .walk,
+		guard !isCutsceneCameraActive,
+			  mode == .walk,
 			  equippedPlayerWeapon()?.isBaseballBat == true else { return }
 
 		let elapsed = Date.timeIntervalSinceReferenceDate - startedAt

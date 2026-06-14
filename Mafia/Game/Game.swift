@@ -33,6 +33,15 @@ final class Game: NSObject, @unchecked Sendable {
 	var isCutsceneCameraActive = false {
 		didSet {
 			guard oldValue != isCutsceneCameraActive else { return }
+			if isCutsceneCameraActive {
+				activeControls.remove(.FIRE)
+				if lastControl == .FIRE {
+					lastControl = nil
+				}
+				if activeBatChargeStartedAt != nil {
+					cancelBatCharge()
+				}
+			}
 			updateTrafficVisibility()
 			updateCityMusicAvailability()
 			setCutsceneOverlayVisible(isCutsceneCameraActive)
