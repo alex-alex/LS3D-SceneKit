@@ -94,13 +94,14 @@ func readMesh(stream: InputStream, node: SCNNode, numLODs: Int) throws -> [Singl
 //			print("filtered:", filtered.count)
 
 			for _ in 0 ..< oneWeightedVertCount {
-				appendBoneWeight(primaryBone: Int(bone))
+				appendBoneWeight(primaryBone: Int(bone) + 1)
 			}
 
 			for _ in 0 ..< weightsCount {
 				let weight: Float = try stream.read()
+				// Primary group ids address file bones; parent ids already include the skin root as 0.
 				appendBoneWeight(
-					primaryBone: Int(bone),
+					primaryBone: Int(bone) + 1,
 					secondaryBone: Int(parentBoneId),
 					primaryWeight: weight
 				)

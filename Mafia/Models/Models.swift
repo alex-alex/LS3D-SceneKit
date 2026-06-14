@@ -602,9 +602,9 @@ func loadModel(named name: String, node: SCNNode) throws -> SCNNode {
 
 	for (node, meshes) in meshesDict {
 		let mesh = meshes[0]
-		let boneNodes = (0 ..< mesh.boneCount).map({ joints[$0]!.0 })
+		let boneNodes = [node] + (0 ..< mesh.boneCount).map({ joints[$0]!.0 })
 //		let boneTransforms = mesh.boneIds.map({ NSValue(scnMatrix4: joints[$0]!.1) })
-		let boneInverseBindTransforms = mesh.transforms.map({ NSValue(scnMatrix4: $0) })
+		let boneInverseBindTransforms = ([SCNMatrix4Identity] + mesh.transforms).map({ NSValue(scnMatrix4: $0) })
 		node.skinner = SCNSkinner(
 			baseGeometry: node.geometry,
 			bones: boneNodes,
