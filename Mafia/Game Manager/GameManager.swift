@@ -18,8 +18,10 @@ import CoreText
     let mainDirectory = documentDirectory.appendingPathComponent("Mafia")
 #endif
 
-let mafiaMenuFontName = "AuroraBT-BoldCondensed"
-let mafiaMenuTitleFontName = "Freehand-Regular"
+private let useBundledMenuFonts = false
+
+let mafiaMenuFontName = useBundledMenuFonts ? "AuroraBT-BoldCondensed" : "Arial-BoldMT"
+let mafiaMenuTitleFontName = useBundledMenuFonts ? "Freehand-Regular" : "Arial-BoldMT"
 
 @MainActor
 class GameManager: @unchecked Sendable {
@@ -35,7 +37,9 @@ class GameManager: @unchecked Sendable {
 	init(view: SCNView) {
 		self.view = view
 
-		GameManager.registerBundledFonts()
+		if useBundledMenuFonts {
+			GameManager.registerBundledFonts()
+		}
 
 		// swiftlint:disable:next force_try
 		try! TextDb.load()
