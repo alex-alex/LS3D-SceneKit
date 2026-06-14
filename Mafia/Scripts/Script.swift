@@ -416,6 +416,8 @@ final class Script: @unchecked Sendable {
 	var timerGeneration = 0
 	var waitGeneration = 0
 	var isWaitingForScriptWait = false
+	var lastBackwardJumpLine: Int?
+	var repeatedBackwardJumpCount = 0
 	var dialogCameraSide = 0
 	var recentCommandHistory: [(commandIndex: Int, sourceLine: Int, eventId: String?, description: String)] = []
 
@@ -504,6 +506,8 @@ final class Script: @unchecked Sendable {
 			self.isWaitingForCommandBlockAsyncOperations = false
 			self.waitGeneration += 1
 			self.isWaitingForScriptWait = false
+			self.lastBackwardJumpLine = nil
+			self.repeatedBackwardJumpCount = 0
 			self.mainInEvent = false
 			self.currentEventId = nil
 			self.lineBeforeEvent = 0
@@ -640,6 +644,8 @@ final class Script: @unchecked Sendable {
 			self.timerGeneration += 1
 			self.timerEndTime = nil
 			self.timerRemainingMilliseconds = 0
+			self.lastBackwardJumpLine = nil
+			self.repeatedBackwardJumpCount = 0
 			let wasTimerVisible = self.isTimerVisible
 			self.isTimerVisible = false
 			self.isTimerPausedForScriptPause = false

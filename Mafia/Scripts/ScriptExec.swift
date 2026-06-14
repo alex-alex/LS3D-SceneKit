@@ -28,6 +28,8 @@ private extension Argument {
 extension Script {
 
 	private static let loopYieldInterval: DispatchTimeInterval = .milliseconds(16)
+	private static let throttledLoopYieldInterval: DispatchTimeInterval = .milliseconds(100)
+	private static let throttledLoopYieldThreshold = 8
 	private static let npcVehiclePassengerAnimationKey = "__npc_vehicle_passenger__"
 
 	func performCommand(command: ScriptCommand) {
@@ -304,17 +306,20 @@ extension Script {
 			next()
 			return
 		}
-		if line + 1 == currentLine {
+		if line == currentLine {
+			resetBackwardJumpThrottle()
 			next()
 			return
 		}
 		let isBackwardJump = line < currentLine
 		currentLine = line
 		if isBackwardJump {
-			queue.asyncAfter(deadline: .now() + Self.loopYieldInterval) { [weak self] in
+			let interval = backwardJumpYieldInterval(forLine: line)
+			queue.asyncAfter(deadline: .now() + interval) { [weak self] in
 				self?.next()
 			}
 		} else {
+			resetBackwardJumpThrottle()
 			next()
 		}
 	}
@@ -323,6 +328,23 @@ extension Script {
 
 	private func noop() {
 		next()
+	}
+
+	private func backwardJumpYieldInterval(forLine line: Int) -> DispatchTimeInterval {
+		if lastBackwardJumpLine == line {
+			repeatedBackwardJumpCount += 1
+		} else {
+			lastBackwardJumpLine = line
+			repeatedBackwardJumpCount = 1
+		}
+		return repeatedBackwardJumpCount > Self.throttledLoopYieldThreshold
+			? Self.throttledLoopYieldInterval
+			: Self.loopYieldInterval
+	}
+
+	private func resetBackwardJumpThrottle() {
+		lastBackwardJumpLine = nil
+		repeatedBackwardJumpCount = 0
 	}
 
 	private func unknown(_ command: ScriptCommand) {
