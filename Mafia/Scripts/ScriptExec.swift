@@ -65,6 +65,8 @@ extension Script {
 		case .carSetdooropen:			car_setdooropen(command.args)
 		case .carSetactlevel:			car_setactlevel(command.args)
 		case .carSetspeed:				car_setspeed(command.args)
+		case .characterPop:			character_pop(command.args)
+		case .characterPush:			character_push(command.args)
 		case .changeMission:			change_mission(command.args)
 		case .citymusicOff:				citymusic_off(command.args)
 		case .citymusicOn:				citymusic_on(command.args)
@@ -183,6 +185,8 @@ extension Script {
 		case .ifplayerstealcar:			ifplayerstealcar(command.args)
 		case .introSubtitleAdd:			subtitle_add(command.args)
 		case .inventoryClear:			inventory_clear(command.args)
+		case .inventoryPop:			inventory_pop(command.args)
+		case .inventoryPush:			inventory_push(command.args)
 		case .iscarusable:				iscarusable(command.args)
 		case .ispointinarea:			ispointinarea(command.args)
 		case .label:					noop()
@@ -607,6 +611,40 @@ extension Script {
 		}
 		if speed == 0, playerOwnerMatches(carId: carId) {
 			scene.game.vehicle?.updateControls(throttle: 0, brake: true, steering: 0)
+		}
+		next()
+	}
+
+	private func character_push(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		guard let actor = node(forScriptId: actorId) else {
+			next()
+			return
+		}
+
+		let state = MissionTransitionCharacterState(
+			actorState: actor.actorState,
+			humanEnergy: humanNode(for: actor)?.humanEnergy
+		)
+		scene.game.missionTransitionState.pushCharacter(state, actorId: actorId)
+		next()
+	}
+
+	private func character_pop(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		guard let actor = node(forScriptId: actorId),
+			  let state = scene.game.missionTransitionState.character(actorId: actorId) else {
+			next()
+			return
+		}
+
+		actor.actorState = state.actorState
+		script(forActorId: actorId)?.setActorState(state.actorState)
+		if let humanEnergy = state.humanEnergy {
+			humanNode(for: actor)?.humanEnergy = humanEnergy
+			if isPlayerActor(actorId) {
+				scene.game.updatePlayerHealthFromEnergy()
+			}
 		}
 		next()
 	}
@@ -2178,6 +2216,27 @@ extension Script {
 			scene.setWeapons([], for: actor)
 			refreshPlayerWeaponHudIfNeeded(for: actor)
 		}
+		next()
+	}
+
+	private func inventory_push(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		if let actor = weaponOwnerNode(forScriptId: actorId) {
+			scene.game.missionTransitionState.pushInventory(scene.weapons(for: actor), actorId: actorId)
+		}
+		next()
+	}
+
+	private func inventory_pop(_ args: [Argument]) {
+		let actorId = args[0].getValueOrVarValue(vars: vars)
+		guard let actor = weaponOwnerNode(forScriptId: actorId),
+			  let weapons = scene.game.missionTransitionState.inventory(actorId: actorId) else {
+			next()
+			return
+		}
+
+		scene.setWeapons(weapons, for: actor)
+		refreshPlayerWeaponHudIfNeeded(for: actor)
 		next()
 	}
 

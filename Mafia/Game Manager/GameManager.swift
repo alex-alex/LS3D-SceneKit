@@ -139,7 +139,8 @@ class GameManager: @unchecked Sendable {
 		folder: String,
 		saveGameCheckpoint: SaveGameCheckpoint? = nil,
 		transitionFrameName: String? = nil,
-		transitionVehicleSpeed: CGFloat? = nil
+		transitionVehicleSpeed: CGFloat? = nil,
+		missionTransitionState: MissionTransitionState = MissionTransitionState()
 	) {
 		let title = TextDb.get(textId) ?? "<none>"
 		print("== Loading Mission: folder=\(folder), textId=\(textId), title=\"\(title)\", image=\(imageName)")
@@ -155,7 +156,8 @@ class GameManager: @unchecked Sendable {
 					missionName: folder,
 					saveGameCheckpoint: saveGameCheckpoint,
 					transitionFrameName: transitionFrameName,
-					transitionVehicleSpeed: transitionVehicleSpeed
+					transitionVehicleSpeed: transitionVehicleSpeed,
+					missionTransitionState: missionTransitionState
 				) { progress in
 					Task { @MainActor in
 						loadingScene.setProgress(progress)
@@ -176,14 +178,15 @@ class GameManager: @unchecked Sendable {
 						self?.loadSaveGameSelector()
 					}
 				}
-				game.onMissionChangeRequested = { [weak self] folder, frameName, speed in
+				game.onMissionChangeRequested = { [weak self] folder, frameName, speed, state in
 					Task { @MainActor in
 						self?.loadMission(
 							textId: MissionLoadInfo.textId(for: folder),
 							imageName: MissionLoadInfo.imageName(for: folder),
 							folder: folder,
 							transitionFrameName: frameName,
-							transitionVehicleSpeed: speed
+							transitionVehicleSpeed: speed,
+							missionTransitionState: state
 						)
 					}
 				}

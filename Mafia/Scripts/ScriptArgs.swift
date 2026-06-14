@@ -139,6 +139,8 @@ extension Script {
 		case "car_setdooropen":			return getArgs_car_setdooropen(scanner)
 		case "car_setactlevel":			return getArgs_car_setactlevel(scanner)
 		case "car_setspeed":			return getArgs_car_setspeed(scanner)
+		case "character_pop":			return getArgs_character_transition(scanner)
+		case "character_push":			return getArgs_character_transition(scanner)
 		case "change_mission":			return getArgs_change_mission(scanner)
 		case "citymusic_off":			return []
 		case "citymusic_on":			return []
@@ -255,6 +257,8 @@ extension Script {
 		case "ifplayerstealcar":		return getArgs_ifplayerstealcar(scanner)
 		case "intro_subtitle_add":		return getArgs_subtitle_add(scanner)
 		case "inventory_clear":			return getArgs_inventory_clear(scanner)
+		case "inventory_pop":			return getArgs_inventory_transition(scanner)
+		case "inventory_push":			return getArgs_inventory_transition(scanner)
 		case "iscarusable":				return getArgs_iscarusable(scanner)
 		case "ispointinarea":			return getArgs_ispointinarea(scanner)
 		case "let":						return getArgs_let(scanner)
@@ -357,6 +361,10 @@ extension Script {
 	}
 
 	private func getArgs_camera_lock(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_character_transition(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
 
@@ -938,6 +946,10 @@ extension Script {
 	}
 
 	private func getArgs_inventory_clear(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_inventory_transition(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
 

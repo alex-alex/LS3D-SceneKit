@@ -1229,7 +1229,7 @@ extension Game {
 		}
 		scene.setScriptsPaused(true)
 		DispatchQueue.main.async {
-			self.onMissionChangeRequested?(folder, frameName, transitionSpeed)
+			self.onMissionChangeRequested?(folder, frameName, transitionSpeed, self.missionTransitionState)
 		}
 	}
 

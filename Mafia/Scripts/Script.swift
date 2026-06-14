@@ -114,6 +114,8 @@ enum ScriptCommandName: String {
 	case carSetdooropen = "car_setdooropen"
 	case carSetactlevel = "car_setactlevel"
 	case carSetspeed = "car_setspeed"
+	case characterPop = "character_pop"
+	case characterPush = "character_push"
 	case changeMission = "change_mission"
 	case citymusicOff = "citymusic_off"
 	case citymusicOn = "citymusic_on"
@@ -233,6 +235,8 @@ enum ScriptCommandName: String {
 	case ifplayerstealcar
 	case introSubtitleAdd = "intro_subtitle_add"
 	case inventoryClear = "inventory_clear"
+	case inventoryPop = "inventory_pop"
+	case inventoryPush = "inventory_push"
 	case iscarusable
 	case ispointinarea
 	case label

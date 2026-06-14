@@ -10,6 +10,62 @@ import Foundation
 import SceneKit
 import SpriteKit
 
+struct MissionTransitionCharacterState {
+	let actorState: ActorState
+	let humanEnergy: Float?
+}
+
+struct MissionTransitionWeaponState {
+	let id: Int
+	let clipAmmo: Int
+	let restAmmo: Int
+	let position: Weapon.Position
+
+	init(_ weapon: Weapon) {
+		id = weapon.id
+		clipAmmo = weapon.clipAmmo
+		restAmmo = weapon.restAmmo
+		position = weapon.position
+	}
+
+	func makeWeapon() -> Weapon {
+		let weapon = Weapon(id: id, clipAmmo: clipAmmo, restAmmo: restAmmo)
+		weapon.position = position
+		return weapon
+	}
+}
+
+final class MissionTransitionState: @unchecked Sendable {
+	private let lock = NSLock()
+	private var characters: [Int: MissionTransitionCharacterState] = [:]
+	private var inventories: [Int: [MissionTransitionWeaponState]] = [:]
+
+	func pushCharacter(_ state: MissionTransitionCharacterState, actorId: Int) {
+		lock.lock()
+		defer { lock.unlock() }
+		characters[actorId] = state
+	}
+
+	func character(actorId: Int) -> MissionTransitionCharacterState? {
+		lock.lock()
+		defer { lock.unlock() }
+		return characters[actorId]
+	}
+
+	func pushInventory(_ weapons: [Weapon], actorId: Int) {
+		let state = weapons.map(MissionTransitionWeaponState.init)
+		lock.lock()
+		defer { lock.unlock() }
+		inventories[actorId] = state
+	}
+
+	func inventory(actorId: Int) -> [Weapon]? {
+		lock.lock()
+		defer { lock.unlock() }
+		return inventories[actorId]?.map { $0.makeWeapon() }
+	}
+}
+
 final class Game: NSObject, @unchecked Sendable {
 
 	enum SiderollDirection {
@@ -25,7 +81,7 @@ final class Game: NSObject, @unchecked Sendable {
 	var onMissionEnded: (@Sendable () -> Void)?
 	var onMissionRestarted: (@Sendable () -> Void)?
 	var onLoadGameRequested: (@Sendable () -> Void)?
-	var onMissionChangeRequested: (@Sendable (_ folder: String, _ frameName: String, _ speed: CGFloat?) -> Void)?
+	var onMissionChangeRequested: (@Sendable (_ folder: String, _ frameName: String, _ speed: CGFloat?, _ state: MissionTransitionState) -> Void)?
 
 	let scnScene = SCNScene()
 	let cameraContainer = SCNNode()
@@ -239,18 +295,21 @@ final class Game: NSObject, @unchecked Sendable {
 	let saveGameCheckpoint: SaveGameCheckpoint?
 	let transitionFrameName: String?
 	let transitionVehicleSpeed: CGFloat?
+	let missionTransitionState: MissionTransitionState
 
 	init(
 		missionName: String,
 		saveGameCheckpoint: SaveGameCheckpoint? = nil,
 		transitionFrameName: String? = nil,
 		transitionVehicleSpeed: CGFloat? = nil,
+		missionTransitionState: MissionTransitionState = MissionTransitionState(),
 		progressHandler: ((CGFloat) -> Void)? = nil
 	) throws {
 		isMenuMission = missionName.lowercased() == "00menu"
 		self.saveGameCheckpoint = saveGameCheckpoint
 		self.transitionFrameName = transitionFrameName
 		self.transitionVehicleSpeed = transitionVehicleSpeed
+		self.missionTransitionState = missionTransitionState
 		progressHandler?(0.05)
 		scnScene.rootNode.name = "__root__"
 		ambientLightNode.name = "__ambient_environment__"
