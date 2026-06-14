@@ -89,6 +89,10 @@ struct SaveGameCheckpoint {
 		}
 	}
 
+	var playerEntity: SaveGameEntity? {
+		return entities.first { $0.objectType == .player }
+	}
+
 	init(
 		innerSignature: UInt32,
 		version: UInt32,
@@ -192,6 +196,7 @@ struct SaveGameEntity {
 	let payloadSize: UInt32
 	let playerSlot: Int32
 	let payloadPrefix: SaveGameEntityPayloadPrefix?
+	let position: SaveGameVector3?
 	let doorState: SaveGameDoorState?
 	let payload: Data
 
@@ -208,6 +213,12 @@ struct SaveGameEntityPayloadPrefix {
 	let stateB: UInt32
 	let stateC: UInt16
 	let stateD: UInt8
+}
+
+struct SaveGameVector3 {
+	let x: Float
+	let y: Float
+	let z: Float
 }
 
 struct SaveGameDoorState {
@@ -472,6 +483,7 @@ enum SaveGame {
 				payloadSize: payloadSize,
 				playerSlot: readInt32(in: header, at: 0x88),
 				payloadPrefix: readPayloadPrefix(in: payload),
+				position: readPosition(objectTypeRawValue: objectTypeRawValue, payload: payload),
 				doorState: readDoorState(objectTypeRawValue: objectTypeRawValue, payload: payload),
 				payload: payload
 			))
@@ -541,6 +553,27 @@ enum SaveGame {
 			stateB: readUInt32(in: payload, at: 8),
 			stateC: readUInt16(in: payload, at: 12),
 			stateD: payload[14]
+		)
+	}
+
+	private static func readPosition(objectTypeRawValue: UInt32, payload: Data) -> SaveGameVector3? {
+		let positionOffset: Int
+		switch ObjectDefinitionType(rawValue: objectTypeRawValue) {
+		case .player:
+			positionOffset = 14
+		case .car:
+			// Dynamic car records use subtype 9 before their transform; static car variants store embedded model data here.
+			guard payload.count > 13, payload[13] == 9 else { return nil }
+			positionOffset = 21
+		default:
+			return nil
+		}
+		guard payload.count >= positionOffset + 12 else { return nil }
+
+		return SaveGameVector3(
+			x: readFloat32(in: payload, at: positionOffset),
+			y: readFloat32(in: payload, at: positionOffset + 4),
+			z: readFloat32(in: payload, at: positionOffset + 8)
 		)
 	}
 

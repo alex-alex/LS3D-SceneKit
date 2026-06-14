@@ -10,6 +10,12 @@ import Foundation
 import SceneKit
 import SpriteKit
 
+private extension SaveGameVector3 {
+	var scnVector3: SCNVector3 {
+		return SCNVector3(x: CGFloat(x), y: CGFloat(y), z: CGFloat(z))
+	}
+}
+
 extension Game {
 
 	func spawnPlayer() {
@@ -83,8 +89,17 @@ extension Game {
 	func restoreSaveGameCheckpointIfNeeded() {
 		guard let checkpoint = saveGameCheckpoint else { return }
 
+		restoreSaveGamePlayerPosition(from: checkpoint)
 		restoreSaveGamePlayerHealth(from: checkpoint)
 		restoreSaveGameVehicleIfNeeded(from: checkpoint)
+	}
+
+	func restoreSaveGamePlayerPosition(from checkpoint: SaveGameCheckpoint) {
+		guard let position = checkpoint.playerEntity?.position,
+			  let playerNode = scene.playerNode else { return }
+
+		setWorldPosition(position.scnVector3, for: playerNode)
+		print("== Savegame player position restored: \(position.x), \(position.y), \(position.z)")
 	}
 
 	func restoreSaveGamePlayerHealth(from checkpoint: SaveGameCheckpoint) {
@@ -108,9 +123,17 @@ extension Game {
 			return
 		}
 
+		if let position = entity.position {
+			setWorldPosition(position.scnVector3, for: carNode)
+			print("== Savegame vehicle position restored: \(entity.name) \(position.x), \(position.y), \(position.z)")
+		}
 		mode = .car
 		syncPlayerToVehicle()
 		print("== Savegame vehicle restored: \(entity.name)")
+	}
+
+	func setWorldPosition(_ position: SCNVector3, for node: SCNNode) {
+		node.position = node.parent?.convertPosition(position, from: nil) ?? position
 	}
 
 	func setVehicleSpeed(_ vehicle: Vehicle, kilometersPerHour speed: CGFloat) {
