@@ -816,9 +816,9 @@ extension Script {
 				scene.game.vehicle?.node.presentation.worldPosition,
 				scene.game.vehicle?.scriptNode.presentation.worldPosition
 			].compactMap { $0 }
-			vars[varId] = positions.contains { detectorSquaredDistance(to: $0) <= squaredDistance } ? 2 : 0
+			vars[varId] = positions.contains { node.squaredDistance(to: $0) <= squaredDistance } ? 2 : 0
 		} else if let playerPosition = scene.game.playerReferencePosition() {
-			vars[varId] = detectorSquaredDistance(to: playerPosition) <= squaredDistance ? 1 : 0
+			vars[varId] = node.squaredDistance(to: playerPosition) <= squaredDistance ? 1 : 0
 		} else {
 			vars[varId] = 0
 		}
@@ -1300,9 +1300,6 @@ extension Script {
 		}
 
 		let soundId = soundIdArgument.scriptTalkSoundId(vars: vars)
-		if ["12990071", "12990081", "12990091", "12990101"].contains(soundId) {
-			print("== get-in enemy_talk: script=\(name), actorId=\(actorId), soundId=\(soundId), state=\(node.actorState.rawValue), explicit=\(wasExplicitlyActivated), recent=\(recentCommandHistoryDescription(excludingCurrent: false, limit: 10))")
-		}
 		guard let url = scriptTalkSoundURL(soundId: soundId),
 			  let source = SCNAudioSource(url: url) else {
 			pendingEnemyTalk = nil
@@ -1945,11 +1942,7 @@ extension Script {
 			if let actor = node(forScriptId: actorId) {
 				vars[varId] = humanEnergy(for: actor)
 			} else {
-				vars[varId] = 0
-			}
-			if name == "detector_energy" {
-				let actorName = node(forScriptId: actorId)?.name ?? "<missing>"
-				print("== detector_energy Energy actorId=\(actorId), actor=\(actorName), value=\(vars[varId] ?? -1), line=\(currentLine)")
+				vars[varId] = name == "detector_energy" ? 100 : 0
 			}
 		} else {
 			vars[varId] = 0
@@ -2027,9 +2020,6 @@ extension Script {
 	private func human_talk(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let soundId = args[1].scriptTalkSoundId(vars: vars)
-		if ["12990071", "12990081", "12990091", "12990101"].contains(soundId) {
-			print("== get-in human_talk: script=\(name), actorId=\(actorId), soundId=\(soundId), state=\(node.actorState.rawValue), explicit=\(wasExplicitlyActivated), recent=\(recentCommandHistoryDescription(excludingCurrent: false, limit: 10))")
-		}
 
 		if let url = scriptTalkSoundURL(soundId: soundId),
 		   let source = SCNAudioSource(url: url) {
@@ -3282,20 +3272,6 @@ extension Script {
 			enemy.enemyAIState = nil
 			enemy.enemyPodvadimJakTretera = false
 		}
-	}
-
-	private func detectorSquaredDistance(to position: SCNVector3) -> Float {
-		if let distance = node.nearestGeometryBoundsDistance(to: position) {
-			return Float(distance * distance)
-		}
-		if let distance = node.nearestPhysicsBodyDistance(to: position) {
-			return Float(distance * distance)
-		}
-
-		let nodePosition = node.presentation.worldPosition
-		let dx = Float(nodePosition.x - position.x)
-		let dz = Float(nodePosition.z - position.z)
-		return dx * dx + dz * dz
 	}
 
 	private func enemyAIStateValue(for actor: SCNNode) -> Int {
