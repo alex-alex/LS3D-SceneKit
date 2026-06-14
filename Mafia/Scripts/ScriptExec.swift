@@ -334,7 +334,7 @@ extension Script {
 					markSelfActorStateApplied()
 				}
 				target.actorState = actorState
-				script(forActorId: actorId)?.setActorState(actorState)
+				script(forActorId: actorId)?.setActorState(actorState, explicitActivation: actorId != -1)
 			}
 		}
 		next()
@@ -372,7 +372,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let frameId = args[1].getValueOrVarValue(vars: vars)
 		if let actor = node(forScriptId: actorId),
-		   let frame = node(forScriptId: frameId) {
+		   let frame = frames[frameId] {
 			face(actor, toward: frame.presentation.worldPosition)
 		}
 		next()
@@ -382,7 +382,7 @@ extension Script {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let frameId = args[1].getValueOrVarValue(vars: vars)
 		if let actor = node(forScriptId: actorId),
-		   let frame = node(forScriptId: frameId) {
+		   let frame = frames[frameId] {
 			let transform = frame.presentation.worldTransform
 			if let parent = actor.parent {
 				actor.transform = parent.convertTransform(transform, from: nil)
@@ -415,7 +415,7 @@ extension Script {
 
 	private func camera_lock(_ args: [Argument]) {
 		let frameId = args[0].getValueOrVarValue(vars: vars)
-		guard let frame = node(forScriptId: frameId) else {
+		guard let frame = frames[frameId] else {
 			next()
 			return
 		}
@@ -1300,6 +1300,9 @@ extension Script {
 		}
 
 		let soundId = soundIdArgument.scriptTalkSoundId(vars: vars)
+		if ["12990071", "12990081", "12990091", "12990101"].contains(soundId) {
+			print("== get-in enemy_talk: script=\(name), actorId=\(actorId), soundId=\(soundId), state=\(node.actorState.rawValue), explicit=\(wasExplicitlyActivated), recent=\(recentCommandHistoryDescription(excludingCurrent: false, limit: 10))")
+		}
 		guard let url = scriptTalkSoundURL(soundId: soundId),
 			  let source = SCNAudioSource(url: url) else {
 			pendingEnemyTalk = nil
@@ -1944,6 +1947,10 @@ extension Script {
 			} else {
 				vars[varId] = 0
 			}
+			if name == "detector_energy" {
+				let actorName = node(forScriptId: actorId)?.name ?? "<missing>"
+				print("== detector_energy Energy actorId=\(actorId), actor=\(actorName), value=\(vars[varId] ?? -1), line=\(currentLine)")
+			}
 		} else {
 			vars[varId] = 0
 		}
@@ -2020,6 +2027,9 @@ extension Script {
 	private func human_talk(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let soundId = args[1].scriptTalkSoundId(vars: vars)
+		if ["12990071", "12990081", "12990091", "12990101"].contains(soundId) {
+			print("== get-in human_talk: script=\(name), actorId=\(actorId), soundId=\(soundId), state=\(node.actorState.rawValue), explicit=\(wasExplicitlyActivated), recent=\(recentCommandHistoryDescription(excludingCurrent: false, limit: 10))")
+		}
 
 		if let url = scriptTalkSoundURL(soundId: soundId),
 		   let source = SCNAudioSource(url: url) {
@@ -2137,7 +2147,7 @@ extension Script {
 		let pointVarId = args[0].getValueOrVarValue(vars: vars)
 		let frameId = args[1].getValueOrVarValue(vars: vars)
 		let resultVarId = args[2].getValueOrVarValue(vars: vars)
-		guard let frame = node(forScriptId: frameId) else {
+		guard let frame = frames[frameId] else {
 			vars[resultVarId] = 0
 			next()
 			return
@@ -3295,11 +3305,11 @@ extension Script {
 				return 4
 			case "hostile_search", "search", "fight_search":
 				return 2
-			case "hostile", "hostile_hostile", "fight", "fire", "attack", "fight_guard":
+			case "hostile", "hostile_hostile", "fight", "fire", "attack":
 				return 3
 			case "arrest", "arresting", "zatykani":
 				return 6
-			case "fight_guard_nohostile", "no_reaction", "nohostile":
+			case "fight_guard", "fight_guard_nohostile", "no_reaction", "nohostile":
 				return 1
 			default:
 				break

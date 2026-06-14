@@ -762,16 +762,19 @@ extension Game {
 		}
 
 		let npcPosition = npc.presentation.worldPosition
-		let targetPosition = npcFollowTargetPosition(for: target)
-		let distance = horizontalDistance(from: npcPosition, to: targetPosition)
+		let actualTargetPosition = npcActualFollowTargetPosition(for: target)
+		let movementTargetPosition = npcFollowTargetPosition(for: target, follower: npc)
+		let actualDistance = npcFollowDistance(from: npcPosition, to: actualTargetPosition)
+		let movementDistance = horizontalDistance(from: npcPosition, to: movementTargetPosition)
 		let desiredDistance = SCNFloat(max(0, followState.distance))
-		faceNPC(npc, toward: targetPosition)
+		faceNPC(npc, toward: actualTargetPosition)
 
-		if distance > max(0.1, desiredDistance) {
+		if actualDistance > max(0.1, desiredDistance) {
+			let targetPosition = movementDistance > 0.15 ? movementTargetPosition : actualTargetPosition
 			moveNPC(npc, toward: targetPosition, deltaTime: deltaTime)
 		}
 
-		if distance <= desiredDistance,
+		if actualDistance <= desiredDistance,
 		   let script = followState.returnScript {
 			followState.returnScript = nil
 			script.completeActionWait()
@@ -780,7 +783,14 @@ extension Game {
 		return true
 	}
 
-	func npcFollowTargetPosition(for target: SCNNode) -> SCNVector3 {
+	func npcFollowDistance(from lhs: SCNVector3, to rhs: SCNVector3) -> SCNFloat {
+		let horizontal = horizontalDistance(from: lhs, to: rhs)
+		let vertical = abs(lhs.y - rhs.y)
+		guard vertical >= npcFollowTrailVerticalThreshold else { return horizontal }
+		return sqrt(horizontal * horizontal + vertical * vertical)
+	}
+
+	func npcActualFollowTargetPosition(for target: SCNNode) -> SCNVector3 {
 		if target === scene.playerNode,
 		   mode == .car,
 		   let vehicle = vehicle {
@@ -790,6 +800,82 @@ extension Game {
 			return owner.presentation.worldPosition
 		}
 		return target.presentation.worldPosition
+	}
+
+	func npcFollowTargetPosition(for target: SCNNode, follower: SCNNode) -> SCNVector3 {
+		if target === scene.playerNode,
+		   mode == .car,
+		   let vehicle = vehicle {
+			return vehicle.node.presentation.worldPosition
+		}
+		if isPlayerFollowTarget(target),
+		   let trailPosition = npcFollowTrailTargetPosition(for: follower, target: target) {
+			return trailPosition
+		}
+		if let owner = scene.humanVehicleOwners[ObjectIdentifier(target)] {
+			return owner.presentation.worldPosition
+		}
+		return target.presentation.worldPosition
+	}
+
+	func updatePlayerFollowTrail() {
+		guard let position = playerReferencePosition() else {
+			playerFollowTrail.removeAll()
+			return
+		}
+		guard let lastPosition = playerFollowTrail.last else {
+			playerFollowTrail.append(position)
+			return
+		}
+		guard horizontalDistance(from: lastPosition, to: position) >= playerFollowTrailMinDistance ||
+			  abs(lastPosition.y - position.y) >= npcFollowTrailVerticalThreshold else {
+			return
+		}
+
+		playerFollowTrail.append(position)
+		if playerFollowTrail.count > playerFollowTrailMaxPoints {
+			playerFollowTrail.removeFirst(playerFollowTrail.count - playerFollowTrailMaxPoints)
+		}
+	}
+
+	func isPlayerFollowTarget(_ target: SCNNode) -> Bool {
+		return target === scene.playerNode ||
+			isNode(target, inside: scene.playerNode) ||
+			isNode(scene.playerNode ?? target, inside: target)
+	}
+
+	func npcFollowTrailTargetPosition(for follower: SCNNode, target: SCNNode) -> SCNVector3? {
+		guard playerFollowTrail.count > 1 else { return nil }
+
+		let followerPosition = follower.presentation.worldPosition
+		let targetPosition = target.presentation.worldPosition
+		guard abs(targetPosition.y - followerPosition.y) >= npcFollowTrailVerticalThreshold else { return nil }
+
+		var nearestIndex: Int?
+		var nearestDistance = SCNFloat.greatestFiniteMagnitude
+		for (index, position) in playerFollowTrail.enumerated() {
+			guard abs(position.y - followerPosition.y) <= npcFollowTrailAttachHeightTolerance else { continue }
+			let distance = horizontalDistance(from: followerPosition, to: position)
+			if distance < nearestDistance {
+				nearestDistance = distance
+				nearestIndex = index
+			}
+		}
+
+		if nearestIndex == nil {
+			for (index, position) in playerFollowTrail.enumerated() {
+				let distance = horizontalDistance(from: followerPosition, to: position)
+				if distance < nearestDistance {
+					nearestDistance = distance
+					nearestIndex = index
+				}
+			}
+		}
+
+		guard let nearestIndex = nearestIndex else { return nil }
+		guard nearestDistance <= npcFollowTrailAttachDistance else { return nil }
+		let targetIndex = min(playerFollowTrail.count - 1, nearestIndex + npcFollowTrailLookAheadPoints)
+		return playerFollowTrail[targetIndex]
 	}
 
 	func collectNPCHumanNodes(in node: SCNNode, nodes: inout [SCNNode]) {

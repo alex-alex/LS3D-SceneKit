@@ -181,6 +181,13 @@ final class Game: NSObject, @unchecked Sendable {
 		SCNFloat.pi / 2,
 		-SCNFloat.pi / 2
 	]
+	var playerFollowTrail: [SCNVector3] = []
+	let playerFollowTrailMinDistance: SCNFloat = 0.85
+	let playerFollowTrailMaxPoints = 90
+	let npcFollowTrailVerticalThreshold: SCNFloat = 0.7
+	let npcFollowTrailAttachDistance: SCNFloat = 12
+	let npcFollowTrailAttachHeightTolerance: SCNFloat = 0.9
+	let npcFollowTrailLookAheadPoints = 8
 	var npcHealthLabelNodes: [ObjectIdentifier: SCNNode] = [:]
 	let npcHealthLabelNodeNamePrefix = "__npc_health_label_"
 	let playerVehicleAnimationKey = "__player_vehicle__"

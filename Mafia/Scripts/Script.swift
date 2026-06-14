@@ -385,6 +385,7 @@ final class Script: @unchecked Sendable {
 	var pendingCommandBlockAsyncOperations = 0
 	var isWaitingForCommandBlockAsyncOperations = false
 	var didApplySelfActorState = false
+	var wasExplicitlyActivated = false
 
 	var frames: [Int: SCNNode] = [:]
 	var actors: [Int: SCNNode] = [:]
@@ -525,9 +526,12 @@ final class Script: @unchecked Sendable {
 		didApplySelfActorState = true
 	}
 
-	func setActorState(_ state: ActorState) {
+	func setActorState(_ state: ActorState, explicitActivation: Bool = true) {
 		node.actorState = state
 		queue.async {
+			if state.canRunScript && explicitActivation {
+				self.wasExplicitlyActivated = true
+			}
 			guard state.canRunScript else { return }
 			guard self.isRunning else {
 				guard !self.commands.isEmpty else { return }
@@ -776,13 +780,16 @@ final class Script: @unchecked Sendable {
 		if node.actorState.canRunScript {
 			return true
 		}
-		guard !didApplySelfActorState,
-			  let selfActorStateLine = commands.firstIndex(where: { command in
+		guard let selfActorStateLine = commands.firstIndex(where: { command in
 			command.name == .actSetstate &&
 			command.args.count >= 2 &&
 			command.args[0].getValueOrVarValue(vars: vars) == -1
 		}) else {
 			return false
+		}
+		if didApplySelfActorState {
+			guard wasExplicitlyActivated else { return false }
+			return selfActorStateLine > commands.startIndex && currentLine > selfActorStateLine
 		}
 		return currentLine <= selfActorStateLine
 	}
