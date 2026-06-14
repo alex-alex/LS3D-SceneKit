@@ -34,6 +34,7 @@ final class Game: NSObject, @unchecked Sendable {
 		didSet {
 			guard oldValue != isCutsceneCameraActive else { return }
 			updateTrafficVisibility()
+			updateCityMusicAvailability()
 			setCutsceneOverlayVisible(isCutsceneCameraActive)
 		}
 	}

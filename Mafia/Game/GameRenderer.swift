@@ -207,7 +207,7 @@ extension Game: SCNSceneRendererDelegate {
 		guard isCityMusicEnabled != isEnabled else { return }
 		isCityMusicEnabled = isEnabled
 		if isEnabled {
-			cityMusicUpdateTimer = -1
+			updateCityMusicAvailability()
 		} else {
 			stopCityMusic(fade: true)
 		}
@@ -223,8 +223,16 @@ extension Game: SCNSceneRendererDelegate {
 		trafficManager?.isEnabled = isCityTrafficVisible && !isCutsceneCameraActive
 	}
 
+	func updateCityMusicAvailability() {
+		if isCutsceneCameraActive {
+			stopCityMusic(fade: false)
+		} else if isCityMusicEnabled {
+			cityMusicUpdateTimer = -1
+		}
+	}
+
 	func updateCityMusic(deltaTime: TimeInterval) {
-		guard isCityMusicEnabled else { return }
+		guard isCityMusicEnabled, !isCutsceneCameraActive else { return }
 		if cityMusicUpdateTimer >= 0 {
 			cityMusicUpdateTimer -= deltaTime
 			return
