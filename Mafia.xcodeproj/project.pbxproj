@@ -87,6 +87,16 @@
 		FA6ABE93200818B100BB3BBD /* HudScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE91200818B100BB3BBD /* HudScene.swift */; };
 		FA6ABE95200819FE00BB3BBD /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE94200819FE00BB3BBD /* Game.swift */; };
 		FA6ABE96200819FE00BB3BBD /* Game.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE94200819FE00BB3BBD /* Game.swift */; };
+		FA6ABEA1200819FE00BB3BBD /* GameSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA0200819FE00BB3BBD /* GameSetup.swift */; };
+		FA6ABEA2200819FE00BB3BBD /* GameSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA0200819FE00BB3BBD /* GameSetup.swift */; };
+		FA6ABEA4200819FE00BB3BBD /* GameRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA3200819FE00BB3BBD /* GameRenderer.swift */; };
+		FA6ABEA5200819FE00BB3BBD /* GameRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA3200819FE00BB3BBD /* GameRenderer.swift */; };
+		FA6ABEA7200819FE00BB3BBD /* GameActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA6200819FE00BB3BBD /* GameActions.swift */; };
+		FA6ABEA8200819FE00BB3BBD /* GameActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA6200819FE00BB3BBD /* GameActions.swift */; };
+		FA6ABEAA200819FE00BB3BBD /* GameSceneKitHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA9200819FE00BB3BBD /* GameSceneKitHelpers.swift */; };
+		FA6ABEAB200819FE00BB3BBD /* GameSceneKitHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEA9200819FE00BB3BBD /* GameSceneKitHelpers.swift */; };
+		FA6ABEAD200819FE00BB3BBD /* RoadMapBounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEAC200819FE00BB3BBD /* RoadMapBounds.swift */; };
+		FA6ABEAE200819FE00BB3BBD /* RoadMapBounds.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABEAC200819FE00BB3BBD /* RoadMapBounds.swift */; };
 		FA6ABE9920081A7A00BB3BBD /* Action.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE9820081A7A00BB3BBD /* Action.swift */; };
 		FA6ABE9A20081A7A00BB3BBD /* Action.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA6ABE9820081A7A00BB3BBD /* Action.swift */; };
 		FA6DAAF51D67709C002017DE /* ImageUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0A0D761D5FB07A00878046 /* ImageUtils.swift */; };
@@ -182,6 +192,11 @@
 		FA518F33200FCB17004069D4 /* LoadingScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingScene.swift; sourceTree = "<group>"; };
 		FA6ABE91200818B100BB3BBD /* HudScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HudScene.swift; sourceTree = "<group>"; };
 		FA6ABE94200819FE00BB3BBD /* Game.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Game.swift; sourceTree = "<group>"; };
+		FA6ABEA0200819FE00BB3BBD /* GameSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSetup.swift; sourceTree = "<group>"; };
+		FA6ABEA3200819FE00BB3BBD /* GameRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameRenderer.swift; sourceTree = "<group>"; };
+		FA6ABEA6200819FE00BB3BBD /* GameActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameActions.swift; sourceTree = "<group>"; };
+		FA6ABEA9200819FE00BB3BBD /* GameSceneKitHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneKitHelpers.swift; sourceTree = "<group>"; };
+		FA6ABEAC200819FE00BB3BBD /* RoadMapBounds.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoadMapBounds.swift; sourceTree = "<group>"; };
 		FA6ABE9820081A7A00BB3BBD /* Action.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Action.swift; sourceTree = "<group>"; };
 		FA6DAAE11D67708E002017DE /* Mafia-iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Mafia-iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FA7E390F20013DCC00C86A72 /* Sound.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sound.swift; sourceTree = "<group>"; };
@@ -367,6 +382,11 @@
 			isa = PBXGroup;
 			children = (
 				FA6ABE94200819FE00BB3BBD /* Game.swift */,
+				FA6ABEA0200819FE00BB3BBD /* GameSetup.swift */,
+				FA6ABEA3200819FE00BB3BBD /* GameRenderer.swift */,
+				FA6ABEA6200819FE00BB3BBD /* GameActions.swift */,
+				FA6ABEA9200819FE00BB3BBD /* GameSceneKitHelpers.swift */,
+				FA6ABEAC200819FE00BB3BBD /* RoadMapBounds.swift */,
 				FA9C95FB2002E1EB005FBB66 /* Control.swift */,
 				FA6ABE9820081A7A00BB3BBD /* Action.swift */,
 				FA9C95F82002A544005FBB66 /* Weapon.swift */,
@@ -616,6 +636,11 @@
 				FA355C572009241100512DC0 /* GameSceneView.swift in Sources */,
 				FA0A0D771D5FB07A00878046 /* ImageUtils.swift in Sources */,
 				FA6ABE95200819FE00BB3BBD /* Game.swift in Sources */,
+				FA6ABEA1200819FE00BB3BBD /* GameSetup.swift in Sources */,
+				FA6ABEA4200819FE00BB3BBD /* GameRenderer.swift in Sources */,
+				FA6ABEA7200819FE00BB3BBD /* GameActions.swift in Sources */,
+				FA6ABEAA200819FE00BB3BBD /* GameSceneKitHelpers.swift in Sources */,
+				FA6ABEAD200819FE00BB3BBD /* RoadMapBounds.swift in Sources */,
 				FA37F0A2204C8B08001FF8A7 /* ModelMorph.swift in Sources */,
 				FA37F0AC204C8D8D001FF8A7 /* SceneKitUtils.swift in Sources */,
 				FA9C95FC2002E1EB005FBB66 /* Control.swift in Sources */,
@@ -672,6 +697,11 @@
 				FA6DAAF71D67709C002017DE /* AnimationLoader.swift in Sources */,
 				FA2FE8C1200FEA2A0057A80E /* MainMenu.swift in Sources */,
 				FA6ABE96200819FE00BB3BBD /* Game.swift in Sources */,
+				FA6ABEA2200819FE00BB3BBD /* GameSetup.swift in Sources */,
+				FA6ABEA5200819FE00BB3BBD /* GameRenderer.swift in Sources */,
+				FA6ABEA8200819FE00BB3BBD /* GameActions.swift in Sources */,
+				FA6ABEAB200819FE00BB3BBD /* GameSceneKitHelpers.swift in Sources */,
+				FA6ABEAE200819FE00BB3BBD /* RoadMapBounds.swift in Sources */,
 				FA9C95FD2002E1EB005FBB66 /* Control.swift in Sources */,
 				FA6DAAF61D67709C002017DE /* Models.swift in Sources */,
 				FA37F0AD204C8D8D001FF8A7 /* SceneKitUtils.swift in Sources */,
