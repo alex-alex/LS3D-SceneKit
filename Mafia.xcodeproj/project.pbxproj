@@ -33,6 +33,7 @@
 		FA3000010000000000000003 /* MaterialDef.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3000010000000000000001 /* MaterialDef.swift */; };
 		FA355C44200923E600512DC0 /* GameViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3A200923E500512DC0 /* GameViewController.swift */; };
 		FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C3C200923E500512DC0 /* AppDelegate.swift */; };
+		FA355C59200923E600512DC0 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA355C58200923E600512DC0 /* SceneDelegate.swift */; };
 		FA355C47200923E600512DC0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3E200923E600512DC0 /* Assets.xcassets */; };
 		FA355C48200923E600512DC0 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C3F200923E600512DC0 /* LaunchScreen.storyboard */; };
 		FA355C49200923E600512DC0 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = FA355C41200923E600512DC0 /* Main.storyboard */; };
@@ -160,6 +161,7 @@
 		FA3000010000000000000001 /* MaterialDef.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaterialDef.swift; sourceTree = "<group>"; };
 		FA355C3A200923E500512DC0 /* GameViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GameViewController.swift; sourceTree = "<group>"; };
 		FA355C3C200923E500512DC0 /* AppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		FA355C58200923E600512DC0 /* SceneDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
 		FA355C3E200923E600512DC0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FA355C40200923E600512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		FA355C42200923E600512DC0 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
@@ -305,6 +307,7 @@
 			isa = PBXGroup;
 			children = (
 				FA355C3C200923E500512DC0 /* AppDelegate.swift */,
+				FA355C58200923E600512DC0 /* SceneDelegate.swift */,
 				FA355C3A200923E500512DC0 /* GameViewController.swift */,
 			);
 			path = Classes;
@@ -671,6 +674,7 @@
 			files = (
 				FA37F0BD204C92E2001FF8A7 /* CollisionCylinder.swift in Sources */,
 				FA355C46200923E600512DC0 /* AppDelegate.swift in Sources */,
+				FA355C59200923E600512DC0 /* SceneDelegate.swift in Sources */,
 				FA4B741C200812D200E0A66F /* PlayerController.swift in Sources */,
 				FA518F35200FCB17004069D4 /* LoadingScene.swift in Sources */,
 				FA4B7419200812D200E0A66F /* Vehicle.swift in Sources */,

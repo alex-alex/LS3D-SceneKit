@@ -12,7 +12,7 @@ import SpriteKit
 
 private extension SaveGameVector3 {
 	var scnVector3: SCNVector3 {
-		return SCNVector3(x: CGFloat(x), y: CGFloat(y), z: CGFloat(z))
+		return SCNVector3(x: SCNFloat(x), y: SCNFloat(y), z: SCNFloat(z))
 	}
 }
 
