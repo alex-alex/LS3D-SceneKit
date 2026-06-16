@@ -110,7 +110,7 @@ extension Game {
 	func restoreSaveGamePlayerHealth(from checkpoint: SaveGameCheckpoint) {
 		let healthPercent = max(0, Int(checkpoint.summary.healthPercent))
 		let restoredEnergy = playerMaxEnergy * Float(healthPercent) / 100
-		scene.playerNode?.humanEnergy = restoredEnergy
+		scene.playerNode?.humanEnergy = playerEnergyPreservingInvincibility(requestedEnergy: restoredEnergy)
 		updatePlayerHealthFromEnergy()
 	}
 

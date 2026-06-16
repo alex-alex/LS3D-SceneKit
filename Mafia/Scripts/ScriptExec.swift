@@ -1942,7 +1942,11 @@ extension Script {
 	private func human_death(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if let actor = node(forScriptId: actorId) {
-			humanNode(for: actor)?.humanEnergy = 0
+			if isPlayerActor(actorId) {
+				humanNode(for: actor)?.humanEnergy = scene.game.playerEnergyPreservingInvincibility(requestedEnergy: 0)
+			} else {
+				humanNode(for: actor)?.humanEnergy = 0
+			}
 		}
 		if isPlayerActor(actorId) {
 			scene.game.updatePlayerHealthFromEnergy()
@@ -2132,7 +2136,12 @@ extension Script {
 		let property = args[2].getString().lowercased()
 		if property == "energy" {
 			if let actor = node(forScriptId: actorId) {
-				humanNode(for: actor)?.humanEnergy = max(0, Float(value))
+				let requestedEnergy = max(0, Float(value))
+				if isPlayerActor(actorId) {
+					humanNode(for: actor)?.humanEnergy = scene.game.playerEnergyPreservingInvincibility(requestedEnergy: requestedEnergy)
+				} else {
+					humanNode(for: actor)?.humanEnergy = requestedEnergy
+				}
 			}
 			if isPlayerActor(actorId) {
 				scene.game.updatePlayerHealthFromEnergy()

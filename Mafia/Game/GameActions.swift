@@ -518,6 +518,14 @@ extension Game {
 		}
 	}
 
+	func playerEnergyPreservingInvincibility(requestedEnergy: Float) -> Float {
+		let requestedEnergy = max(0, requestedEnergy)
+		guard isPlayerInvincibleForTesting else { return requestedEnergy }
+
+		let currentEnergy = scene.playerNode?.humanEnergy ?? playerMaxEnergy
+		return max(max(currentEnergy, requestedEnergy), playerMaxEnergy)
+	}
+
 	func updatePlayerHealthFromEnergy() {
 		guard let energy = scene.playerNode?.humanEnergy else {
 			setPlayerHealth(100)
@@ -1492,6 +1500,12 @@ extension Game {
 		guard let humanNode = humanNode(from: node) else { return false }
 
 		let currentEnergy = humanNode.humanEnergy ?? 100
+		if isNode(humanNode, inside: scene.playerNode), isPlayerInvincibleForTesting {
+			humanNode.humanEnergy = playerEnergyPreservingInvincibility(requestedEnergy: currentEnergy)
+			updatePlayerHealthFromEnergy()
+			return true
+		}
+
 		let newEnergy = max(0, currentEnergy - Float(amount))
 		humanNode.humanEnergy = newEnergy
 		if isNode(humanNode, inside: scene.playerNode) {

@@ -161,6 +161,7 @@ final class Game: NSObject, @unchecked Sendable {
 	var lastControl: Control?
 	var playerHealth = 100
 	var playerMaxEnergy: Float = 100
+	var isPlayerInvincibleForTesting = true
 	var activeControls: Set<Control> = []
 	let pendingLookLock = NSLock()
 	var pendingLookDeltaX: SCNFloat = 0
