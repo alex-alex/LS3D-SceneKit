@@ -90,6 +90,8 @@ enum ScriptCommandName: String {
 	case actorSetpos = "actor_setpos"
 	case actorSetplacement = "actor_setplacement"
 	case actorUpdateplacement = "actorupdateplacement"
+	case autosavegame
+	case autosavegamefull
 	case blockEnd = "}"
 	case blockStart = "{"
 	case cameraGetfov = "camera_getfov"
@@ -178,6 +180,7 @@ enum ScriptCommandName: String {
 	case enemyWait = "enemy_wait"
 	case event
 	case eventUseCb = "event_use_cb"
+	case emitparticle
 	case findactor
 	case findframe
 	case getactivecamera
@@ -192,14 +195,22 @@ enum ScriptCommandName: String {
 	case frmGetworldpos = "frm_getworldpos"
 	case frmGetworldscale = "frm_getworldscale"
 	case frmIson = "frm_ison"
+	case frmLinkto = "frm_linkto"
 	case frmSetpos = "frm_setpos"
 	case frmSeton = "frm_seton"
 	case frmSetscale = "frm_setscale"
+	case fuckingboxAdd = "fuckingbox_add"
+	case fuckingboxAddDest = "fuckingbox_add_dest"
+	case fuckingboxGetnumbox = "fuckingbox_getnumbox"
+	case fuckingboxGetnumdest = "fuckingbox_getnumdest"
+	case fuckingboxMove = "fuckingbox_move"
+	case fuckingboxRecompile = "fuckingbox_recompile"
 	case garageEnablesteal = "garage_enablesteal"
 	case getactorsdist
 	case getenemyaistate
 	case getframefromactor
 	case getgametime
+	case getmissionnumber
 	case getPmCrashtime = "get_pm_crashtime"
 	case getPmFiretime = "get_pm_firetime"
 	case getPmHumanstate = "get_pm_humanstate"
@@ -248,6 +259,8 @@ enum ScriptCommandName: String {
 	case missionObjectives = "mission_objectives"
 	case missionObjectivesclear = "mission_objectivesclear"
 	case missionObjectivesremove = "mission_objectivesremove"
+	case racingMission6Init = "racing_mission6_init"
+	case racingMission6Start = "racing_mission6_start"
 	case modelCreate = "model_create"
 	case modelDestroy = "model_destroy"
 	case modelPlayanim = "model_playanim"
@@ -272,6 +285,7 @@ enum ScriptCommandName: String {
 	case setCityTrafficVisible = "setcitytrafficvisible"
 	case setevent
 	case setfilmmusic
+	case setmissionnumber
 	case setnullactor
 	case setnullframe
 	case setplayerfireevent
@@ -289,6 +303,7 @@ enum ScriptCommandName: String {
 	case streamSetpos = "stream_setpos"
 	case streamSetloop = "stream_setloop"
 	case streamStop = "stream_stop"
+	case stopparticle
 	case subtitleAdd = "subtitle_add"
 	case timerGetinterval = "timer_getinterval"
 	case timerSetinterval = "timer_setinterval"
@@ -404,6 +419,7 @@ final class Script: @unchecked Sendable {
 	var streams: [Int: ScriptMusicStream] = [:]
 	var sharedStreamIds = Set<Int>()
 	var nextStreamId = 1
+	var emittedParticleNodes: [Int: [SCNNode]] = [:]
 	var pendingEnemyTalk: ScriptEnemyTalkOperation?
 	var pendingEnemyUseCarTarget: (carId: Int, seatId: Int)?
 	var enemyAnimationOriginalTransform: SCNMatrix4?
@@ -517,6 +533,14 @@ final class Script: @unchecked Sendable {
 			self.eventIdQueue.removeAll()
 			self.eventIdQueueStartIndex = 0
 			self.recentCommandHistory.removeAll()
+			let emittedParticleNodes = self.emittedParticleNodes.values.flatMap { $0 }
+			self.emittedParticleNodes.removeAll()
+			DispatchQueue.main.async {
+				for node in emittedParticleNodes {
+					node.removeAllParticleSystems()
+					node.removeFromParentNode()
+				}
+			}
 			self.run()
 		}
 	}
@@ -668,9 +692,11 @@ final class Script: @unchecked Sendable {
 			self.recentCommandHistory.removeAll()
 			let streams = Array(self.streams.values)
 			let soundPlaybacks = Array(self.soundPlaybacks.values)
+			let emittedParticleNodes = self.emittedParticleNodes.values.flatMap { $0 }
 			self.streams.removeAll()
 			self.sharedStreamIds.removeAll()
 			self.soundPlaybacks.removeAll()
+			self.emittedParticleNodes.removeAll()
 			DispatchQueue.main.async {
 				for stream in streams {
 					stream.destroy()
@@ -678,6 +704,10 @@ final class Script: @unchecked Sendable {
 				for playback in soundPlaybacks {
 					playback.player.didFinishPlayback = nil
 					playback.node.removeAudioPlayer(playback.player)
+				}
+				for node in emittedParticleNodes {
+					node.removeAllParticleSystems()
+					node.removeFromParentNode()
 				}
 				if wasTimerVisible {
 					self.hideScriptTimer()

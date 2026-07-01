@@ -332,9 +332,6 @@ final class Game: NSObject, @unchecked Sendable {
 		self.transitionFrameName = transitionFrameName
 		self.transitionVehicleSpeed = transitionVehicleSpeed
 		self.missionTransitionState = missionTransitionState
-		if let missionNumber = Self.initialScriptMissionNumber(for: missionName) {
-			missionTransitionState.setMissionNumberIfDefault(missionNumber)
-		}
 		progressHandler?(0.05)
 		scnScene.rootNode.name = "__root__"
 		ambientLightNode.name = "__ambient_environment__"
@@ -477,15 +474,6 @@ final class Game: NSObject, @unchecked Sendable {
 		skyboxNodes = scnScene.rootNode.skyboxNodes(relativeTo: cameraNode.presentation.worldPosition)
 		updateSkyboxPosition()
 		progressHandler?(1)
-	}
-
-	private static func initialScriptMissionNumber(for missionName: String) -> Int? {
-		switch missionName.lowercased() {
-		case "mise06-autodrom":
-			return 30131
-		default:
-			return nil
-		}
 	}
 
 }

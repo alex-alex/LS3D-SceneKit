@@ -43,6 +43,8 @@ extension Script {
 		case .actorSetpos:				actor_setplacement(command.args)
 		case .actorSetplacement:		actor_setplacement(command.args)
 		case .actorUpdateplacement:		actorupdateplacement(command.args)
+		case .autosavegame:				noop()
+		case .autosavegamefull:			noop()
 		case .blockEnd:					noop()
 		case .blockStart:				noop()
 		case .cameraGetfov:				camera_getfov(command.args)
@@ -131,6 +133,7 @@ extension Script {
 		case .enemyWait:				enemy_wait(command.args)
 		case .event:					event(command.args)
 		case .eventUseCb:				event_use_cb(command.args)
+		case .emitparticle:				emitparticle(command.args)
 		case .findactor:				findactor(command.args)
 		case .findframe:				findframe(command.args)
 		case .getactivecamera:			getactivecamera(command.args)
@@ -144,14 +147,22 @@ extension Script {
 		case .frmGetworldpos:			frm_getworldpos(command.args)
 		case .frmGetworldscale:			frm_getworldscale(command.args)
 		case .frmIson:					frm_ison(command.args)
+		case .frmLinkto:				frm_linkto(command.args)
 		case .frmSetpos:				frm_setpos(command.args)
 		case .frmSeton:					frm_seton(command.args)
 		case .frmSetscale:				frm_setscale(command.args)
+		case .fuckingboxAdd:			fuckingbox_add(command.args)
+		case .fuckingboxAddDest:		fuckingbox_add_dest(command.args)
+		case .fuckingboxGetnumbox:		fuckingbox_getnumbox(command.args)
+		case .fuckingboxGetnumdest:		fuckingbox_getnumdest(command.args)
+		case .fuckingboxMove:			fuckingbox_move(command.args)
+		case .fuckingboxRecompile:		noop()
 		case .garageEnablesteal:		garage_enablesteal(command.args)
 		case .getactorsdist:			getactorsdist(command.args)
 		case .getenemyaistate:			getenemyaistate(command.args)
 		case .getframefromactor:		getframefromactor(command.args)
 		case .getgametime:				getgametime(command.args)
+		case .getmissionnumber:		getmissionnumber(command.args)
 		case .getPmCrashtime:			get_pm_crashtime(command.args)
 		case .getPmFiretime:			get_pm_firetime(command.args)
 		case .getPmHumanstate:			get_pm_humanstate(command.args)
@@ -200,6 +211,8 @@ extension Script {
 		case .missionObjectives:		mission_objectives(command.args)
 		case .missionObjectivesclear:	mission_objectivesclear(command.args)
 		case .missionObjectivesremove:	mission_objectivesremove(command.args)
+		case .racingMission6Init:		racing_mission6_init(command.args)
+		case .racingMission6Start:		racing_mission6_start(command.args)
 		case .modelCreate:				model_create(command.args)
 		case .modelDestroy:				model_destroy(command.args)
 		case .modelPlayanim:			model_playanim(command.args)
@@ -223,6 +236,7 @@ extension Script {
 		case .setcompass:				setcompass(command.args)
 		case .setCityTrafficVisible:	setcitytrafficvisible(command.args)
 		case .setevent:					setevent(command.args)
+		case .setmissionnumber:		setmissionnumber(command.args)
 		case .setnullactor:				setnullactor(command.args)
 		case .setnullframe:				setnullframe(command.args)
 		case .setplayerfireevent:		setplayerfireevent(command.args)
@@ -242,6 +256,7 @@ extension Script {
 		case .streamSetpos:				stream_setpos(command.args)
 		case .streamSetloop:			stream_setloop(command.args)
 		case .streamStop:				stream_stop(command.args)
+		case .stopparticle:				stopparticle(command.args)
 		case .subtitleAdd:				subtitle_add(command.args)
 		case .timerGetinterval:			timer_getinterval(command.args)
 		case .timerSetinterval:			timer_setinterval(command.args)
@@ -1496,6 +1511,25 @@ extension Script {
 		next()
 	}
 
+	private func emitparticle(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let effectId = UInt32(args[1].getValueOrVarValue(vars: vars))
+		let scale = args[2].getValueOrVarValueFloat(vars: vars)
+		guard let frame = frames[frameId] else {
+			next()
+			return
+		}
+		let effect = MissionEffect(id: effectId, position: SCNVector3Zero, scale: scale)
+		let effectNode = MissionEffects.makeNode(for: effect)
+		emittedParticleNodes[frameId, default: []].append(effectNode)
+		DispatchQueue.main.async {
+			frame.addChildNode(effectNode)
+			self.queue.async {
+				self.next()
+			}
+		}
+	}
+
 	private func findactor(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		if args.count > 1 {
@@ -1652,6 +1686,26 @@ extension Script {
 		next()
 	}
 
+	private func frm_linkto(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let parentId = args[1].getValueOrVarValue(vars: vars)
+		guard let frame = frames[frameId] else {
+			next()
+			return
+		}
+		let parent = parentId == -1 ? scene.rootNode : frames[parentId]
+		let worldTransform = frame.presentation.worldTransform
+		DispatchQueue.main.async {
+			frame.removeFromParentNode()
+			let targetParent = parent ?? self.scene.rootNode
+			targetParent.addChildNode(frame)
+			frame.transform = targetParent.convertTransform(worldTransform, from: nil)
+			self.queue.async {
+				self.next()
+			}
+		}
+	}
+
 	private func frm_setpos(_ args: [Argument]) {
 		let frameId = args[0].getValueOrVarValue(vars: vars)
 		let varId = args[1].getValueOrVarValue(vars: vars)
@@ -1664,6 +1718,55 @@ extension Script {
 		let varId = args[1].getValueOrVarValue(vars: vars)
 		frames[frameId]?.scale = vectorVariable(startingAt: varId)
 		next()
+	}
+
+	private func fuckingbox_add(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let raceId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = node(forScriptId: frameId) {
+			scene.mission6RaceState.registerBox(frame, raceId: raceId)
+		}
+		next()
+	}
+
+	private func fuckingbox_add_dest(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let raceId = args[1].getValueOrVarValue(vars: vars)
+		if let frame = node(forScriptId: frameId) {
+			scene.mission6RaceState.registerDestination(frame, raceId: raceId)
+		}
+		next()
+	}
+
+	private func fuckingbox_getnumbox(_ args: [Argument]) {
+		let raceId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = Float(scene.mission6RaceState.countBoxes(raceId: raceId))
+		next()
+	}
+
+	private func fuckingbox_getnumdest(_ args: [Argument]) {
+		let raceId = args[0].getValueOrVarValue(vars: vars)
+		let varId = args[1].getValueOrVarValue(vars: vars)
+		vars[varId] = Float(scene.mission6RaceState.countDestinations(raceId: raceId))
+		next()
+	}
+
+	private func fuckingbox_move(_ args: [Argument]) {
+		let raceId = args[0].getValueOrVarValue(vars: vars)
+		guard let pair = scene.mission6RaceState.moveBoxToDestination(raceId: raceId) else {
+			next()
+			return
+		}
+		let box = pair.box
+		let destination = pair.destination
+		DispatchQueue.main.async {
+			box.transform = box.parent?.convertTransform(destination.presentation.worldTransform, from: nil)
+				?? destination.presentation.worldTransform
+			self.queue.async {
+				self.next()
+			}
+		}
 	}
 
 	private func getactorsdist(_ args: [Argument]) {
@@ -1727,6 +1830,12 @@ extension Script {
 		let varId = args[0].getValueOrVarValue(vars: vars)
 		let elapsed = Date.timeIntervalSinceReferenceDate - scene.game.scriptStartTime
 		vars[varId] = Float(elapsed * 1000)
+		next()
+	}
+
+	private func getmissionnumber(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		vars[varId] = Float(scene.game.missionTransitionState.getMissionNumber())
 		next()
 	}
 
@@ -2382,6 +2491,49 @@ extension Script {
 		next()
 	}
 
+	private func racing_mission6_init(_ args: [Argument]) {
+		let lapCount = args[0].getValueOrVarValue(vars: vars)
+		let participantCount = args[1].getValueOrVarValue(vars: vars)
+		let circuitIndex = args[2].getValueOrVarValue(vars: vars)
+		let participantSourceId = args[3].getValueOrVarValue(vars: vars)
+		let checkpoints: Mission6Checkpoints?
+		do {
+			checkpoints = try Mission6Checkpoints(name: scene.name)
+		} catch {
+			checkpoints = nil
+		}
+		let raceTables = try? Mission6RaceTables()
+		let circuit = raceTables?.circuit(at: circuitIndex)
+		let participantSourceRecord = raceTables?.carcyclopediaRecord(at: participantSourceId)
+		let participantSourceCarIndexRecord = raceTables?.carIndexRecord(at: participantSourceId)
+		let participantProfiles = raceTables?.participantProfiles ?? []
+		scene.mission6RaceState.configure(
+			lapCount: lapCount,
+			participantCount: participantCount,
+			circuitIndex: circuitIndex,
+			participantSourceId: participantSourceId,
+			sceneName: scene.name,
+			checkpoints: checkpoints,
+			circuit: circuit,
+			participantSourceRecord: participantSourceRecord,
+			participantSourceCarIndexRecord: participantSourceCarIndexRecord,
+			participantProfiles: participantProfiles
+		)
+		if let raceTables {
+			scene.spawnMission6RaceCars(raceTables: raceTables)
+		}
+		next()
+	}
+
+	private func racing_mission6_start(_ args: [Argument]) {
+		let varId = args[0].getValueOrVarValue(vars: vars)
+		scene.mission6RaceState.start(script: self, varId: varId) { [weak self] in
+			self?.queue.async {
+				self?.next()
+			}
+		}
+	}
+
 	private func model_create(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		let modelName = normalizedModelName(args[1].getString())
@@ -2667,6 +2819,12 @@ extension Script {
 		}
 	}
 
+	private func setmissionnumber(_ args: [Argument]) {
+		let value = args[0].getValueOrVarValue(vars: vars)
+		scene.game.missionTransitionState.setMissionNumber(value)
+		next()
+	}
+
 	private func setnullactor(_ args: [Argument]) {
 		let actorId = args[0].getValueOrVarValue(vars: vars)
 		actors[actorId] = nil
@@ -2923,6 +3081,20 @@ extension Script {
 			}
 		}
 		next()
+	}
+
+	private func stopparticle(_ args: [Argument]) {
+		let frameId = args[0].getValueOrVarValue(vars: vars)
+		let nodes = emittedParticleNodes.removeValue(forKey: frameId) ?? []
+		DispatchQueue.main.async {
+			for node in nodes {
+				node.removeAllParticleSystems()
+				node.removeFromParentNode()
+			}
+			self.queue.async {
+				self.next()
+			}
+		}
 	}
 
 	private func subtitle_add(_ args: [Argument]) {

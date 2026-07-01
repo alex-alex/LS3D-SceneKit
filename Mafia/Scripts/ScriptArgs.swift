@@ -18,6 +18,35 @@ private func scriptArgumentFatalError(_ message: String, file: StaticString = #f
 	}
 }
 
+private extension String {
+	var numericPrefix: String? {
+		var index = startIndex
+		if index < endIndex, self[index] == "-" || self[index] == "+" {
+			index = self.index(after: index)
+		}
+
+		let digits = CharacterSet.decimalDigits
+		var hasDigit = false
+		while index < endIndex,
+			  String(self[index]).unicodeScalars.allSatisfy({ digits.contains($0) }) {
+			hasDigit = true
+			index = self.index(after: index)
+		}
+
+		if index < endIndex, self[index] == "." {
+			index = self.index(after: index)
+			while index < endIndex,
+				  String(self[index]).unicodeScalars.allSatisfy({ digits.contains($0) }) {
+				hasDigit = true
+				index = self.index(after: index)
+			}
+		}
+
+		guard hasDigit else { return nil }
+		return String(self[..<index])
+	}
+}
+
 /*final class ScriptArgs {
 		
 	private let compareownerwithex: ((Scanner) -> [Argument]) = { scanner in
@@ -117,6 +146,8 @@ extension Script {
 		case "actor_setpos":			return getArgs_actor_setplacement(scanner)
 		case "actor_setplacement":		return getArgs_actor_setplacement(scanner)
 		case "actorupdateplacement":	return getArgs_actorupdateplacement(scanner)
+		case "autosavegame":			return getArgs_autosavegame(scanner)
+		case "autosavegamefull":		return getArgs_autosavegame(scanner)
 		case "camera_getfov":			return getArgs_camera_getfov(scanner)
 		case "camera_lock":				return getArgs_camera_lock(scanner)
 		case "camera_setfov":			return getArgs_camera_setfov(scanner)
@@ -200,6 +231,7 @@ extension Script {
 		case "enemy_vidim":				return []
 		case "enemy_wait":				return []
 		case "event_use_cb":			return getArgs_event_use_cb(scanner)
+		case "emitparticle":			return getArgs_emitparticle(scanner)
 		case "findactor":				return getArgs_findactor(scanner)
 		case "findframe":				return getArgs_findframe(scanner)
 		case "getactivecamera":			return getArgs_getactivecamera(scanner)
@@ -214,14 +246,22 @@ extension Script {
 		case "frm_getworldpos":			return getArgs_frm_getworldpos(scanner)
 		case "frm_getworldscale":		return getArgs_frm_getworldscale(scanner)
 		case "frm_ison":				return getArgs_frm_ison(scanner)
+		case "frm_linkto":				return getArgs_frm_linkto(scanner)
 		case "frm_setpos":				return getArgs_frm_setpos(scanner)
 		case "frm_seton":				return getArgs_frm_seton(scanner)
 		case "frm_setscale":			return getArgs_frm_setscale(scanner)
+		case "fuckingbox_add":			return getArgs_fuckingbox_add(scanner)
+		case "fuckingbox_add_dest":		return getArgs_fuckingbox_add_dest(scanner)
+		case "fuckingbox_getnumbox":	return getArgs_fuckingbox_getnum(scanner)
+		case "fuckingbox_getnumdest":	return getArgs_fuckingbox_getnum(scanner)
+		case "fuckingbox_move":			return getArgs_fuckingbox_move(scanner)
+		case "fuckingbox_recompile":	return []
 		case "garage_enablesteal":		return getArgs_garage_enablesteal(scanner)
 		case "getactorsdist":			return getArgs_getactorsdist(scanner)
 		case "getenemyaistate":			return getArgs_getenemyaistate(scanner)
 		case "getframefromactor":		return getArgs_getframefromactor(scanner)
 		case "getgametime":				return getArgs_getgametime(scanner)
+		case "getmissionnumber":		return getArgs_getmissionnumber(scanner)
 		case "get_pm_crashtime":		return getArgs_get_pm_time(scanner)
 		case "get_pm_firetime":			return getArgs_get_pm_time(scanner)
 		case "get_pm_humanstate":		return getArgs_get_pm_humanstate(scanner)
@@ -269,6 +309,8 @@ extension Script {
 		case "mission_objectives":		return getArgs_mission_objectives(scanner)
 		case "mission_objectivesclear":	return []
 		case "mission_objectivesremove":	return getArgs_mission_objectives(scanner)
+		case "racing_mission6_init":	return getArgs_racing_mission6_init(scanner)
+		case "racing_mission6_start":	return getArgs_racing_mission6_start(scanner)
 		case "model_create":			return getArgs_model_create(scanner)
 		case "model_destroy":			return getArgs_model_destroy(scanner)
 		case "model_playanim":			return getArgs_model_playanim(scanner)
@@ -291,6 +333,7 @@ extension Script {
 		case "setcitytrafficvisible":	return getArgs_setcitytrafficvisible(scanner)
 		case "setevent":				return getArgs_setevent(scanner)
 		case "setfilmmusic":			return getArgs_setfilmmusic(scanner)
+		case "setmissionnumber":		return getArgs_setmissionnumber(scanner)
 		case "setnullactor":			return getArgs_setnullactor(scanner)
 		case "setnullframe":			return getArgs_setnullframe(scanner)
 		case "setplayerfireevent":		return getArgs_setplayerevent(scanner)
@@ -308,6 +351,7 @@ extension Script {
 		case "stream_setpos":			return getArgs_stream_setpos(scanner)
 		case "stream_setloop":			return getArgs_stream_setloop(scanner)
 		case "stream_stop":				return getArgs_stream_stop(scanner)
+		case "stopparticle":			return getArgs_stopparticle(scanner)
 		case "subtitle_add":			return getArgs_subtitle_add(scanner)
 		case "timer_getinterval":		return getArgs_timer_getinterval(scanner)
 		case "timer_setinterval":		return getArgs_timer_setinterval(scanner)
@@ -354,6 +398,10 @@ extension Script {
 
 	private func getArgs_actorupdateplacement(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_autosavegame(_ scanner: Scanner) -> [Argument] {
+		return []
 	}
 
 	private func getArgs_camera_getfov(_ scanner: Scanner) -> [Argument] {
@@ -689,6 +737,10 @@ extension Script {
 		return [scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_emitparticle(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner), scanVarOrValueOptional(scanner) ?? .integer(1)]
+	}
+
 	private func getArgs_findactor(_ scanner: Scanner) -> [Argument] {
 		let actorId = scanVarOrValue(scanner)
 		if let name = scanString(scanner) {
@@ -751,6 +803,10 @@ extension Script {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_frm_linkto(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_frm_setpos(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
 	}
@@ -761,6 +817,22 @@ extension Script {
 
 	private func getArgs_frm_setscale(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_fuckingbox_add(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_fuckingbox_add_dest(_ scanner: Scanner) -> [Argument] {
+		return getArgs_fuckingbox_add(scanner)
+	}
+
+	private func getArgs_fuckingbox_getnum(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner), scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_fuckingbox_move(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
 	}
 
 	private func getArgs_getactorsdist(_ scanner: Scanner) -> [Argument] {
@@ -776,6 +848,10 @@ extension Script {
 	}
 
 	private func getArgs_getgametime(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_getmissionnumber(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
 
@@ -1003,6 +1079,19 @@ extension Script {
 		return [scanVarOrValue(scanner)]
 	}
 
+	private func getArgs_racing_mission6_init(_ scanner: Scanner) -> [Argument] {
+		return [
+			scanVarOrValue(scanner),
+			scanVarOrValue(scanner),
+			scanVarOrValue(scanner),
+			scanVarOrValueAllowingNumericPrefix(scanner)
+		]
+	}
+
+	private func getArgs_racing_mission6_start(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_model_create(_ scanner: Scanner) -> [Argument] {
 		let actorId = scanVarOrValue(scanner)
 		guard let name = scanString(scanner) else { scriptArgumentFatalError("Expected model name") }
@@ -1090,6 +1179,10 @@ extension Script {
 		return [scanVarOrValue(scanner), .label(scanParam(scanner)), .label(scanParam(scanner))]
 	}
 
+	private func getArgs_setmissionnumber(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
 	private func getArgs_setnullactor(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
@@ -1165,6 +1258,10 @@ extension Script {
 	}
 
 	private func getArgs_stream_stop(_ scanner: Scanner) -> [Argument] {
+		return [scanVarOrValue(scanner)]
+	}
+
+	private func getArgs_stopparticle(_ scanner: Scanner) -> [Argument] {
 		return [scanVarOrValue(scanner)]
 	}
 
@@ -1350,6 +1447,21 @@ extension Script {
 		} else {
 			scriptArgumentFatalError("Expected variable or numeric value")
 		}
+	}
+
+	private func scanVarOrValueAllowingNumericPrefix(_ scanner: Scanner) -> Argument {
+		if let varId = scanVar(scanner) {
+			return .variable(varId)
+		}
+		let token = scanParam(scanner)
+		if let arg = parseVarOrNumberToken(token) {
+			return arg
+		}
+		guard let numericPrefix = token.numericPrefix,
+			  let arg = parseVarOrNumberToken(numericPrefix) else {
+			scriptArgumentFatalError("Expected variable or numeric value")
+		}
+		return arg
 	}
 
 	private func scanLabelTarget(_ scanner: Scanner) -> Argument {
