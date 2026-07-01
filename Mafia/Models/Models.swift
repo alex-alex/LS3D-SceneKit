@@ -127,8 +127,7 @@ final class ModelLoader: @unchecked Sendable {
 		targetNode.morpher = sourceNode.morpher
 		targetNode.skinner = sourceNode.skinner
 		for childNode in sourceNode.childNodes {
-			childNode.removeFromParentNode()
-			targetNode.addChildNode(childNode)
+			targetNode.addChildNode(childNode.clone())
 		}
 		for animationKey in sourceNode.animationKeys {
 			if let animation = sourceNode.animation(forKey: animationKey) {

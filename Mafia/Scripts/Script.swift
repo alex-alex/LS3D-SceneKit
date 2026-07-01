@@ -538,7 +538,9 @@ final class Script: @unchecked Sendable {
 			DispatchQueue.main.async {
 				for node in emittedParticleNodes {
 					node.removeAllParticleSystems()
-					node.removeFromParentNode()
+					if node.parent != nil {
+						node.removeFromParentNode()
+					}
 				}
 			}
 			self.run()
@@ -707,7 +709,9 @@ final class Script: @unchecked Sendable {
 				}
 				for node in emittedParticleNodes {
 					node.removeAllParticleSystems()
-					node.removeFromParentNode()
+					if node.parent != nil {
+						node.removeFromParentNode()
+					}
 				}
 				if wasTimerVisible {
 					self.hideScriptTimer()

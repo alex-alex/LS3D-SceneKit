@@ -167,7 +167,9 @@ final class Game: NSObject, @unchecked Sendable {
 				playerController?.stop()
 				movePlayerIntoVehicle()
 				playPlayerVehicleSittingAnimation()
-				scnScene.rootNode.addChildNode(cameraContainer)
+				if cameraContainer.parent !== scnScene.rootNode {
+					scnScene.rootNode.addChildNode(cameraContainer)
+				}
 				resetCarCameraFollow()
 				vehicle?.updateAudio(isActive: true)
 			}
@@ -276,6 +278,10 @@ final class Game: NSObject, @unchecked Sendable {
 	let npcFollowTrailAttachDistance: SCNFloat = 12
 	let npcFollowTrailAttachHeightTolerance: SCNFloat = 0.9
 	let npcFollowTrailLookAheadPoints = 8
+	let npcHumanNodeSnapshotLock = NSLock()
+	var npcHumanNodeSnapshot: [SCNNode] = []
+	var isNPCHumanNodeSnapshotUpdateScheduled = false
+	var isNPCHealthLabelUpdateScheduled = false
 	var npcHealthLabelNodes: [ObjectIdentifier: SCNNode] = [:]
 	let npcHealthLabelNodeNamePrefix = "__npc_health_label_"
 	let playerVehicleAnimationKey = "__player_vehicle__"

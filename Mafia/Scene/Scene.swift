@@ -1276,6 +1276,7 @@ final class Scene: @unchecked Sendable {
 	private var missingNodeNames = Set<String>()
 	private var mission6RaceSpawnedCars: [SCNNode] = []
 	private var mission6RaceAICars: [Mission6RaceAICar] = []
+	private var mission6RaceCircuitDebugNode: SCNNode?
 
 	func weapons(for owner: SCNNode) -> [Weapon] {
 		weaponsLock.lock()
@@ -2045,6 +2046,7 @@ final class Scene: @unchecked Sendable {
 			carNode.name = "racing_car\(participant.slotIndex)"
 			carNode.vehicleModelName = (carRecord.modelName as NSString).deletingPathExtension.lowercased()
 			carNode.type = .car
+			addSyntheticMission6RaceWheelsIfNeeded(to: carNode)
 			carNode.transform = rootNode.convertTransform(startNode.presentation.worldTransform, from: nil)
 			rootNode.addChildNode(carNode)
 			registerNodeTree(carNode)
@@ -2058,6 +2060,51 @@ final class Scene: @unchecked Sendable {
 			)
 		}
 		configureMission6RaceAI(settings: settings)
+	}
+
+	private func addSyntheticMission6RaceWheelsIfNeeded(to carNode: SCNNode) {
+		let wheelNames = ["WHL0", "WHR0", "WHL1", "WHR1"]
+		guard wheelNames.contains(where: { carNode.mafiaChildNode(named: $0, recursively: true) == nil }),
+			  let bodyNode = carNode.mafiaChildNode(named: "BODY", recursively: false) else {
+			return
+		}
+
+		let bounds = bodyNode.boundingBox
+		let width = bounds.max.x - bounds.min.x
+		let height = bounds.max.y - bounds.min.y
+		let length = bounds.max.z - bounds.min.z
+		guard width > 0, height > 0, length > 0 else { return }
+
+		let radius = max(SCNFloat(0.18), min(width, length) * 0.07)
+		let halfWidth = width * 0.42
+		let halfLength = length * 0.34
+		let centerX = (bounds.min.x + bounds.max.x) / 2
+		let centerZ = (bounds.min.z + bounds.max.z) / 2
+		let wheelY = bounds.min.y + radius
+		let localPositions: [(name: String, position: SCNVector3)] = [
+			("WHL0", SCNVector3(x: centerX - halfWidth, y: wheelY, z: centerZ + halfLength)),
+			("WHR0", SCNVector3(x: centerX + halfWidth, y: wheelY, z: centerZ + halfLength)),
+			("WHL1", SCNVector3(x: centerX - halfWidth, y: wheelY, z: centerZ - halfLength)),
+			("WHR1", SCNVector3(x: centerX + halfWidth, y: wheelY, z: centerZ - halfLength))
+		]
+
+		for wheel in localPositions where carNode.mafiaChildNode(named: wheel.name, recursively: true) == nil {
+			let wheelBox = SCNBox(
+				width: CGFloat(radius * 0.55),
+				height: CGFloat(radius * 2),
+				length: CGFloat(radius * 2),
+				chamferRadius: 0
+			)
+			let material = SCNMaterial()
+			material.diffuse.contents = SKColor.clear
+			material.transparency = 0
+			wheelBox.firstMaterial = material
+
+			let wheelNode = SCNNode(geometry: wheelBox)
+			wheelNode.name = wheel.name
+			wheelNode.position = bodyNode.convertPosition(wheel.position, to: carNode)
+			carNode.addChildNode(wheelNode)
+		}
 	}
 
 	func updateMission6RaceProgress(deltaTime: TimeInterval) {
@@ -2076,6 +2123,8 @@ final class Scene: @unchecked Sendable {
 
 	private func clearMission6RaceSpawnedCars() {
 		mission6RaceAICars.removeAll()
+		mission6RaceCircuitDebugNode?.removeFromParentNode()
+		mission6RaceCircuitDebugNode = nil
 		for carNode in mission6RaceSpawnedCars {
 			unregisterNodeTree(carNode)
 			carNode.removeFromParentNode()
@@ -2105,8 +2154,10 @@ final class Scene: @unchecked Sendable {
 			  let startNode = rootNode.mafiaChildNode(named: "start0", recursively: true),
 			  let route = mission6RaceAIRoute(checkpoints: checkpoints, startNode: startNode),
 			  route.count > 2 else {
+			clearMission6RaceCircuitDebug()
 			return
 		}
+		configureMission6RaceCircuitDebug(checkpoints: checkpoints)
 		let routeLength = mission6RaceRouteLength(route)
 		let bestLapTime = settings.circuit?.bestTimes.first.flatMap { value -> Float? in
 			value > 0 ? Float(value) / 1000 : nil
@@ -2186,6 +2237,71 @@ final class Scene: @unchecked Sendable {
 		if abs(tangent.x) > 0.001 || abs(tangent.z) > 0.001 {
 			node.eulerAngles.y = atan2(tangent.x, tangent.z)
 		}
+	}
+
+	func setMission6RaceDebugVisible(_ isVisible: Bool) {
+		mission6RaceCircuitDebugNode?.isHidden = !isVisible
+	}
+
+	private func clearMission6RaceCircuitDebug() {
+		mission6RaceCircuitDebugNode?.removeFromParentNode()
+		mission6RaceCircuitDebugNode = nil
+	}
+
+	private func configureMission6RaceCircuitDebug(checkpoints: Mission6Checkpoints) {
+		clearMission6RaceCircuitDebug()
+
+		var vertices: [SCNVector3] = []
+		var indices: [Int32] = []
+		var drawnConnections = Set<Int64>()
+
+		for checkpoint in checkpoints.checkpoints {
+			for link in checkpoint.links {
+				let linkedIndex = Int(link.checkpointIndex)
+				guard checkpoints.checkpoints.indices.contains(linkedIndex) else { continue }
+
+				let lowIndex = min(checkpoint.index, linkedIndex)
+				let highIndex = max(checkpoint.index, linkedIndex)
+				let connectionKey = (Int64(lowIndex) << 32) | Int64(highIndex)
+				guard !drawnConnections.contains(connectionKey) else { continue }
+				drawnConnections.insert(connectionKey)
+
+				let linkedCheckpoint = checkpoints.checkpoints[linkedIndex]
+				let vertexIndex = Int32(vertices.count)
+				vertices.append(mission6RaceDebugPosition(checkpoint.position))
+				vertices.append(mission6RaceDebugPosition(linkedCheckpoint.position))
+				indices.append(vertexIndex)
+				indices.append(vertexIndex + 1)
+			}
+		}
+
+		guard !vertices.isEmpty else { return }
+
+		let source = SCNGeometrySource(vertices: vertices)
+		let element = SCNGeometryElement(indices: indices, primitiveType: .line)
+		let geometry = SCNGeometry(sources: [source], elements: [element])
+		geometry.firstMaterial = Game.debugMaterial(color: .yellow)
+
+		let node = SCNNode(geometry: geometry)
+		node.name = "__mission6_race_circuit_debug__"
+		node.isHidden = !(game?.areCollisionWireframesVisible ?? false)
+
+		let markerMaterial = Game.debugMaterial(color: .orange, fillMode: .fill)
+		for checkpoint in checkpoints.checkpoints where checkpoint.type == 8 {
+			let marker = SCNSphere(radius: 0.55)
+			marker.firstMaterial = markerMaterial
+			let markerNode = SCNNode(geometry: marker)
+			markerNode.name = "__mission6_race_control_\(checkpoint.index)__"
+			markerNode.position = mission6RaceDebugPosition(checkpoint.position)
+			node.addChildNode(markerNode)
+		}
+
+		rootNode.addChildNode(node)
+		mission6RaceCircuitDebugNode = node
+	}
+
+	private func mission6RaceDebugPosition(_ position: SCNVector3) -> SCNVector3 {
+		SCNVector3(x: position.x, y: position.y + 1.25, z: position.z)
 	}
 
 	private func mission6RaceAIRoute(checkpoints: Mission6Checkpoints, startNode: SCNNode) -> [SCNVector3]? {
@@ -2474,7 +2590,9 @@ final class Scene: @unchecked Sendable {
 		}
 		for differenceFile in loadedDifferenceFiles.values {
 			unregisterNodeTree(differenceFile.rootNode)
-			differenceFile.rootNode.removeFromParentNode()
+			if differenceFile.rootNode.parent != nil {
+				differenceFile.rootNode.removeFromParentNode()
+			}
 		}
 		loadedDifferenceFiles.removeAll()
 
@@ -4147,8 +4265,10 @@ final class Scene: @unchecked Sendable {
 			)
 		}
 
-		cameraContainer.removeFromParentNode()
-		game.scnScene.rootNode.addChildNode(cameraContainer)
+		if cameraContainer.parent !== game.scnScene.rootNode {
+			cameraContainer.removeFromParentNode()
+			game.scnScene.rootNode.addChildNode(cameraContainer)
+		}
 		cameraContainer.transform = recordCameraRestore?.transform ?? cameraContainer.transform
 		game.cameraNode.position = SCNVector3Zero
 		game.cameraNode.eulerAngles = SCNVector3(x: 0, y: 0, z: .pi)
@@ -4240,7 +4360,9 @@ final class Scene: @unchecked Sendable {
 		activeRecordPlaybacks.removeAll()
 		for propNode in activeRecordPropNodes {
 			unregisterNodeTree(propNode)
-			propNode.removeFromParentNode()
+			if propNode.parent != nil {
+				propNode.removeFromParentNode()
+			}
 		}
 		activeRecordPropNodes.removeAll()
 		for restore in activeRecordTransformRestores.values {
@@ -5061,6 +5183,10 @@ private extension SCNNode {
 	}
 
 	var flattenedChildNodes: [SCNNode] {
-		return childNodes + childNodes.flatMap { $0.flattenedChildNodes }
+		var nodes: [SCNNode] = []
+		enumerateChildNodes { node, _ in
+			nodes.append(node)
+		}
+		return nodes
 	}
 }

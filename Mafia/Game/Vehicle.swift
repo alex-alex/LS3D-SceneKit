@@ -376,8 +376,10 @@ final class Vehicle {
 	private static func attachChassisVisuals(from vehicleRoot: SCNNode, to chassisNode: SCNNode) {
 		let detachedWheelNames: Set<String> = ["whl0", "whr0", "whl1", "whr1"]
 
-		for childNode in vehicleRoot.childNodes {
+		let childNodes = vehicleRoot.childNodes
+		for childNode in childNodes {
 			guard childNode !== chassisNode else { continue }
+			guard childNode.parent !== chassisNode else { continue }
 			guard !detachedWheelNames.contains(childNode.name?.lowercased() ?? "") else { continue }
 
 			let worldTransform = childNode.worldTransform
@@ -400,7 +402,9 @@ final class Vehicle {
 		chassisNode.transform = parentNode.convertTransform(chassisWorldTransform, from: nil)
 
 		for (wheelNode, worldTransform) in zip(wheelNodes, wheelWorldTransforms) {
-			chassisNode.addChildNode(wheelNode)
+			if wheelNode.parent !== chassisNode {
+				chassisNode.addChildNode(wheelNode)
+			}
 			wheelNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
 		}
 	}
@@ -910,6 +914,7 @@ private final class VehicleAudio: @unchecked Sendable {
 		player.didFinishPlayback = { [weak self, weak node, weak player] in
 			guard let player = player else { return }
 			DispatchQueue.main.async {
+				player.didFinishPlayback = nil
 				node?.removeAudioPlayer(player)
 				self?.oneShotPlayers.removeAll { $0 === player }
 			}

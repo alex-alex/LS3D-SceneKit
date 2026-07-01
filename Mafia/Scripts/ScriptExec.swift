@@ -2527,6 +2527,20 @@ extension Script {
 
 	private func racing_mission6_start(_ args: [Argument]) {
 		let varId = args[0].getValueOrVarValue(vars: vars)
+		if let playerRaceCar = scene.node(named: "racing_car0") {
+			DispatchQueue.main.async { [weak self] in
+				guard let self = self else { return }
+				self.scene.game.enterScriptedVehicle(playerRaceCar)
+				self.queue.async {
+					self.startMission6Race(varId: varId)
+				}
+			}
+			return
+		}
+		startMission6Race(varId: varId)
+	}
+
+	private func startMission6Race(varId: Int) {
 		scene.mission6RaceState.start(script: self, varId: varId) { [weak self] in
 			self?.queue.async {
 				self?.next()

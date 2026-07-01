@@ -516,7 +516,9 @@ extension Game {
 		playerNode.disablePhysicsInHierarchy()
 
 		let seatPosition = playerSeatPosition(in: vehicle.node)
-		vehicle.node.addChildNode(playerNode)
+		if playerNode.parent !== vehicle.node {
+			vehicle.node.addChildNode(playerNode)
+		}
 		playerNode.position = seatPosition
 		let yaw = vehicleYaw()
 		if let playerController = playerController {

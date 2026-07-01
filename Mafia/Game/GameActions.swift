@@ -120,6 +120,7 @@ extension Game {
 			.mafiaChildNode(named: "__collisions__", recursively: false)?
 			.setCollisionWireframesVisible(areCollisionWireframesVisible)
 		roadDebugNode?.isHidden = !areCollisionWireframesVisible
+		scene.setMission6RaceDebugVisible(areCollisionWireframesVisible)
 		vehicle?.setCollisionDebugVisible(areCollisionWireframesVisible)
 		playerController?.setDebugVisualsVisible(areCollisionWireframesVisible)
 		let message = "Collision wireframes \(areCollisionWireframesVisible ? "on" : "off")"
@@ -674,6 +675,22 @@ extension Game {
 	}
 
 	func updateNPCHealthLabels() {
+		guard Thread.isMainThread else {
+			npcHumanNodeSnapshotLock.lock()
+			let shouldScheduleUpdate = !isNPCHealthLabelUpdateScheduled
+			if shouldScheduleUpdate {
+				isNPCHealthLabelUpdateScheduled = true
+			}
+			npcHumanNodeSnapshotLock.unlock()
+
+			if shouldScheduleUpdate {
+				DispatchQueue.main.async {
+					self.updateNPCHealthLabels()
+				}
+			}
+			return
+		}
+
 		var visibleHumanIds = Set<ObjectIdentifier>()
 		for humanNode in npcHumanNodes() {
 			let id = ObjectIdentifier(humanNode)
@@ -692,11 +709,44 @@ extension Game {
 			npcHealthLabelNodes[id]?.removeFromParentNode()
 			npcHealthLabelNodes[id] = nil
 		}
+		npcHumanNodeSnapshotLock.lock()
+		isNPCHealthLabelUpdateScheduled = false
+		npcHumanNodeSnapshotLock.unlock()
 	}
 
 	func npcHumanNodes() -> [SCNNode] {
+		guard Thread.isMainThread else {
+			return currentNPCHumanNodeSnapshot()
+		}
+
+		return refreshNPCHumanNodeSnapshot()
+	}
+
+	func currentNPCHumanNodeSnapshot() -> [SCNNode] {
+		npcHumanNodeSnapshotLock.lock()
+		let nodes = npcHumanNodeSnapshot
+		let shouldScheduleUpdate = !isNPCHumanNodeSnapshotUpdateScheduled
+		if shouldScheduleUpdate {
+			isNPCHumanNodeSnapshotUpdateScheduled = true
+		}
+		npcHumanNodeSnapshotLock.unlock()
+
+		if shouldScheduleUpdate {
+			DispatchQueue.main.async {
+				self.refreshNPCHumanNodeSnapshot()
+			}
+		}
+		return nodes
+	}
+
+	@discardableResult
+	func refreshNPCHumanNodeSnapshot() -> [SCNNode] {
 		var nodes: [SCNNode] = []
 		collectNPCHumanNodes(in: scene.rootNode, nodes: &nodes)
+		npcHumanNodeSnapshotLock.lock()
+		npcHumanNodeSnapshot = nodes
+		isNPCHumanNodeSnapshotUpdateScheduled = false
+		npcHumanNodeSnapshotLock.unlock()
 		return nodes
 	}
 
