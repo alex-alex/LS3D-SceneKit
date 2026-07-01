@@ -50,6 +50,7 @@ struct Mission6CarcyclopediaRecord {
 
 struct Mission6CarIndexRecord {
 	let index: Int
+	let key: String
 	let modelName: String
 	let shadowModelName: String?
 	let displayName: String?
@@ -60,7 +61,7 @@ struct Mission6CarIndexRecord {
 final class Mission6RaceTables {
 	private static let circuitRecordSize = 0x88
 	private static let championshipRecordSize = 0xb8
-	private static let carIndexRecordSize = 0xa8
+	private static let carIndexRecordSize = 0xa4
 	private static let carcyclopediaRecordSize = 0xcc
 	private static let nativeRaceSlotCount = 7
 	private static let nativeChampionshipSlotCount = 10
@@ -159,13 +160,13 @@ final class Mission6RaceTables {
 		loadedRecords.reserveCapacity(recordCount)
 		for index in 0..<recordCount {
 			let offset = index * carIndexRecordSize
-			let embeddedStrings = data.mission6RaceEmbeddedStrings(at: offset, length: carIndexRecordSize)
 			loadedRecords.append(Mission6CarIndexRecord(
 				index: index,
-				modelName: embeddedStrings.first ?? "",
-				shadowModelName: embeddedStrings.dropFirst().first,
-				displayName: embeddedStrings.dropFirst(2).first,
-				nativeCollectionMask: data.mission6RaceReadUInt32LE(at: offset + 0x88),
+				key: data.mission6RaceReadNullTerminatedString(at: offset, length: 0x20),
+				modelName: data.mission6RaceReadNullTerminatedString(at: offset + 0x20, length: 0x20),
+				shadowModelName: data.mission6RaceReadNullTerminatedString(at: offset + 0x40, length: 0x20),
+				displayName: data.mission6RaceReadNullTerminatedString(at: offset + 0x60, length: 0x40),
+				nativeCollectionMask: data.mission6RaceReadUInt32LE(at: offset + 0xa0),
 				rawFields: data.mission6RaceReadUInt32LEArray(at: offset, count: carIndexRecordSize / 4)
 			))
 		}

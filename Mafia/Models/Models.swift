@@ -93,48 +93,10 @@ private let imageCache = ModelImageCache()
 #endif
 
 final class ModelLoader: @unchecked Sendable {
-	private let lock = NSLock()
-	private var cachedNodesByURL: [URL: SCNNode] = [:]
-
 	@discardableResult
 	func loadModel(named name: String, node: SCNNode = SCNNode()) throws -> SCNNode {
 		guard let url = resolvedModelURL(named: name) else { return node }
-		if let cachedNode = cachedNode(for: url) {
-			return copyModelContents(from: cachedNode.clone(), to: node)
-		}
-
-		let loadedNode = try ModelLoadParser().loadModel(at: url, named: name, node: SCNNode())
-		storeCachedNode(loadedNode, for: url)
-		return copyModelContents(from: loadedNode.clone(), to: node)
-	}
-
-	private func cachedNode(for url: URL) -> SCNNode? {
-		lock.lock()
-		defer { lock.unlock() }
-		return cachedNodesByURL[url]
-	}
-
-	private func storeCachedNode(_ node: SCNNode, for url: URL) {
-		lock.lock()
-		defer { lock.unlock() }
-		if cachedNodesByURL[url] == nil {
-			cachedNodesByURL[url] = node
-		}
-	}
-
-	private func copyModelContents(from sourceNode: SCNNode, to targetNode: SCNNode) -> SCNNode {
-		targetNode.geometry = sourceNode.geometry
-		targetNode.morpher = sourceNode.morpher
-		targetNode.skinner = sourceNode.skinner
-		for childNode in sourceNode.childNodes {
-			targetNode.addChildNode(childNode.clone())
-		}
-		for animationKey in sourceNode.animationKeys {
-			if let animation = sourceNode.animation(forKey: animationKey) {
-				targetNode.addAnimation(animation, forKey: animationKey)
-			}
-		}
-		return targetNode
+		return try ModelLoadParser().loadModel(at: url, named: name, node: node)
 	}
 
 	private func resolvedModelURL(named name: String) -> URL? {
