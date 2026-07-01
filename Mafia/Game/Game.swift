@@ -39,6 +39,7 @@ final class MissionTransitionState: @unchecked Sendable {
 	private let lock = NSLock()
 	private var characters: [Int: MissionTransitionCharacterState] = [:]
 	private var inventories: [Int: [MissionTransitionWeaponState]] = [:]
+	private var missionNumber = 0
 
 	func pushCharacter(_ state: MissionTransitionCharacterState, actorId: Int) {
 		lock.lock()
@@ -63,6 +64,26 @@ final class MissionTransitionState: @unchecked Sendable {
 		lock.lock()
 		defer { lock.unlock() }
 		return inventories[actorId]?.map { $0.makeWeapon() }
+	}
+
+	func setMissionNumber(_ value: Int) {
+		lock.lock()
+		defer { lock.unlock() }
+		missionNumber = value
+	}
+
+	func getMissionNumber() -> Int {
+		lock.lock()
+		defer { lock.unlock() }
+		return missionNumber
+	}
+
+	func setMissionNumberIfDefault(_ value: Int) {
+		lock.lock()
+		defer { lock.unlock() }
+		if missionNumber == 0 {
+			missionNumber = value
+		}
 	}
 }
 
@@ -311,6 +332,9 @@ final class Game: NSObject, @unchecked Sendable {
 		self.transitionFrameName = transitionFrameName
 		self.transitionVehicleSpeed = transitionVehicleSpeed
 		self.missionTransitionState = missionTransitionState
+		if let missionNumber = Self.initialScriptMissionNumber(for: missionName) {
+			missionTransitionState.setMissionNumberIfDefault(missionNumber)
+		}
 		progressHandler?(0.05)
 		scnScene.rootNode.name = "__root__"
 		ambientLightNode.name = "__ambient_environment__"
@@ -453,6 +477,15 @@ final class Game: NSObject, @unchecked Sendable {
 		skyboxNodes = scnScene.rootNode.skyboxNodes(relativeTo: cameraNode.presentation.worldPosition)
 		updateSkyboxPosition()
 		progressHandler?(1)
+	}
+
+	private static func initialScriptMissionNumber(for missionName: String) -> Int? {
+		switch missionName.lowercased() {
+		case "mise06-autodrom":
+			return 30131
+		default:
+			return nil
+		}
 	}
 
 }

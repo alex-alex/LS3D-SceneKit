@@ -67,7 +67,7 @@ final class MissionEffects {
 		effects = loadedEffects
 	}
 
-	private static func makeNode(for effect: MissionEffect) -> SCNNode {
+	static func makeNode(for effect: MissionEffect) -> SCNNode {
 		let effectNode = SCNNode()
 		effectNode.name = "__mission_effect_\(effect.id)_\(effectName(for: effect.id))__"
 		effectNode.position = effect.position

@@ -469,6 +469,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 	let recordSourcePosition = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let recordSourceOrientationVector = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 	let areaBounds = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
+	let nativeSceneObjectIndex = UnsafeMutablePointer<UInt8>.allocate(capacity: 1)
 
 	init() {
 		nodeType.initialize(to: 0)
@@ -488,6 +489,7 @@ private final class SCNNodeAssociatedObjectKeys: @unchecked Sendable {
 		recordSourcePosition.initialize(to: 0)
 		recordSourceOrientationVector.initialize(to: 0)
 		areaBounds.initialize(to: 0)
+		nativeSceneObjectIndex.initialize(to: 0)
 	}
 }
 
@@ -668,6 +670,24 @@ extension SCNNode {
 				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.areaBounds, newValue, .OBJC_ASSOCIATION_RETAIN)
 			} else {
 				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.areaBounds, nil, .OBJC_ASSOCIATION_RETAIN)
+			}
+		}
+	}
+
+	var nativeSceneObjectIndex: Int? {
+		get {
+			return (objc_getAssociatedObject(self, scnNodeAssociatedObjectKeys.nativeSceneObjectIndex) as? NSNumber)?.intValue
+		}
+		set {
+			if let newValue = newValue {
+				objc_setAssociatedObject(
+					self,
+					scnNodeAssociatedObjectKeys.nativeSceneObjectIndex,
+					NSNumber(value: newValue),
+					.OBJC_ASSOCIATION_RETAIN
+				)
+			} else {
+				objc_setAssociatedObject(self, scnNodeAssociatedObjectKeys.nativeSceneObjectIndex, nil, .OBJC_ASSOCIATION_RETAIN)
 			}
 		}
 	}
