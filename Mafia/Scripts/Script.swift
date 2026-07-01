@@ -575,6 +575,13 @@ final class Script: @unchecked Sendable {
 		}
 	}
 
+	func setVariable(_ varId: Int, to value: Float, completion: (() -> Void)? = nil) {
+		queue.async {
+			self.vars[varId] = value
+			completion?()
+		}
+	}
+
 	private func interruptWaitForQueuedEvent() {
 		guard !isPaused,
 			  canRunForActorState(),
