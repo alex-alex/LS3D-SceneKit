@@ -58,6 +58,7 @@ extension Game: SCNSceneRendererDelegate {
 		updateEnvironment(deltaTime: deltaTime)
 		updateCityMusic(deltaTime: deltaTime)
 		trafficManager?.update(deltaTime: deltaTime, playerPosition: playerReferencePosition())
+		scene.updateMission6RaceProgress(deltaTime: deltaTime)
 		updatePlayerFollowTrail()
 		updateHostileNPCs(deltaTime: deltaTime, time: time)
 

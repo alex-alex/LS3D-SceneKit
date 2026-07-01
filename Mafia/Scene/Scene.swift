@@ -182,6 +182,683 @@ struct CityMusicRegion {
 	let musicId: String
 }
 
+struct Mission6RaceSettings {
+	let lapCount: Int
+	let participantCount: Int
+	let circuitIndex: Int
+	let participantSourceId: Int
+	let playerParticipantVehicleRecordId: Int?
+	let participantVehicleRecordIds: [Int]
+	let participants: [Mission6RaceParticipant]
+	let checkpoints: Mission6Checkpoints?
+	let circuit: Mission6RaceCircuit?
+	let nativeDifferenceName: String
+	let nativeDifferenceFileName: String
+	let nativeDifferenceExists: Bool
+	let nativeRecordName: String
+	let nativeRecordRelativePath: String
+	let nativeRecordExists: Bool
+	let participantSourceRecord: Mission6CarcyclopediaRecord?
+	let participantSourceCarIndexRecord: Mission6CarIndexRecord?
+	let participantSourceCollectionMask: UInt32?
+	let participantSourceSelectedCollectionMask: UInt32?
+	let participantProfiles: [Mission6RaceParticipantProfile]
+}
+
+struct Mission6RaceParticipant {
+	let slotIndex: Int
+	let vehicleRecordId: Int
+	let isPlayer: Bool
+	let nativeRequestedProfileIndex: Int
+	let nativeProfileIndex: Int?
+	let profileName: String?
+	let vehicleClass: UInt32?
+	let skillMultiplier: Float?
+	let initialEnergy: Int
+	let isActive: Bool
+	let isFinished: Bool
+	let finishTimeMilliseconds: Int?
+	let finishOrder: Int?
+}
+
+struct Mission6RaceHudStats: Sendable {
+	let elapsedMilliseconds: Int
+	let lapElapsedMilliseconds: Int
+	let bestLapMilliseconds: Int?
+	let position: Int
+	let participantCount: Int
+	let currentLap: Int
+	let lapCount: Int
+	let countdownText: String?
+}
+
+private struct Mission6RaceAICar {
+	weak var node: SCNNode?
+	let slotIndex: Int
+	var route: [SCNVector3]
+	var segmentIndex: Int
+	var segmentProgress: Float
+	let speed: Float
+	var completedLaps: Int
+	var isFinished: Bool
+}
+
+final class Mission6RaceState: @unchecked Sendable {
+	private static let countdownDurationMilliseconds = 3000
+	private static let goMessageDurationMilliseconds = 1000
+	private static let movedBoxRaceId = 0x1d97c
+	private static let nativePlayerParticipantVehicleRecordId = 0x2b
+	private static let nativeCollectionRecordType: UInt32 = 0x02000000
+	private static let routeSearchLimit = 4096
+	private static let routeNearestWindow = 12
+
+	private struct RaceFrameRecord {
+		weak var node: SCNNode?
+		var raceId: Int
+	}
+
+	private struct RaceStatusBinding {
+		weak var script: Script?
+		var varId: Int
+		var completion: (() -> Void)?
+	}
+
+	private struct RaceProgressState {
+		let route: [Int]?
+		let startPosition: SCNVector3
+		let startForward: SCNVector3
+		var lastRouteIndex: Int?
+		var lastStartPlaneDistance: Float
+		var maxDistanceFromStart: Float
+		var completedLaps: Int
+		var hasFinished: Bool
+		var elapsedMilliseconds: Int
+		var lapElapsedMilliseconds: Int
+		var bestLapMilliseconds: Int?
+	}
+
+	private let lock = NSLock()
+	private var settings: Mission6RaceSettings?
+	private var statusValue: Int?
+	private var hasStarted = false
+	private var isRaceClockActive = false
+	private var countdownRemainingMilliseconds: Int?
+	private var goMessageRemainingMilliseconds = 0
+	private var progressState: RaceProgressState?
+	private var boxRecords: [ObjectIdentifier: RaceFrameRecord] = [:]
+	private var destinationRecords: [ObjectIdentifier: RaceFrameRecord] = [:]
+	private var boxOrder: [ObjectIdentifier] = []
+	private var destinationOrder: [ObjectIdentifier] = []
+	private var statusBindings: [RaceStatusBinding] = []
+
+	func configure(
+		lapCount: Int,
+		participantCount: Int,
+		circuitIndex: Int,
+		participantSourceId: Int,
+		sceneName: String,
+		checkpoints: Mission6Checkpoints?,
+		circuit: Mission6RaceCircuit?,
+		participantSourceRecord: Mission6CarcyclopediaRecord?,
+		participantSourceCarIndexRecord: Mission6CarIndexRecord?,
+		participantProfiles: [Mission6RaceParticipantProfile]
+	) {
+		lock.lock()
+		defer { lock.unlock() }
+		let participantVehicleRecordIds = Self.participantVehicleRecordIds(
+			participantCount: participantCount,
+			participantSourceId: participantSourceId,
+			participantSourceRecord: participantSourceRecord
+		)
+		let nativeDifferenceName = Self.nativeDifferenceName(sceneName: sceneName)
+		let nativeDifferenceFileName = Self.nativeDifferenceFileName(name: nativeDifferenceName)
+		let participantSourceCollectionMask = participantSourceCarIndexRecord?.nativeCollectionMask
+		settings = Mission6RaceSettings(
+			lapCount: lapCount,
+			participantCount: participantCount,
+			circuitIndex: circuitIndex,
+			participantSourceId: participantSourceId,
+			playerParticipantVehicleRecordId: participantCount > 0 ? Self.nativePlayerParticipantVehicleRecordId : nil,
+			participantVehicleRecordIds: participantVehicleRecordIds,
+			participants: Self.participants(
+				vehicleRecordIds: participantVehicleRecordIds,
+				participantProfiles: participantProfiles
+			),
+			checkpoints: checkpoints,
+			circuit: circuit,
+			nativeDifferenceName: nativeDifferenceName,
+			nativeDifferenceFileName: nativeDifferenceFileName,
+			nativeDifferenceExists: Self.nativeDifferenceExists(fileName: nativeDifferenceFileName),
+			nativeRecordName: Self.nativeRecordName,
+			nativeRecordRelativePath: Self.nativeRecordRelativePath,
+			nativeRecordExists: Self.nativeRecordExists(relativePath: Self.nativeRecordRelativePath),
+			participantSourceRecord: participantSourceRecord,
+			participantSourceCarIndexRecord: participantSourceCarIndexRecord,
+			participantSourceCollectionMask: participantSourceCollectionMask,
+			participantSourceSelectedCollectionMask: participantSourceCollectionMask.map(Self.lowestSetBitMask),
+			participantProfiles: participantProfiles
+		)
+		statusValue = nil
+		hasStarted = false
+		isRaceClockActive = false
+		countdownRemainingMilliseconds = nil
+		goMessageRemainingMilliseconds = 0
+		progressState = nil
+	}
+
+	func start(script: Script, varId: Int, completion: @escaping () -> Void) {
+		let value: Int?
+		let shouldCompleteImmediately: Bool
+		lock.lock()
+		statusBindings = statusBindings.filter { $0.script != nil }
+		value = settings == nil ? 3 : statusValue
+		if settings != nil {
+			hasStarted = true
+			isRaceClockActive = false
+			countdownRemainingMilliseconds = Self.countdownDurationMilliseconds
+			goMessageRemainingMilliseconds = 0
+		}
+		shouldCompleteImmediately = value.map(Self.isTerminalStatusValue) == true
+		if !shouldCompleteImmediately,
+		   !statusBindings.contains(where: { $0.script === script && $0.varId == varId }) {
+			statusBindings.append(RaceStatusBinding(script: script, varId: varId, completion: completion))
+		}
+		lock.unlock()
+		if let value, shouldCompleteImmediately {
+			script.setVariable(varId, to: Float(value), completion: shouldCompleteImmediately ? completion : nil)
+		} else if shouldCompleteImmediately {
+			completion()
+		}
+	}
+
+	func setStatusValue(_ value: Int) {
+		let bindings: [RaceStatusBinding]
+		let isTerminalStatusValue: Bool
+		lock.lock()
+		statusValue = value
+		statusBindings = statusBindings.filter { $0.script != nil }
+		bindings = statusBindings
+		isTerminalStatusValue = Self.isTerminalStatusValue(value)
+		if isTerminalStatusValue {
+			statusBindings.removeAll()
+		}
+		lock.unlock()
+		for binding in bindings {
+			binding.script?.setVariable(
+				binding.varId,
+				to: Float(value),
+				completion: isTerminalStatusValue ? binding.completion : nil
+			)
+		}
+	}
+
+	func settingsSnapshot() -> Mission6RaceSettings? {
+		lock.lock()
+		defer { lock.unlock() }
+		return settings
+	}
+
+	func isStartedSnapshot() -> Bool {
+		lock.lock()
+		defer { lock.unlock() }
+		return isRaceClockActive && statusValue == nil
+	}
+
+	func failIfRaceStarted() {
+		lock.lock()
+		let shouldFail = hasStarted && statusValue == nil
+		lock.unlock()
+		if shouldFail {
+			setStatusValue(0)
+		}
+	}
+
+	func prepareProgress(startPosition: SCNVector3, startForward: SCNVector3) {
+		lock.lock()
+		defer { lock.unlock() }
+		let route = settings?.checkpoints.flatMap {
+			Self.buildRoute(checkpoints: $0, startPosition: startPosition, startForward: startForward)
+		}
+		progressState = RaceProgressState(
+			route: route,
+			startPosition: startPosition,
+			startForward: Self.horizontalNormalized(startForward),
+			lastRouteIndex: route == nil ? nil : 0,
+			lastStartPlaneDistance: Self.startPlaneDistance(position: startPosition, progressState: nil, startPosition: startPosition, startForward: startForward),
+			maxDistanceFromStart: 0,
+			completedLaps: 0,
+			hasFinished: false,
+			elapsedMilliseconds: 0,
+			lapElapsedMilliseconds: 0,
+			bestLapMilliseconds: nil
+		)
+	}
+
+	func advanceCountdown(deltaTime: TimeInterval) {
+		lock.lock()
+		defer { lock.unlock() }
+		guard hasStarted, statusValue == nil else { return }
+		let elapsedDeltaMilliseconds = Self.elapsedMilliseconds(deltaTime: deltaTime)
+		if let remainingMilliseconds = countdownRemainingMilliseconds {
+			let nextRemainingMilliseconds = remainingMilliseconds - elapsedDeltaMilliseconds
+			if nextRemainingMilliseconds <= 0 {
+				countdownRemainingMilliseconds = nil
+				isRaceClockActive = true
+				goMessageRemainingMilliseconds = Self.goMessageDurationMilliseconds
+			} else {
+				countdownRemainingMilliseconds = nextRemainingMilliseconds
+			}
+			return
+		}
+		if goMessageRemainingMilliseconds > 0 {
+			goMessageRemainingMilliseconds = max(0, goMessageRemainingMilliseconds - elapsedDeltaMilliseconds)
+		}
+	}
+
+	func updatePlayerProgress(position: SCNVector3, deltaTime: TimeInterval) {
+		lock.lock()
+		guard isRaceClockActive,
+			  statusValue == nil,
+			  let settings,
+			  var progressState,
+			  !progressState.hasFinished,
+			  settings.lapCount > 0 else {
+			lock.unlock()
+			return
+		}
+		let elapsedDeltaMilliseconds = Self.elapsedMilliseconds(deltaTime: deltaTime)
+		progressState.elapsedMilliseconds += elapsedDeltaMilliseconds
+		progressState.lapElapsedMilliseconds += elapsedDeltaMilliseconds
+		let previousCompletedLaps = progressState.completedLaps
+		if let route = progressState.route,
+		   let lastRouteIndex = progressState.lastRouteIndex,
+		   let checkpoints = settings.checkpoints,
+		   let routeIndex = Self.nearestRouteIndex(
+			to: position,
+			checkpoints: checkpoints,
+			route: route,
+			lastRouteIndex: lastRouteIndex
+		   ) {
+			let routeCount = route.count
+			let rawDelta = routeIndex - lastRouteIndex
+			let forwardDelta = rawDelta < -(routeCount / 2) ? rawDelta + routeCount : rawDelta
+			let delta = forwardDelta > routeCount / 2 ? forwardDelta - routeCount : forwardDelta
+			if delta > 0, routeIndex < lastRouteIndex {
+				progressState.completedLaps += 1
+			} else if delta < 0, routeIndex > lastRouteIndex, progressState.completedLaps > 0 {
+				progressState.completedLaps -= 1
+			}
+			progressState.lastRouteIndex = routeIndex
+		} else if Self.updateStartGateProgress(position: position, progressState: &progressState) {
+			progressState.completedLaps += 1
+		}
+		if progressState.completedLaps > previousCompletedLaps {
+			let completedLapMilliseconds = progressState.lapElapsedMilliseconds
+			if completedLapMilliseconds > 0 {
+				if let bestLapMilliseconds = progressState.bestLapMilliseconds {
+					progressState.bestLapMilliseconds = min(bestLapMilliseconds, completedLapMilliseconds)
+				} else {
+					progressState.bestLapMilliseconds = completedLapMilliseconds
+				}
+			}
+			progressState.lapElapsedMilliseconds = 0
+		}
+
+		let didFinish = progressState.completedLaps >= settings.lapCount
+		if didFinish {
+			progressState.hasFinished = true
+		}
+		self.progressState = progressState
+		lock.unlock()
+
+		if didFinish {
+			complete(nativePlayerFinishOrder: 1)
+		}
+	}
+
+	func complete(nativePlayerFinishOrder: Int) {
+		setStatusValue(Self.scriptStatusValue(forNativePlayerFinishOrder: nativePlayerFinishOrder))
+	}
+
+	func hudStats(opponentCompletedLaps: [Int]) -> Mission6RaceHudStats? {
+		lock.lock()
+		defer { lock.unlock() }
+		guard hasStarted,
+			  statusValue == nil,
+			  let settings,
+			  let progressState else {
+			return nil
+		}
+		let completedLaps = min(progressState.completedLaps, max(0, settings.lapCount))
+		let currentLap = settings.lapCount > 0 ? min(completedLaps + 1, settings.lapCount) : 0
+		let position = 1 + opponentCompletedLaps.filter { $0 > progressState.completedLaps }.count
+		return Mission6RaceHudStats(
+			elapsedMilliseconds: progressState.elapsedMilliseconds,
+			lapElapsedMilliseconds: progressState.lapElapsedMilliseconds,
+			bestLapMilliseconds: progressState.bestLapMilliseconds,
+			position: max(1, min(position, max(1, settings.participants.count))),
+			participantCount: max(1, settings.participants.count),
+			currentLap: currentLap,
+			lapCount: max(0, settings.lapCount),
+			countdownText: countdownText()
+		)
+	}
+
+	func registerBox(_ node: SCNNode, raceId: Int) {
+		lock.lock()
+		defer { lock.unlock() }
+		let key = ObjectIdentifier(node)
+		if let record = boxRecords[key] {
+			if record.raceId == Self.movedBoxRaceId {
+				boxRecords[key]?.raceId = raceId
+			}
+			return
+		}
+		boxRecords[key] = RaceFrameRecord(node: node, raceId: raceId)
+		boxOrder.append(key)
+	}
+
+	func registerDestination(_ node: SCNNode, raceId: Int) {
+		lock.lock()
+		defer { lock.unlock() }
+		let key = ObjectIdentifier(node)
+		if destinationRecords[key] != nil {
+			return
+		}
+		destinationRecords[key] = RaceFrameRecord(node: node, raceId: raceId)
+		destinationOrder.append(key)
+	}
+
+	func countBoxes(raceId: Int) -> Int {
+		lock.lock()
+		defer { lock.unlock() }
+		return countRecords(&boxRecords, raceId: raceId)
+	}
+
+	func countDestinations(raceId: Int) -> Int {
+		lock.lock()
+		defer { lock.unlock() }
+		return countRecords(&destinationRecords, raceId: raceId)
+	}
+
+	func moveBoxToDestination(raceId: Int) -> (box: SCNNode, destination: SCNNode)? {
+		lock.lock()
+		defer { lock.unlock() }
+		pruneDeadRecords()
+		guard let boxKey = boxOrder.last(where: { boxRecords[$0]?.raceId == raceId }),
+			  let boxNode = boxRecords[boxKey]?.node,
+			  let destinationKey = destinationOrder.last(where: { destinationRecords[$0]?.raceId == raceId }),
+			  let destinationNode = destinationRecords[destinationKey]?.node else {
+			return nil
+		}
+		boxRecords.removeValue(forKey: boxKey)
+		boxOrder.removeAll { $0 == boxKey }
+		return (boxNode, destinationNode)
+	}
+
+	func clear() {
+		let bindings: [RaceStatusBinding]
+		lock.lock()
+		settings = nil
+		statusValue = nil
+		hasStarted = false
+		isRaceClockActive = false
+		countdownRemainingMilliseconds = nil
+		goMessageRemainingMilliseconds = 0
+		progressState = nil
+		statusBindings = statusBindings.filter { $0.script != nil }
+		bindings = statusBindings
+		boxRecords.removeAll()
+		destinationRecords.removeAll()
+		boxOrder.removeAll()
+		destinationOrder.removeAll()
+		statusBindings.removeAll()
+		lock.unlock()
+		for binding in bindings {
+			binding.script?.setVariable(binding.varId, to: 3, completion: binding.completion)
+		}
+	}
+
+	private func countRecords(_ records: inout [ObjectIdentifier: RaceFrameRecord], raceId: Int) -> Int {
+		records = records.filter { _, record in record.node != nil }
+		return records.values.filter { $0.raceId == raceId }.count
+	}
+
+	private func pruneDeadRecords() {
+		boxRecords = boxRecords.filter { _, record in record.node != nil }
+		destinationRecords = destinationRecords.filter { _, record in record.node != nil }
+		boxOrder = boxOrder.filter { boxRecords[$0] != nil }
+		destinationOrder = destinationOrder.filter { destinationRecords[$0] != nil }
+	}
+
+	private func countdownText() -> String? {
+		if let remainingMilliseconds = countdownRemainingMilliseconds {
+			let second = max(1, min(3, Int(ceil(Double(remainingMilliseconds) / 1000))))
+			return "\(second)"
+		}
+		if goMessageRemainingMilliseconds > 0 {
+			return "GO"
+		}
+		return nil
+	}
+
+	private static func elapsedMilliseconds(deltaTime: TimeInterval) -> Int {
+		return max(0, Int((deltaTime * 1000).rounded()))
+	}
+
+	private static func isTerminalStatusValue(_ value: Int) -> Bool {
+		value == 0 || value == 1 || value == 2 || value == 3
+	}
+
+	private static func scriptStatusValue(forNativePlayerFinishOrder value: Int) -> Int {
+		if value == 1 {
+			return 1
+		}
+		return value == 0 ? 2 : 0
+	}
+
+	static let nativeRecordName = "recordrace"
+	private static let nativeRecordRelativePath = "records/recordrace.rep"
+
+	static func nativeDifferenceName(sceneName _: String) -> String {
+		return "difrace"
+	}
+
+	static func nativeDifferenceFileName(name: String) -> String {
+		let fileName = name.lowercased().hasSuffix(".chg") ? name : name + ".chg"
+		return fileName
+	}
+
+	private static func nativeDifferenceExists(fileName: String) -> Bool {
+		return FileManager.default.fileExists(
+			atPath: mainDirectory.appendingPathComponent("diff/" + fileName).path
+		)
+	}
+
+	private static func nativeRecordExists(relativePath: String) -> Bool {
+		return FileManager.default.fileExists(
+			atPath: mainDirectory.appendingPathComponent(relativePath).path
+		)
+	}
+
+	private static func participantVehicleRecordIds(
+		participantCount: Int,
+		participantSourceId: Int,
+		participantSourceRecord: Mission6CarcyclopediaRecord?
+	) -> [Int] {
+		guard participantCount > 0,
+			  participantSourceId != -1,
+			  participantSourceId != 0,
+			  let participantSourceRecord,
+			  participantSourceRecord.rawType != nativeCollectionRecordType else {
+			return []
+		}
+		return (0..<participantCount).map { index in
+			index == 0 ? nativePlayerParticipantVehicleRecordId : participantSourceId
+		}
+	}
+
+	private static func lowestSetBitMask(in mask: UInt32) -> UInt32 {
+		guard mask != 0 else { return 0 }
+		return mask & (~mask &+ 1)
+	}
+
+	private static func participants(
+		vehicleRecordIds: [Int],
+		participantProfiles: [Mission6RaceParticipantProfile]
+	) -> [Mission6RaceParticipant] {
+		vehicleRecordIds.enumerated().map { slotIndex, vehicleRecordId in
+			let profileIndex = slotIndex == 0 ? 0 : nil
+			let profile = profileIndex.flatMap { index in
+				participantProfiles.indices.contains(index) ? participantProfiles[index] : nil
+			}
+			return Mission6RaceParticipant(
+				slotIndex: slotIndex,
+				vehicleRecordId: vehicleRecordId,
+				isPlayer: slotIndex == 0,
+				nativeRequestedProfileIndex: slotIndex == 0 ? 0 : -1,
+				nativeProfileIndex: profileIndex,
+				profileName: profile?.name,
+				vehicleClass: profile?.vehicleClass,
+				skillMultiplier: profile?.skillMultiplier,
+				initialEnergy: 200,
+				isActive: true,
+				isFinished: false,
+				finishTimeMilliseconds: nil,
+				finishOrder: nil
+			)
+		}
+	}
+
+	private static func buildRoute(
+		checkpoints: Mission6Checkpoints,
+		startPosition: SCNVector3,
+		startForward: SCNVector3
+	) -> [Int]? {
+		guard let startIndex = nearestCheckpointIndex(to: startPosition, checkpoints: checkpoints) else { return nil }
+		let normalizedStartForward = horizontalNormalized(startForward)
+		let startCheckpoint = checkpoints.checkpoints[startIndex]
+		guard let firstLink = startCheckpoint.links.max(by: { lhs, rhs in
+			let lhsVector = checkpoints.checkpoints[Int(lhs.checkpointIndex)].position - startCheckpoint.position
+			let rhsVector = checkpoints.checkpoints[Int(rhs.checkpointIndex)].position - startCheckpoint.position
+			return dot(horizontalNormalized(lhsVector), normalizedStartForward) <
+				dot(horizontalNormalized(rhsVector), normalizedStartForward)
+		}) else {
+			return nil
+		}
+
+		var route = [startIndex]
+		var previousIndex = startIndex
+		var currentIndex = Int(firstLink.checkpointIndex)
+		var visited = Set([startIndex])
+		for _ in 0..<routeSearchLimit {
+			route.append(currentIndex)
+			if currentIndex == startIndex {
+				route.removeLast()
+				return route.count > 3 ? route : nil
+			}
+			guard visited.insert(currentIndex).inserted else { return nil }
+			let current = checkpoints.checkpoints[currentIndex]
+			let incoming = current.position - checkpoints.checkpoints[previousIndex].position
+			let candidates = current.links
+				.map { Int($0.checkpointIndex) }
+				.filter { $0 != previousIndex }
+			guard let nextIndex = candidates.max(by: { lhs, rhs in
+				let lhsVector = checkpoints.checkpoints[lhs].position - current.position
+				let rhsVector = checkpoints.checkpoints[rhs].position - current.position
+				return dot(horizontalNormalized(lhsVector), horizontalNormalized(incoming)) <
+					dot(horizontalNormalized(rhsVector), horizontalNormalized(incoming))
+			}) else {
+				return nil
+			}
+			previousIndex = currentIndex
+			currentIndex = nextIndex
+		}
+		return nil
+	}
+
+	private static func nearestRouteIndex(
+		to position: SCNVector3,
+		checkpoints: Mission6Checkpoints,
+		route: [Int],
+		lastRouteIndex: Int
+	) -> Int? {
+		let routeCount = route.count
+		guard routeCount > 0 else { return nil }
+		var bestRouteIndex = lastRouteIndex
+		var bestDistance = Float.greatestFiniteMagnitude
+		for offset in -routeNearestWindow...routeNearestWindow {
+			let routeIndex = (lastRouteIndex + offset + routeCount) % routeCount
+			let checkpointIndex = route[routeIndex]
+			let distance = horizontalSquaredDistance(position, checkpoints.checkpoints[checkpointIndex].position)
+			if distance < bestDistance {
+				bestDistance = distance
+				bestRouteIndex = routeIndex
+			}
+		}
+		return bestRouteIndex
+	}
+
+	private static func nearestCheckpointIndex(to position: SCNVector3, checkpoints: Mission6Checkpoints) -> Int? {
+		var bestIndex: Int?
+		var bestDistance = Float.greatestFiniteMagnitude
+		for checkpoint in checkpoints.checkpoints {
+			let distance = horizontalSquaredDistance(position, checkpoint.position)
+			if distance < bestDistance {
+				bestDistance = distance
+				bestIndex = checkpoint.index
+			}
+		}
+		return bestIndex
+	}
+
+	private static func updateStartGateProgress(position: SCNVector3, progressState: inout RaceProgressState) -> Bool {
+		let distanceFromStart = sqrt(horizontalSquaredDistance(position, progressState.startPosition))
+		progressState.maxDistanceFromStart = max(progressState.maxDistanceFromStart, distanceFromStart)
+		let currentPlaneDistance = startPlaneDistance(
+			position: position,
+			progressState: progressState,
+			startPosition: progressState.startPosition,
+			startForward: progressState.startForward
+		)
+		let didCrossPlane =
+			(progressState.lastStartPlaneDistance < 0 && currentPlaneDistance >= 0) ||
+			(progressState.lastStartPlaneDistance > 0 && currentPlaneDistance <= 0)
+		progressState.lastStartPlaneDistance = currentPlaneDistance
+		guard didCrossPlane, progressState.maxDistanceFromStart > 300 else { return false }
+		progressState.maxDistanceFromStart = 0
+		return true
+	}
+
+	private static func startPlaneDistance(
+		position: SCNVector3,
+		progressState: RaceProgressState?,
+		startPosition: SCNVector3,
+		startForward: SCNVector3
+	) -> Float {
+		let forward = progressState?.startForward ?? horizontalNormalized(startForward)
+		return dot(position - startPosition, forward)
+	}
+
+	private static func horizontalNormalized(_ vector: SCNVector3) -> SCNVector3 {
+		let x = Float(vector.x)
+		let z = Float(vector.z)
+		let length = sqrt(x * x + z * z)
+		guard length > 0.0001 else { return SCNVector3(x: 0, y: 0, z: 1) }
+		return SCNVector3(x: SCNFloat(x / length), y: 0, z: SCNFloat(z / length))
+	}
+
+	private static func dot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> Float {
+		Float(lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z)
+	}
+
+	private static func horizontalSquaredDistance(_ lhs: SCNVector3, _ rhs: SCNVector3) -> Float {
+		let dx = Float(lhs.x - rhs.x)
+		let dz = Float(lhs.z - rhs.z)
+		return dx * dx + dz * dz
+	}
+}
+
 private final class ActiveAudioPlayer {
 	let node: SCNNode
 	let player: SCNAudioPlayer
@@ -569,6 +1246,7 @@ struct TrafficSettings {
 final class Scene: @unchecked Sendable {
 
 	weak var game: Game!
+	let name: String
 	let rootNode = SCNNode()
 	var playerNode: SCNNode?
 
@@ -578,6 +1256,7 @@ final class Scene: @unchecked Sendable {
 	var sounds: [SCNNode: Sound] = [:]
 	var enemyGroups: [Int: EnemyGroup] = [:]
 	var detectorHitWaits: [DetectorHitWait] = []
+	let mission6RaceState = Mission6RaceState()
 	var humanVehicleOwners: [ObjectIdentifier: SCNNode] = [:]
 	var unusableCarIds = Set<ObjectIdentifier>()
 	var actions: [Action] = []
@@ -593,7 +1272,10 @@ final class Scene: @unchecked Sendable {
 	private let weaponsLock = NSLock()
 	private var weaponsByOwner: [ObjectIdentifier: [Weapon]] = [:]
 	private var nodesByName: [String: SCNNode] = [:]
+	private var nodesByNativeSceneObjectIndex: [Int: SCNNode] = [:]
 	private var missingNodeNames = Set<String>()
+	private var mission6RaceSpawnedCars: [SCNNode] = []
+	private var mission6RaceAICars: [Mission6RaceAICar] = []
 
 	func weapons(for owner: SCNNode) -> [Weapon] {
 		weaponsLock.lock()
@@ -652,6 +1334,7 @@ final class Scene: @unchecked Sendable {
 	private var activeRecordEventScriptNames = Set<String>()
 	private let filmMusicStreamsLock = NSLock()
 	private var filmMusicStreams: [Int: ScriptMusicStream] = [:]
+	private var nativeSceneObjectCount = 0
 	private var nextFilmMusicSlot = 0
 	private var recordCameraRestore: (
 		parent: SCNNode?,
@@ -677,6 +1360,7 @@ final class Scene: @unchecked Sendable {
 	var pressedJump = false
 
 	init(named name: String) throws {
+		self.name = name
 		let url = mainDirectory.appendingPathComponent(name + "/scene2.bin")
 
 		guard let stream = InputStream(url: url) else { throw SceneError() }
@@ -739,6 +1423,8 @@ final class Scene: @unchecked Sendable {
 				case .object:
 
 					let objectNode = SCNNode()
+					objectNode.nativeSceneObjectIndex = nativeSceneObjectCount
+					nativeSceneObjectCount += 1
 					var type: ObjectType = .object
 					var pendingMusicAreaBounds: AreaBounds?
 
@@ -1336,6 +2022,255 @@ final class Scene: @unchecked Sendable {
 		}
 	}
 
+	func spawnMission6RaceCars(raceTables: Mission6RaceTables) {
+		clearMission6RaceSpawnedCars()
+		guard let settings = mission6RaceState.settingsSnapshot() else { return }
+
+		for participant in settings.participants {
+			guard let startNode = rootNode.mafiaChildNode(named: "start\(participant.slotIndex)", recursively: true),
+				  let carRecord = raceTables.carIndexRecord(at: participant.vehicleRecordId),
+				  let modelPath = mission6RaceCarModelPath(for: carRecord.modelName) else {
+				continue
+			}
+
+			let carNode = SCNNode()
+			do {
+				try loadModel(named: modelPath, node: carNode)
+			} catch {
+				print("== Mission6 race car failed: slot=\(participant.slotIndex) model=\(modelPath) \(error)")
+				continue
+			}
+			guard carNode.hasModelContent else { continue }
+
+			carNode.name = "racing_car\(participant.slotIndex)"
+			carNode.vehicleModelName = (carRecord.modelName as NSString).deletingPathExtension.lowercased()
+			carNode.type = .car
+			carNode.transform = rootNode.convertTransform(startNode.presentation.worldTransform, from: nil)
+			rootNode.addChildNode(carNode)
+			registerNodeTree(carNode)
+			mission6RaceSpawnedCars.append(carNode)
+			print("== Mission6 race car spawned: slot=\(participant.slotIndex) record=\(participant.vehicleRecordId) model=\(modelPath)")
+		}
+		if let startNode = rootNode.mafiaChildNode(named: "start0", recursively: true) {
+			mission6RaceState.prepareProgress(
+				startPosition: startNode.presentation.worldPosition,
+				startForward: startNode.presentation.worldFront
+			)
+		}
+		configureMission6RaceAI(settings: settings)
+	}
+
+	func updateMission6RaceProgress(deltaTime: TimeInterval) {
+		mission6RaceState.advanceCountdown(deltaTime: deltaTime)
+		if let position = mission6RacePlayerPosition() {
+			mission6RaceState.updatePlayerProgress(position: position, deltaTime: deltaTime)
+		}
+		updateMission6RaceAI(deltaTime: deltaTime)
+		let stats = mission6RaceState.hudStats(
+			opponentCompletedLaps: mission6RaceAICars.map(\.completedLaps)
+		)
+		game?.updateHud { hud in
+			hud.updateMission6RaceStats(stats)
+		}
+	}
+
+	private func clearMission6RaceSpawnedCars() {
+		mission6RaceAICars.removeAll()
+		for carNode in mission6RaceSpawnedCars {
+			unregisterNodeTree(carNode)
+			carNode.removeFromParentNode()
+		}
+		mission6RaceSpawnedCars.removeAll()
+	}
+
+	private func mission6RaceCarModelPath(for modelName: String) -> String? {
+		let normalizedName = modelName
+			.replacingOccurrences(of: "\\", with: "/")
+			.trimmingCharacters(in: .whitespacesAndNewlines)
+		let withoutExtension = (normalizedName as NSString).deletingPathExtension
+		guard !withoutExtension.isEmpty else { return nil }
+		return withoutExtension.contains("/") ? withoutExtension : "models/" + withoutExtension
+	}
+
+	private func mission6RacePlayerPosition() -> SCNVector3? {
+		if let vehicleNode = game?.vehicle?.node {
+			return vehicleNode.presentation.worldPosition
+		}
+		return mission6RaceSpawnedCars.first { $0.name == "racing_car0" }?.presentation.worldPosition
+	}
+
+	private func configureMission6RaceAI(settings: Mission6RaceSettings) {
+		mission6RaceAICars.removeAll()
+		guard let checkpoints = settings.checkpoints,
+			  let startNode = rootNode.mafiaChildNode(named: "start0", recursively: true),
+			  let route = mission6RaceAIRoute(checkpoints: checkpoints, startNode: startNode),
+			  route.count > 2 else {
+			return
+		}
+		let routeLength = mission6RaceRouteLength(route)
+		let bestLapTime = settings.circuit?.bestTimes.first.flatMap { value -> Float? in
+			value > 0 ? Float(value) / 1000 : nil
+		}
+		let baseSpeed = bestLapTime.map { routeLength / $0 } ?? 18
+
+		for participant in settings.participants where !participant.isPlayer {
+			guard let node = mission6RaceSpawnedCars.first(where: { $0.name == "racing_car\(participant.slotIndex)" }) else {
+				continue
+			}
+			let multiplier = participant.skillMultiplier ?? 1
+			let slotScale = 0.96 + Float(participant.slotIndex % 5) * 0.015
+			mission6RaceAICars.append(Mission6RaceAICar(
+				node: node,
+				slotIndex: participant.slotIndex,
+				route: route,
+				segmentIndex: 0,
+				segmentProgress: Float(participant.slotIndex) * 0.015,
+				speed: max(8, baseSpeed * multiplier * slotScale),
+				completedLaps: 0,
+				isFinished: false
+			))
+		}
+	}
+
+	private func updateMission6RaceAI(deltaTime: TimeInterval) {
+		guard deltaTime > 0,
+			  mission6RaceState.isStartedSnapshot(),
+			  let settings = mission6RaceState.settingsSnapshot(),
+			  !mission6RaceAICars.isEmpty else {
+			return
+		}
+		for index in mission6RaceAICars.indices {
+			guard !mission6RaceAICars[index].isFinished,
+				  let node = mission6RaceAICars[index].node else {
+				continue
+			}
+			updateMission6RaceAICar(&mission6RaceAICars[index], node: node, deltaTime: Float(deltaTime))
+			if mission6RaceAICars[index].completedLaps >= settings.lapCount {
+				mission6RaceAICars[index].isFinished = true
+				mission6RaceState.failIfRaceStarted()
+			}
+		}
+	}
+
+	private func updateMission6RaceAICar(_ aiCar: inout Mission6RaceAICar, node: SCNNode, deltaTime: Float) {
+		guard aiCar.route.count > 1 else { return }
+		var remainingDistance = aiCar.speed * deltaTime
+		while remainingDistance > 0 {
+			let current = aiCar.route[aiCar.segmentIndex]
+			let nextIndex = (aiCar.segmentIndex + 1) % aiCar.route.count
+			let next = aiCar.route[nextIndex]
+			let segmentLength = max(0.001, mission6RaceHorizontalDistance(current, next))
+			let availableDistance = (1 - aiCar.segmentProgress) * segmentLength
+			if remainingDistance < availableDistance {
+				aiCar.segmentProgress += remainingDistance / segmentLength
+				remainingDistance = 0
+			} else {
+				remainingDistance -= availableDistance
+				aiCar.segmentIndex = nextIndex
+				aiCar.segmentProgress = 0
+				if aiCar.segmentIndex == 0 {
+					aiCar.completedLaps += 1
+				}
+			}
+		}
+
+		let current = aiCar.route[aiCar.segmentIndex]
+		let next = aiCar.route[(aiCar.segmentIndex + 1) % aiCar.route.count]
+		let progress = SCNFloat(aiCar.segmentProgress)
+		node.position = SCNVector3(
+			x: current.x + (next.x - current.x) * progress,
+			y: current.y + (next.y - current.y) * progress,
+			z: current.z + (next.z - current.z) * progress
+		)
+		let tangent = next - current
+		if abs(tangent.x) > 0.001 || abs(tangent.z) > 0.001 {
+			node.eulerAngles.y = atan2(tangent.x, tangent.z)
+		}
+	}
+
+	private func mission6RaceAIRoute(checkpoints: Mission6Checkpoints, startNode: SCNNode) -> [SCNVector3]? {
+		let controlNodes = checkpoints.checkpoints.filter { $0.type == 8 }
+		guard controlNodes.count > 2 else { return nil }
+		let center = controlNodes.reduce(SCNVector3Zero) { partial, checkpoint in
+			SCNVector3(
+				x: partial.x + checkpoint.position.x,
+				y: partial.y + checkpoint.position.y,
+				z: partial.z + checkpoint.position.z
+			)
+		}
+		let count = SCNFloat(controlNodes.count)
+		let centroid = SCNVector3(x: center.x / count, y: center.y / count, z: center.z / count)
+		let ordered = controlNodes.sorted {
+			atan2($0.position.z - centroid.z, $0.position.x - centroid.x) <
+				atan2($1.position.z - centroid.z, $1.position.x - centroid.x)
+		}
+		guard let nearestIndex = ordered.indices.min(by: {
+			mission6RaceHorizontalDistanceSquared(ordered[$0].position, startNode.presentation.worldPosition) <
+				mission6RaceHorizontalDistanceSquared(ordered[$1].position, startNode.presentation.worldPosition)
+		}) else {
+			return nil
+		}
+
+		let forwardRoute = mission6RaceRotatedControlRoute(ordered, startIndex: nearestIndex, reversed: false)
+		let reverseRoute = mission6RaceRotatedControlRoute(ordered, startIndex: nearestIndex, reversed: true)
+		let startForward = horizontalMission6RaceVector(startNode.presentation.worldFront)
+		let forwardScore = mission6RaceRouteStartScore(route: forwardRoute, startPosition: startNode.presentation.worldPosition, startForward: startForward)
+		let reverseScore = mission6RaceRouteStartScore(route: reverseRoute, startPosition: startNode.presentation.worldPosition, startForward: startForward)
+		return forwardScore >= reverseScore ? forwardRoute.map(\.position) : reverseRoute.map(\.position)
+	}
+
+	private func mission6RaceRotatedControlRoute(
+		_ checkpoints: [Mission6Checkpoint],
+		startIndex: Int,
+		reversed: Bool
+	) -> [Mission6Checkpoint] {
+		let array = reversed ? Array(checkpoints.reversed()) : checkpoints
+		guard let rotatedStart = array.firstIndex(where: { $0.index == checkpoints[startIndex].index }) else {
+			return array
+		}
+		return Array(array[rotatedStart...]) + Array(array[..<rotatedStart])
+	}
+
+	private func mission6RaceRouteStartScore(
+		route: [Mission6Checkpoint],
+		startPosition: SCNVector3,
+		startForward: SCNVector3
+	) -> Float {
+		guard let first = route.first else { return -Float.greatestFiniteMagnitude }
+		return mission6RaceDot(horizontalMission6RaceVector(first.position - startPosition), startForward)
+	}
+
+	private func mission6RaceRouteLength(_ route: [SCNVector3]) -> Float {
+		guard route.count > 1 else { return 0 }
+		var length: Float = 0
+		for index in route.indices {
+			length += mission6RaceHorizontalDistance(route[index], route[(index + 1) % route.count])
+		}
+		return length
+	}
+
+	private func mission6RaceHorizontalDistance(_ lhs: SCNVector3, _ rhs: SCNVector3) -> Float {
+		sqrt(mission6RaceHorizontalDistanceSquared(lhs, rhs))
+	}
+
+	private func mission6RaceHorizontalDistanceSquared(_ lhs: SCNVector3, _ rhs: SCNVector3) -> Float {
+		let dx = Float(lhs.x - rhs.x)
+		let dz = Float(lhs.z - rhs.z)
+		return dx * dx + dz * dz
+	}
+
+	private func horizontalMission6RaceVector(_ vector: SCNVector3) -> SCNVector3 {
+		let x = Float(vector.x)
+		let z = Float(vector.z)
+		let length = sqrt(x * x + z * z)
+		guard length > 0.0001 else { return SCNVector3(x: 0, y: 0, z: 1) }
+		return SCNVector3(x: SCNFloat(x / length), y: 0, z: SCNFloat(z / length))
+	}
+
+	private func mission6RaceDot(_ lhs: SCNVector3, _ rhs: SCNVector3) -> Float {
+		Float(lhs.x * rhs.x + lhs.z * rhs.z)
+	}
+
 	func startScripts() {
 		guard !didStartScripts else { return }
 		didStartScripts = true
@@ -1394,6 +2329,8 @@ final class Scene: @unchecked Sendable {
 		sounds.removeAll()
 		enemyGroups.removeAll()
 		detectorHitWaits.removeAll()
+		clearMission6RaceSpawnedCars()
+		mission6RaceState.clear()
 		humanVehicleOwners.removeAll()
 		actions.removeAll()
 		environmentLights.removeAll()
@@ -1409,8 +2346,10 @@ final class Scene: @unchecked Sendable {
 		isCutsceneSkipRequested = false
 		nodesByNameLock.lock()
 		nodesByName.removeAll()
+		nodesByNativeSceneObjectIndex.removeAll()
 		missingNodeNames.removeAll()
 		nodesByNameLock.unlock()
+		nativeSceneObjectCount = 0
 		weaponsLock.lock()
 		weaponsByOwner.removeAll()
 		weaponsLock.unlock()
@@ -3727,6 +4666,12 @@ final class Scene: @unchecked Sendable {
 		return nil
 	}
 
+	func node(nativeSceneObjectIndex index: Int) -> SCNNode? {
+		nodesByNameLock.lock()
+		defer { nodesByNameLock.unlock() }
+		return nodesByNativeSceneObjectIndex[index]
+	}
+
 	private func lockedNode(named name: String, lowercasedName: String) -> SCNNode? {
 		if let indexedNode = nodesByName[name] ?? nodesByName[lowercasedName] {
 			return indexedNode
@@ -3765,9 +4710,13 @@ final class Scene: @unchecked Sendable {
 	}
 
 	func registerNodeName(_ node: SCNNode) {
-		guard let name = node.name, !name.isEmpty else { return }
 		nodesByNameLock.lock()
 		defer { nodesByNameLock.unlock() }
+		if let nativeIndex = node.nativeSceneObjectIndex,
+		   nodesByNativeSceneObjectIndex[nativeIndex] == nil {
+			nodesByNativeSceneObjectIndex[nativeIndex] = node
+		}
+		guard let name = node.name, !name.isEmpty else { return }
 		let lowercasedName = name.lowercased()
 		missingNodeNames.remove(lowercasedName)
 		if nodesByName[name] == nil {
@@ -3786,6 +4735,13 @@ final class Scene: @unchecked Sendable {
 	}
 
 	private func unregisterNodeTree(_ node: SCNNode) {
+		if let nativeIndex = node.nativeSceneObjectIndex {
+			nodesByNameLock.lock()
+			if nodesByNativeSceneObjectIndex[nativeIndex] === node {
+				nodesByNativeSceneObjectIndex.removeValue(forKey: nativeIndex)
+			}
+			nodesByNameLock.unlock()
+		}
 		if let name = node.name, !name.isEmpty {
 			let lowercasedName = name.lowercased()
 			nodesByNameLock.lock()

@@ -37,6 +37,8 @@ final class HudScene: SKScene {
 	var subtitleLabel: SKLabelNode!
 	private var scriptTimerLabel: SKLabelNode!
 	private var cutsceneSubtitleLabel: SKLabelNode!
+	private var mission6RaceStatsLabel: SKLabelNode!
+	private var mission6RaceCountdownLabel: SKLabelNode!
 	var speedLabel: SKLabelNode!
 	var playerStatusLabel: SKLabelNode!
 	private var diagnosticsLabel: SKLabelNode!
@@ -94,6 +96,8 @@ final class HudScene: SKScene {
 	private var lastPlayerStatusText: String?
 	private var lastDiagnosticsText: String?
 	private var lastScriptTimerText: String?
+	private var lastMission6RaceStatsText: String?
+	private var lastMission6RaceCountdownText: String?
 	private var lastVehicleStealProgress: CGFloat = -1
 	private var wasSpeedVisible = false
 	private var consoleMessages: [(id: Int, text: String)] = []
@@ -103,6 +107,8 @@ final class HudScene: SKScene {
 	private var scriptTimerEndTime: TimeInterval?
 	private var scriptTimerRemainingMilliseconds: Float = 0
 	private var isScriptTimerRequestedVisible = false
+	private var isMission6RaceStatsRequestedVisible = false
+	private var isMission6RaceCountdownRequestedVisible = false
 	private let consoleActionKey = "consoleMessage"
 	private let consoleMessageLifetime: TimeInterval = 4
 	private let maxConsoleRowCount = 10
@@ -294,6 +300,27 @@ final class HudScene: SKScene {
 		cutsceneSubtitleLabel.zPosition = 2100
 		addChild(cutsceneSubtitleLabel)
 
+		mission6RaceStatsLabel = SKLabelNode()
+		mission6RaceStatsLabel.fontName = "Arial-BoldMT"
+		mission6RaceStatsLabel.fontSize = 40
+		mission6RaceStatsLabel.fontColor = SKColor.white
+		mission6RaceStatsLabel.horizontalAlignmentMode = .right
+		mission6RaceStatsLabel.verticalAlignmentMode = .top
+		mission6RaceStatsLabel.numberOfLines = 0
+		mission6RaceStatsLabel.zPosition = 1200
+		mission6RaceStatsLabel.isHidden = true
+		addChild(mission6RaceStatsLabel)
+
+		mission6RaceCountdownLabel = SKLabelNode()
+		mission6RaceCountdownLabel.fontName = "Arial-BoldMT"
+		mission6RaceCountdownLabel.fontSize = 76
+		mission6RaceCountdownLabel.fontColor = SKColor.white
+		mission6RaceCountdownLabel.horizontalAlignmentMode = .center
+		mission6RaceCountdownLabel.verticalAlignmentMode = .center
+		mission6RaceCountdownLabel.zPosition = 1250
+		mission6RaceCountdownLabel.isHidden = true
+		addChild(mission6RaceCountdownLabel)
+
 		speedLabel = SKLabelNode()
 		speedLabel.fontName = "Arial"
 		speedLabel.fontSize = 17
@@ -366,6 +393,8 @@ final class HudScene: SKScene {
 				  subtitleLabel != nil,
 				  scriptTimerLabel != nil,
 				  cutsceneSubtitleLabel != nil,
+				  mission6RaceStatsLabel != nil,
+				  mission6RaceCountdownLabel != nil,
 				  speedLabel != nil,
 				  playerStatusLabel != nil,
 				  diagnosticsLabel != nil,
@@ -406,6 +435,9 @@ final class HudScene: SKScene {
 		scriptTimerLabel.position = CGPoint(x: size.width - 24, y: size.height - 24)
 		cutsceneSubtitleLabel.position = CGPoint(x: size.width / 2, y: letterboxBarHeight / 2)
 		cutsceneSubtitleLabel.preferredMaxLayoutWidth = max(260, size.width - 160)
+		let raceStatsRightInset = max(24, min(280, size.width * 0.28))
+		mission6RaceStatsLabel.position = CGPoint(x: size.width - raceStatsRightInset, y: size.height - 76)
+		mission6RaceCountdownLabel.position = CGPoint(x: size.width / 2, y: size.height * 0.58)
 		speedLabel.position = CGPoint(x: 24, y: size.height-150)
 		playerStatusLabel.position = CGPoint(x: 24, y: 20)
 		playerStatusLabel.preferredMaxLayoutWidth = max(220, size.width - 120)
@@ -701,8 +733,43 @@ final class HudScene: SKScene {
 		scriptTimerLabel.isHidden = !isGameplayHudVisible(isScriptTimerRequestedVisible)
 	}
 
+	private func refreshMission6RaceStatsVisibility() {
+		mission6RaceStatsLabel.isHidden = !isGameplayHudVisible(isMission6RaceStatsRequestedVisible)
+	}
+
+	private func refreshMission6RaceCountdownVisibility() {
+		mission6RaceCountdownLabel.isHidden = !isGameplayHudVisible(isMission6RaceCountdownRequestedVisible)
+	}
+
 	func refreshScriptTimer() {
 		updateScriptTimerLabel()
+	}
+
+	func updateMission6RaceStats(_ stats: Mission6RaceHudStats?) {
+		guard let stats else {
+			isMission6RaceStatsRequestedVisible = false
+			isMission6RaceCountdownRequestedVisible = false
+			lastMission6RaceStatsText = nil
+			lastMission6RaceCountdownText = nil
+			mission6RaceStatsLabel.text = nil
+			mission6RaceCountdownLabel.text = nil
+			refreshMission6RaceStatsVisibility()
+			refreshMission6RaceCountdownVisibility()
+			return
+		}
+		isMission6RaceStatsRequestedVisible = stats.countdownText == nil
+		let text = HudScene.mission6RaceStatsText(stats)
+		if lastMission6RaceStatsText != text {
+			lastMission6RaceStatsText = text
+			mission6RaceStatsLabel.text = text
+		}
+		if lastMission6RaceCountdownText != stats.countdownText {
+			lastMission6RaceCountdownText = stats.countdownText
+			mission6RaceCountdownLabel.text = stats.countdownText
+		}
+		isMission6RaceCountdownRequestedVisible = stats.countdownText != nil
+		refreshMission6RaceStatsVisibility()
+		refreshMission6RaceCountdownVisibility()
 	}
 
 	private func updateScriptTimerLabel() {
@@ -733,6 +800,23 @@ final class HudScene: SKScene {
 			return String(format: "%d:%02d:%02d", hours, minutes, seconds)
 		}
 		return String(format: "%02d:%02d", minutes, seconds)
+	}
+
+	private static func mission6RaceStatsText(_ stats: Mission6RaceHudStats) -> String {
+		return [
+			"Time: \(mission6RaceTimeText(milliseconds: stats.elapsedMilliseconds))",
+			"Lap Time: \(mission6RaceTimeText(milliseconds: stats.lapElapsedMilliseconds))",
+			"Best: \(mission6RaceTimeText(milliseconds: stats.bestLapMilliseconds ?? 0))",
+			"Pos: \(stats.position)/\(stats.participantCount)",
+			"Lap: \(stats.currentLap)/\(stats.lapCount)"
+		].joined(separator: "\n")
+	}
+
+	private static func mission6RaceTimeText(milliseconds: Int) -> String {
+		let totalSeconds = max(0, milliseconds) / 1000
+		let minutes = totalSeconds / 60
+		let seconds = totalSeconds % 60
+		return "\(minutes):" + String(format: "%02d", seconds)
 	}
 
 	private func updateInstrumentNeedles(speed: CGFloat, force: CGFloat) {
@@ -798,6 +882,8 @@ final class HudScene: SKScene {
 			speedLabel.isHidden = true
 			playerStatusLabel.isHidden = true
 			scriptTimerLabel.isHidden = true
+			mission6RaceStatsLabel.isHidden = true
+			mission6RaceCountdownLabel.isHidden = true
 			crosshairNode.isHidden = true
 			vehicleStealProgressBackground.isHidden = true
 			vehicleStealProgressFill.isHidden = true
@@ -823,6 +909,8 @@ final class HudScene: SKScene {
 			revCounter.isHidden = !wasSpeedVisible
 			speedLabel.isHidden = true
 			refreshScriptTimerVisibility()
+			refreshMission6RaceStatsVisibility()
+			refreshMission6RaceCountdownVisibility()
 			objectivesNode.isHidden = objectivesNode.children.isEmpty
 			consoleLabel.alpha = consoleMessages.isEmpty ? 0 : 1
 			cutsceneSubtitleLabel.removeAction(forKey: cutsceneSubtitleActionKey)
@@ -2176,6 +2264,8 @@ extension HudScene {
 				consoleLabel,
 				subtitleLabel,
 				scriptTimerLabel,
+				mission6RaceStatsLabel,
+				mission6RaceCountdownLabel,
 				cutsceneSubtitleLabel,
 				crosshairNode,
 				vehicleStealProgressBackground,
@@ -2200,6 +2290,8 @@ extension HudScene {
 			pauseHiddenStates.forEach { $0.node.isHidden = $0.isHidden }
 			pauseHiddenStates.removeAll()
 			refreshScriptTimerVisibility()
+			refreshMission6RaceStatsVisibility()
+			refreshMission6RaceCountdownVisibility()
 			layoutTouchButtons()
 		}
 	}
