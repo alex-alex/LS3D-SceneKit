@@ -18,7 +18,7 @@ import CoreText
     let mainDirectory = documentDirectory.appendingPathComponent("Mafia")
 #endif
 
-private let useBundledMenuFonts = false
+private let useBundledMenuFonts = true
 
 let mafiaMenuFontName = useBundledMenuFonts ? "AuroraBT-BoldCondensed" : "Arial-BoldMT"
 let mafiaMenuTitleFontName = useBundledMenuFonts ? "Freehand-Regular" : "Arial-BoldMT"
