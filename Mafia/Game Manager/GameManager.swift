@@ -560,12 +560,13 @@ private final class MissionSelectorScene: SKScene {
 		hintLabel.position = CGPoint(x: size.width / 2, y: 24)
 
 		rowHeight = min(30, max(22, (size.height - 150) / CGFloat(max(1, labels.count))))
-		let x = max(32, size.width * 0.2)
+		let x = max(32, size.width * 0.12)
 		firstRowY = size.height - 120
 
 		for (index, label) in labels.enumerated() {
-			label.fontSize = min(18, rowHeight * 0.68)
+			label.fontSize = min(16, rowHeight * 0.62)
 			label.position = CGPoint(x: x, y: firstRowY - CGFloat(index) * rowHeight)
+			label.preferredMaxLayoutWidth = size.width - x - 32
 		}
 	}
 
@@ -577,7 +578,9 @@ private final class MissionSelectorScene: SKScene {
 				continue
 			}
 
-			label.text = (missionIndex == selectedIndex ? "> " : "  ") + missions[missionIndex].title
+			let mission = missions[missionIndex]
+			let prefix = missionIndex == selectedIndex ? "> " : "  "
+			label.text = prefix + mission.title + "  [" + mission.folder + "]"
 			label.fontColor = missionIndex == selectedIndex ? .white : SKColor(white: 0.68, alpha: 1)
 		}
 	}
