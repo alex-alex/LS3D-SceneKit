@@ -2030,7 +2030,7 @@ final class Scene: @unchecked Sendable {
 		for participant in settings.participants {
 			guard let startNode = rootNode.mafiaChildNode(named: "start\(participant.slotIndex)", recursively: true),
 				  let carRecord = raceTables.carIndexRecord(at: participant.vehicleRecordId),
-				  let modelPath = mission6RaceCarModelPath(for: carRecord.modelName) else {
+				  let modelPath = mission6RaceCarModelPath(for: carRecord) else {
 				continue
 			}
 
@@ -2044,7 +2044,7 @@ final class Scene: @unchecked Sendable {
 			guard carNode.hasModelContent else { continue }
 
 			carNode.name = "racing_car\(participant.slotIndex)"
-			carNode.vehicleModelName = (carRecord.modelName as NSString).deletingPathExtension.lowercased()
+			carNode.vehicleModelName = ((modelPath as NSString).lastPathComponent as NSString).deletingPathExtension.lowercased()
 			carNode.type = .car
 			addSyntheticMission6RaceWheelsIfNeeded(to: carNode)
 			carNode.transform = rootNode.convertTransform(startNode.presentation.worldTransform, from: nil)
@@ -2132,6 +2132,17 @@ final class Scene: @unchecked Sendable {
 		mission6RaceSpawnedCars.removeAll()
 	}
 
+	private func mission6RaceCarModelPath(for carRecord: Mission6CarIndexRecord) -> String? {
+		for modelName in [carRecord.key, carRecord.modelName] {
+			guard let modelPath = mission6RaceCarModelPath(for: modelName),
+				  mission6RaceCarModelExists(at: modelPath) else {
+				continue
+			}
+			return modelPath
+		}
+		return nil
+	}
+
 	private func mission6RaceCarModelPath(for modelName: String) -> String? {
 		let normalizedName = modelName
 			.replacingOccurrences(of: "\\", with: "/")
@@ -2139,6 +2150,11 @@ final class Scene: @unchecked Sendable {
 		let withoutExtension = (normalizedName as NSString).deletingPathExtension
 		guard !withoutExtension.isEmpty else { return nil }
 		return withoutExtension.contains("/") ? withoutExtension : "models/" + withoutExtension
+	}
+
+	private func mission6RaceCarModelExists(at modelPath: String) -> Bool {
+		let url = mainDirectory.appendingPathComponent(modelPath.lowercased() + ".4ds")
+		return FileManager.default.fileExists(atPath: url.path)
 	}
 
 	private func mission6RacePlayerPosition() -> SCNVector3? {
@@ -2337,7 +2353,12 @@ final class Scene: @unchecked Sendable {
 		startNode: SCNNode
 	) -> Int? {
 		let startPosition = startNode.presentation.worldPosition
-		let startForward = horizontalMission6RaceVector(startNode.presentation.worldFront)
+		let startNodeFront = startNode.presentation.worldFront
+		let startForward = horizontalMission6RaceVector(SCNVector3(
+			x: -startNodeFront.x,
+			y: -startNodeFront.y,
+			z: -startNodeFront.z
+		))
 		let forwardControls = controlNodes.filter {
 			mission6RaceDot(horizontalMission6RaceVector($0.position - startPosition), startForward) > 0
 		}

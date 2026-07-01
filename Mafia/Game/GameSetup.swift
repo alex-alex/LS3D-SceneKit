@@ -469,6 +469,7 @@ extension Game {
 		let exit = playerExitPlacement(for: vehicle)
 		if let playerNode = scene.playerNode {
 			if playerNode.parent !== scene.rootNode {
+				playerNode.removeFromParentNode()
 				scene.rootNode.addChildNode(playerNode)
 			}
 			if playerNode.physicsBody == nil,
@@ -517,6 +518,7 @@ extension Game {
 
 		let seatPosition = playerSeatPosition(in: vehicle.node)
 		if playerNode.parent !== vehicle.node {
+			playerNode.removeFromParentNode()
 			vehicle.node.addChildNode(playerNode)
 		}
 		playerNode.position = seatPosition
@@ -535,6 +537,7 @@ extension Game {
 			  let vehicle = vehicle else { return }
 
 		if playerNode.parent !== vehicle.node {
+			playerNode.removeFromParentNode()
 			vehicle.node.addChildNode(playerNode)
 		}
 		playerNode.position = playerSeatPosition(in: vehicle.node)
@@ -1003,6 +1006,7 @@ extension Game {
 
 		stopPlayerVehicleAnimation()
 		if playerNode.parent !== scene.rootNode {
+			playerNode.removeFromParentNode()
 			scene.rootNode.addChildNode(playerNode)
 		}
 		if playerNode.physicsBody == nil,

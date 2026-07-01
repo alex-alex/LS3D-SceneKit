@@ -164,7 +164,9 @@ final class Vehicle {
 		self.scene = scene
 		node.liveTransformNode = taxiNode
 
-		Vehicle.attachChassisVisuals(from: node, to: taxiNode)
+		if !Vehicle.isMission6RaceCar(node) {
+			Vehicle.attachChassisVisuals(from: node, to: taxiNode)
+		}
 		Vehicle.detachChassisForPhysics(
 			scene: scene,
 			vehicleRoot: node,
@@ -220,6 +222,10 @@ final class Vehicle {
 			VehicleSoundLog.log("No sound profile for vehicle node '\(node.name ?? "<unnamed>")'")
 		}
 		audio = VehicleAudio(profile: soundProfile)
+	}
+
+	private static func isMission6RaceCar(_ node: SCNNode) -> Bool {
+		node.name?.lowercased().hasPrefix("racing_car") == true
 	}
 
 	private static func chassisPhysicsShape(
@@ -380,7 +386,7 @@ final class Vehicle {
 		for childNode in childNodes {
 			guard childNode !== chassisNode else { continue }
 			guard childNode.parent !== chassisNode else { continue }
-			guard !detachedWheelNames.contains(childNode.name?.lowercased() ?? "") else { continue }
+			guard !containsNode(namedIn: detachedWheelNames, in: childNode) else { continue }
 
 			let worldTransform = childNode.worldTransform
 			let visualNode = childNode.clone()
@@ -388,6 +394,13 @@ final class Vehicle {
 			visualNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
 			childNode.isHidden = true
 		}
+	}
+
+	private static func containsNode(namedIn names: Set<String>, in node: SCNNode) -> Bool {
+		if names.contains(node.name?.lowercased() ?? "") {
+			return true
+		}
+		return node.childNodes.contains { containsNode(namedIn: names, in: $0) }
 	}
 
 	private static func detachChassisForPhysics(
@@ -400,11 +413,13 @@ final class Vehicle {
 		let chassisWorldTransform = chassisNode.worldTransform
 		let wheelWorldTransforms = wheelNodes.map(\.worldTransform)
 
+		chassisNode.removeFromParentNode()
 		parentNode.addChildNode(chassisNode)
 		chassisNode.transform = parentNode.convertTransform(chassisWorldTransform, from: nil)
 
 		for (wheelNode, worldTransform) in zip(wheelNodes, wheelWorldTransforms) {
 			if wheelNode.parent !== chassisNode {
+				wheelNode.removeFromParentNode()
 				chassisNode.addChildNode(wheelNode)
 			}
 			wheelNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
