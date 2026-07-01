@@ -383,8 +383,10 @@ final class Vehicle {
 			guard !detachedWheelNames.contains(childNode.name?.lowercased() ?? "") else { continue }
 
 			let worldTransform = childNode.worldTransform
-			chassisNode.addChildNode(childNode)
-			childNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
+			let visualNode = childNode.clone()
+			chassisNode.addChildNode(visualNode)
+			visualNode.transform = chassisNode.convertTransform(worldTransform, from: nil)
+			childNode.isHidden = true
 		}
 	}
 

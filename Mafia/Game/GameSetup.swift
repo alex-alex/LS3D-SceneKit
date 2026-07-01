@@ -938,8 +938,16 @@ extension Game {
 			let id = ObjectIdentifier(node)
 			guard !seen.contains(id) else { return false }
 			seen.insert(id)
-			return true
+			return !isMission6OpponentRaceCarNode(node)
 		}
+	}
+
+	func isMission6OpponentRaceCarNode(_ node: SCNNode) -> Bool {
+		guard let name = node.name?.lowercased(),
+			  name.hasPrefix("racing_car") else {
+			return false
+		}
+		return name != "racing_car0"
 	}
 
 	func isCurrentVehicleNode(_ node: SCNNode) -> Bool {

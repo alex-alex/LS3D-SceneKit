@@ -2520,7 +2520,14 @@ extension Script {
 			participantProfiles: participantProfiles
 		)
 		if let raceTables {
-			scene.spawnMission6RaceCars(raceTables: raceTables)
+			DispatchQueue.main.async { [weak self] in
+				guard let self = self else { return }
+				self.scene.spawnMission6RaceCars(raceTables: raceTables)
+				self.queue.async {
+					self.next()
+				}
+			}
+			return
 		}
 		next()
 	}
