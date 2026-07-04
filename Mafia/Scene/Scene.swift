@@ -2173,7 +2173,7 @@ final class Scene: @unchecked Sendable {
 			clearMission6RaceCircuitDebug()
 			return
 		}
-		configureMission6RaceCircuitDebug(route: route, checkpoints: checkpoints)
+		configureMission6RaceCircuitDebug(route: route)
 		let routeLength = mission6RaceRouteLength(route)
 		let bestLapTime = settings.circuit?.bestTimes.first.flatMap { value -> Float? in
 			value > 0 ? Float(value) / 1000 : nil
@@ -2264,7 +2264,7 @@ final class Scene: @unchecked Sendable {
 		mission6RaceCircuitDebugNode = nil
 	}
 
-	private func configureMission6RaceCircuitDebug(route: [SCNVector3], checkpoints: Mission6Checkpoints) {
+	private func configureMission6RaceCircuitDebug(route: [SCNVector3]) {
 		clearMission6RaceCircuitDebug()
 
 		var vertices: [SCNVector3] = []
@@ -2290,12 +2290,13 @@ final class Scene: @unchecked Sendable {
 		node.isHidden = !(game?.areCollisionWireframesVisible ?? false)
 
 		let markerMaterial = Game.debugMaterial(color: .orange, fillMode: .fill)
-		for checkpoint in checkpoints.checkpoints where checkpoint.type == 8 {
-			let marker = SCNSphere(radius: 0.55)
+		let markerStep = max(1, route.count / 24)
+		for index in stride(from: 0, to: route.count, by: markerStep) {
+			let marker = SCNSphere(radius: 0.35)
 			marker.firstMaterial = markerMaterial
 			let markerNode = SCNNode(geometry: marker)
-			markerNode.name = "__mission6_race_control_\(checkpoint.index)__"
-			markerNode.position = mission6RaceDebugPosition(checkpoint.position)
+			markerNode.name = "__mission6_race_route_\(index)__"
+			markerNode.position = mission6RaceDebugPosition(route[index])
 			node.addChildNode(markerNode)
 		}
 
@@ -2308,6 +2309,10 @@ final class Scene: @unchecked Sendable {
 	}
 
 	private func mission6RaceAIRoute(checkpoints: Mission6Checkpoints, startNode: SCNNode) -> [SCNVector3]? {
+		if let route = mission6RaceDenseLaneRoute(checkpoints: checkpoints, startNode: startNode) {
+			return route
+		}
+
 		let controlNodes = checkpoints.checkpoints.filter { $0.type == 8 }
 		guard controlNodes.count > 2 else { return nil }
 
@@ -2333,6 +2338,187 @@ final class Scene: @unchecked Sendable {
 		) else { return nil }
 		route.insert(startNode.presentation.worldPosition, at: 0)
 		return route
+	}
+
+	private func mission6RaceDenseLaneRoute(checkpoints: Mission6Checkpoints, startNode: SCNNode) -> [SCNVector3]? {
+		let neighbors = mission6RaceCheckpointNeighbors(checkpoints: checkpoints)
+		let startPosition = startNode.presentation.worldPosition
+		let startNodeFront = startNode.presentation.worldFront
+		let startForward = horizontalMission6RaceVector(SCNVector3(
+			x: -startNodeFront.x,
+			y: -startNodeFront.y,
+			z: -startNodeFront.z
+		))
+		let components = mission6RaceDenseLaneComponents(checkpoints: checkpoints, neighbors: neighbors)
+		let laneRoutes = components.compactMap {
+			mission6RaceOrderedDenseLaneRoute(
+				checkpoints: checkpoints,
+				neighbors: neighbors,
+				component: $0,
+				startPosition: startPosition,
+				startForward: startForward
+			)
+		}
+		guard laneRoutes.count >= 2 else { return nil }
+
+		let sampleCount = max(120, laneRoutes.map(\.count).max() ?? 0)
+		var route = [startPosition]
+		route.reserveCapacity(sampleCount + 1)
+		for sampleIndex in 0..<sampleCount {
+			let t = sampleCount == 1 ? Float(0) : Float(sampleIndex) / Float(sampleCount - 1)
+			let points = laneRoutes.map { mission6RaceSampledRoutePoint(route: $0, t: t) }
+			let pointCount = SCNFloat(points.count)
+			let sum = points.reduce(SCNVector3Zero) { partial, point in
+				SCNVector3(
+					x: partial.x + point.x,
+					y: partial.y + point.y,
+					z: partial.z + point.z
+				)
+			}
+			route.append(SCNVector3(x: sum.x / pointCount, y: sum.y / pointCount, z: sum.z / pointCount))
+		}
+		return route
+	}
+
+	private func mission6RaceDenseLaneComponents(
+		checkpoints: Mission6Checkpoints,
+		neighbors: [[(index: Int, distance: Float)]]
+	) -> [[Int]] {
+		var visited = Array(repeating: false, count: checkpoints.checkpoints.count)
+		var components: [[Int]] = []
+
+		for checkpoint in checkpoints.checkpoints where checkpoint.type != 8 && !visited[checkpoint.index] {
+			var component: [Int] = []
+			var stack = [checkpoint.index]
+			visited[checkpoint.index] = true
+			while let index = stack.popLast() {
+				component.append(index)
+				for neighbor in neighbors[index] where checkpoints.checkpoints[neighbor.index].type != 8 && !visited[neighbor.index] {
+					visited[neighbor.index] = true
+					stack.append(neighbor.index)
+				}
+			}
+			if component.count >= 100 {
+				components.append(component)
+			}
+		}
+
+		return components
+	}
+
+	private func mission6RaceOrderedDenseLaneRoute(
+		checkpoints: Mission6Checkpoints,
+		neighbors: [[(index: Int, distance: Float)]],
+		component: [Int],
+		startPosition: SCNVector3,
+		startForward: SCNVector3
+	) -> [SCNVector3]? {
+		let componentSet = Set(component)
+		let endpoints = component.filter {
+			mission6RaceDenseLaneNeighborIndices(
+				checkpointIndex: $0,
+				neighbors: neighbors,
+				componentSet: componentSet
+			).count <= 1
+		}
+		guard endpoints.count >= 2 else { return nil }
+
+		let forwardEndpoints = endpoints.filter {
+			mission6RaceDot(
+				horizontalMission6RaceVector(checkpoints.checkpoints[$0].position - startPosition),
+				startForward
+			) > 0
+		}
+		let candidates = forwardEndpoints.isEmpty ? endpoints : forwardEndpoints
+		guard let startIndex = candidates.min(by: {
+			mission6RaceHorizontalDistanceSquared(checkpoints.checkpoints[$0].position, startPosition) <
+				mission6RaceHorizontalDistanceSquared(checkpoints.checkpoints[$1].position, startPosition)
+		}) else {
+			return nil
+		}
+
+		var route = [startIndex]
+		var visited = Set([startIndex])
+		var previousIndex: Int?
+		var currentIndex = startIndex
+		while route.count < component.count {
+			let candidates = mission6RaceDenseLaneNeighborIndices(
+				checkpointIndex: currentIndex,
+				neighbors: neighbors,
+				componentSet: componentSet
+			).filter { $0 != previousIndex && !visited.contains($0) }
+			guard !candidates.isEmpty else { break }
+			let nextIndex: Int
+			if let previousIndex {
+				let incoming = horizontalMission6RaceVector(
+					checkpoints.checkpoints[currentIndex].position - checkpoints.checkpoints[previousIndex].position
+				)
+				nextIndex = candidates.max(by: { lhs, rhs in
+					let lhsVector = horizontalMission6RaceVector(
+						checkpoints.checkpoints[lhs].position - checkpoints.checkpoints[currentIndex].position
+					)
+					let rhsVector = horizontalMission6RaceVector(
+						checkpoints.checkpoints[rhs].position - checkpoints.checkpoints[currentIndex].position
+					)
+					return mission6RaceDot(lhsVector, incoming) < mission6RaceDot(rhsVector, incoming)
+				}) ?? candidates[0]
+			} else {
+				nextIndex = candidates.max(by: { lhs, rhs in
+					let lhsVector = horizontalMission6RaceVector(checkpoints.checkpoints[lhs].position - startPosition)
+					let rhsVector = horizontalMission6RaceVector(checkpoints.checkpoints[rhs].position - startPosition)
+					return mission6RaceDot(lhsVector, startForward) < mission6RaceDot(rhsVector, startForward)
+				}) ?? candidates[0]
+			}
+			previousIndex = currentIndex
+			currentIndex = nextIndex
+			visited.insert(currentIndex)
+			route.append(currentIndex)
+		}
+
+		guard route.count >= 3 else { return nil }
+		return route.map { checkpoints.checkpoints[$0].position }
+	}
+
+	private func mission6RaceDenseLaneNeighborIndices(
+		checkpointIndex: Int,
+		neighbors: [[(index: Int, distance: Float)]],
+		componentSet: Set<Int>
+	) -> [Int] {
+		neighbors[checkpointIndex].compactMap {
+			componentSet.contains($0.index) ? $0.index : nil
+		}
+	}
+
+	private func mission6RaceSampledRoutePoint(route: [SCNVector3], t: Float) -> SCNVector3 {
+		guard route.count > 1 else { return route.first ?? SCNVector3Zero }
+		let totalLength = mission6RaceOpenRouteLength(route)
+		guard totalLength > 0 else { return route[0] }
+		let targetDistance = max(0, min(totalLength, totalLength * t))
+		var travelled: Float = 0
+		for index in 0..<(route.count - 1) {
+			let current = route[index]
+			let next = route[index + 1]
+			let segmentLength = mission6RaceHorizontalDistance(current, next)
+			if travelled + segmentLength >= targetDistance {
+				let progress = segmentLength > 0 ? SCNFloat((targetDistance - travelled) / segmentLength) : 0
+				return SCNVector3(
+					x: current.x + (next.x - current.x) * progress,
+					y: current.y + (next.y - current.y) * progress,
+					z: current.z + (next.z - current.z) * progress
+				)
+			}
+			travelled += segmentLength
+		}
+		return route[route.count - 1]
+	}
+
+	private func mission6RaceOpenRouteLength(_ route: [SCNVector3]) -> Float {
+		guard route.count > 1 else { return 0 }
+		var length: Float = 0
+		for index in 0..<(route.count - 1) {
+			length += mission6RaceHorizontalDistance(route[index], route[index + 1])
+		}
+		return length
 	}
 
 	private func mission6RaceCheckpointNeighbors(checkpoints: Mission6Checkpoints) -> [[(index: Int, distance: Float)]] {
@@ -2642,6 +2828,13 @@ final class Scene: @unchecked Sendable {
 					guard !pendingLoads.isEmpty else { return }
 					switch result {
 					case .success(let differenceFile):
+						if let loadedDifferenceFile = self.loadedDifferenceFiles[key] {
+							print("== Difference already loaded: \(name)")
+							for pendingLoad in pendingLoads {
+								pendingLoad.completion(.success(loadedDifferenceFile))
+							}
+							return
+						}
 						self.attachDifferenceFile(differenceFile, key: key)
 						self.printLoadedDifference(differenceFile)
 						for pendingLoad in pendingLoads {
